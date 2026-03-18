@@ -1,0 +1,3973 @@
+[
+  {
+    "record_no": 1,
+    "poi_init": {
+      "task_id": "b58f1dea-cf37-4925-b324-74c2228a66a3",
+      "id": "00d0e1be4c484e1baf584ceb509aa68d",
+      "name": "龙川县人民政府",
+      "x_coord": 115.260056,
+      "y_coord": 24.100645,
+      "poi_type": "130104",
+      "address": "广东省河源市龙川县老隆镇中山东路18号龙川县人民政府",
+      "city": "河源市",
+      "city_adcode": "441600",
+      "verify_status": "已核实",
+      "verify_priority": "P0",
+      "status": 1,
+      "updatetime": "2026-03-17 13:27:21.004724"
+    },
+    "poi_verified": {
+      "task_id": "b58f1dea-cf37-4925-b324-74c2228a66a3",
+      "id": "00d0e1be4c484e1baf584ceb509aa68d",
+      "name": "龙川县人民政府",
+      "x_coord": 115.260056,
+      "y_coord": 24.100645,
+      "poi_type": "130104",
+      "address": "广东省河源市龙川县老隆镇中山东路20号",
+      "city": "河源市",
+      "city_adcode": "441600",
+      "verify_status": "已核实",
+      "verify_result": "核实通过",
+      "overall_confidence": 0.9947,
+      "poi_status": 1,
+      "original_task_id": "b58f1dea-cf37-4925-b324-74c2228a66a3",
+      "original_id": "00d0e1be4c484e1baf584ceb509aa68d",
+      "verify_info": {
+        "name": {
+          "result": "pass",
+          "details": "名称与官方来源及图商数据完全一致",
+          "confidence": 1.0,
+          "evidence_refs": [
+            "EVD_20260317T052630Z_001",
+            "EVD_20260317T052630Z_006",
+            "EVD_20260317T052630Z_005"
+          ]
+        },
+        "address": {
+          "result": "fail",
+          "details": "输入地址为中山东路18号，但所有官方来源（县政府官网）和图商数据均显示为中山东路20号，存在门牌号错误",
+          "confidence": 1.0,
+          "evidence_refs": [
+            "EVD_20260317T052630Z_001",
+            "EVD_20260317T052630Z_006",
+            "EVD_20260317T052630Z_005"
+          ]
+        },
+        "category": {
+          "result": "pass",
+          "details": "输入类型代码130104与高德地图typecode完全匹配，确认为区县级政府及事业单位",
+          "confidence": 1.0,
+          "evidence_refs": [
+            "EVD_20260317T052630Z_006"
+          ]
+        },
+        "location": {
+          "score": 0.95,
+          "result": "fail",
+          "details": {
+            "source_dimensions": [
+              "address",
+              "coordinates"
+            ]
+          },
+          "confidence": 0.95
+        },
+        "existence": {
+          "result": "pass",
+          "details": "经龙川县人民政府官方网站和三大图商交叉验证，该POI真实存在",
+          "confidence": 1.0,
+          "evidence_refs": [
+            "EVD_20260317T052630Z_001",
+            "EVD_20260317T052630Z_002",
+            "EVD_20260317T052630Z_005",
+            "EVD_20260317T052630Z_006"
+          ]
+        },
+        "coordinates": {
+          "result": "pass",
+          "details": "输入坐标(115.260056, 24.100645)与高德地图(115.26002, 24.100599)和腾讯地图(115.259864, 24.100284)数据接近，位置偏差在合理范围内",
+          "confidence": 0.95,
+          "evidence_refs": [
+            "EVD_20260317T052630Z_006",
+            "EVD_20260317T052630Z_005"
+          ]
+        },
+        "administrative": {
+          "result": "pass",
+          "details": "行政区划信息完全一致：广东省河源市龙川县",
+          "confidence": 1.0,
+          "evidence_refs": [
+            "EVD_20260317T052630Z_001",
+            "EVD_20260317T052630Z_006"
+          ]
+        }
+      },
+      "evidence_record": [
+        {
+          "data": {
+            "name": "龙川县人民政府",
+            "phone": "0762-6754052",
+            "address": "广东省河源市龙川县老隆镇中山东路20号",
+            "raw_data": {
+              "data": {
+                "city": "河源市",
+                "name": "龙川县人民政府",
+                "phone": "0762-6754052",
+                "address": "广东省河源市龙川县老隆镇中山东路20号",
+                "district": "龙川县",
+                "postcode": "517300",
+                "province": "广东省"
+              },
+              "source": {
+                "source_url": "http://www.longchuan.gov.cn/zfxxgkml/sdz/jgzn/lxfs/content/post_693185.html",
+                "source_name": "龙川县人民政府联系方式",
+                "source_type": "official"
+              }
+            }
+          },
+          "poi_id": "00d0e1be4c484e1baf584ceb509aa68d",
+          "source": {
+            "weight": 1.0,
+            "source_id": "OFFICIAL_UNKNOWN",
+            "source_url": "http://www.longchuan.gov.cn/zfxxgkml/sdz/jgzn/lxfs/content/post_693185.html",
+            "source_name": "龙川县人民政府联系方式",
+            "source_type": "official"
+          },
+          "metadata": {
+            "run_id": "75d1a483-8c4b-48b6-b310-a558f6228433-1F9D1B7A21804750838ECB0126908398-20260317T052219Z-1f50f451",
+            "task_id": "b58f1dea-cf37-4925-b324-74c2228a66a3",
+            "collection_branch": "webfetch",
+            "collection_method": "crawl"
+          },
+          "evidence_id": "EVD_20260317T052630Z_001",
+          "collected_at": "2026-03-17T05:26:30Z",
+          "verification": {
+            "is_valid": true,
+            "confidence": 1.0
+          }
+        },
+        {
+          "data": {
+            "name": "龙川县人民政府",
+            "phone": "0762-6754052",
+            "address": "广东省河源市龙川县老隆镇中山东路20号",
+            "raw_data": {
+              "data": {
+                "city": "河源市",
+                "name": "龙川县人民政府",
+                "phone": "0762-6754052",
+                "address": "广东省河源市龙川县老隆镇中山东路20号",
+                "website": "http://www.longchuan.gov.cn/",
+                "district": "龙川县"
+              },
+              "source": {
+                "source_url": "http://www.longchuan.gov.cn/",
+                "source_name": "龙川县人民政府门户网站",
+                "source_type": "official"
+              },
+              "collected_at": "2026-03-17T05:23:00Z"
+            }
+          },
+          "poi_id": "00d0e1be4c484e1baf584ceb509aa68d",
+          "source": {
+            "weight": 1.0,
+            "source_id": "OFFICIAL_UNKNOWN",
+            "source_url": "http://www.longchuan.gov.cn/",
+            "source_name": "龙川县人民政府门户网站",
+            "source_type": "official"
+          },
+          "metadata": {
+            "run_id": "75d1a483-8c4b-48b6-b310-a558f6228433-1F9D1B7A21804750838ECB0126908398-20260317T052219Z-1f50f451",
+            "task_id": "b58f1dea-cf37-4925-b324-74c2228a66a3",
+            "collection_branch": "websearch",
+            "collection_method": "manual"
+          },
+          "evidence_id": "EVD_20260317T052630Z_002",
+          "collected_at": "2026-03-17T05:23:00Z",
+          "verification": {
+            "is_valid": true,
+            "confidence": 1.0
+          }
+        },
+        {
+          "data": {
+            "name": "龙川县人民政府",
+            "phone": "0762-6754052",
+            "address": "广东省河源市龙川县老隆镇中山东路20号",
+            "raw_data": {
+              "data": {
+                "city": "河源市",
+                "name": "龙川县人民政府",
+                "phone": "0762-6754052",
+                "address": "广东省河源市龙川县老隆镇中山东路20号",
+                "website": "http://www.longchuan.gov.cn/",
+                "district": "龙川县"
+              },
+              "source": {
+                "source_url": "http://www.longchuan.gov.cn/",
+                "source_name": "龙川县人民政府门户网站",
+                "source_type": "official"
+              }
+            }
+          },
+          "poi_id": "00d0e1be4c484e1baf584ceb509aa68d",
+          "source": {
+            "weight": 1.0,
+            "source_id": "OFFICIAL_UNKNOWN",
+            "source_url": "http://www.longchuan.gov.cn/",
+            "source_name": "龙川县人民政府门户网站",
+            "source_type": "official"
+          },
+          "metadata": {
+            "run_id": "75d1a483-8c4b-48b6-b310-a558f6228433-1F9D1B7A21804750838ECB0126908398-20260317T052219Z-1f50f451",
+            "task_id": "b58f1dea-cf37-4925-b324-74c2228a66a3",
+            "collection_branch": "webfetch",
+            "collection_method": "crawl"
+          },
+          "evidence_id": "EVD_20260317T052630Z_003",
+          "collected_at": "2026-03-17T05:26:30Z",
+          "verification": {
+            "is_valid": true,
+            "confidence": 1.0
+          }
+        },
+        {
+          "data": {
+            "name": "龙川县人民政府",
+            "phone": "0762-6754052",
+            "address": "广东省河源市龙川县老隆镇中山东路20号",
+            "raw_data": {
+              "data": {
+                "name": "龙川县人民政府",
+                "phone": "0762-6754052",
+                "address": "广东省河源市龙川县老隆镇中山东路20号",
+                "website": "http://www.longchuan.gov.cn/",
+                "office_hours": "上午8:30-12:00，下午14:30-17:30（法定工作日）"
+              },
+              "source": {
+                "source_url": "http://www.longchuan.gov.cn/zfxxgkml/sdz/jgzn/lxfs/content/post_693185.html",
+                "source_name": "龙川县政府联系方式页面",
+                "source_type": "official"
+              },
+              "collected_at": "2026-03-17T05:23:00Z"
+            }
+          },
+          "poi_id": "00d0e1be4c484e1baf584ceb509aa68d",
+          "source": {
+            "weight": 1.0,
+            "source_id": "OFFICIAL_UNKNOWN",
+            "source_url": "http://www.longchuan.gov.cn/zfxxgkml/sdz/jgzn/lxfs/content/post_693185.html",
+            "source_name": "龙川县政府联系方式页面",
+            "source_type": "official"
+          },
+          "metadata": {
+            "run_id": "75d1a483-8c4b-48b6-b310-a558f6228433-1F9D1B7A21804750838ECB0126908398-20260317T052219Z-1f50f451",
+            "task_id": "b58f1dea-cf37-4925-b324-74c2228a66a3",
+            "collection_branch": "websearch",
+            "collection_method": "manual"
+          },
+          "evidence_id": "EVD_20260317T052630Z_004",
+          "collected_at": "2026-03-17T05:23:00Z",
+          "verification": {
+            "is_valid": true,
+            "confidence": 1.0
+          }
+        },
+        {
+          "data": {
+            "name": "龙川县人民政府",
+            "phone": "0762-6752723;0762-6752314",
+            "address": "广东省河源市龙川县老隆镇中山东路20号",
+            "category": "机构团体:政府机关",
+            "raw_data": {
+              "id": "17548174407305109502",
+              "tel": "0762-6752723;0762-6752314",
+              "type": 0,
+              "title": "龙川县人民政府",
+              "ad_info": {
+                "city": "河源市",
+                "adcode": 441622,
+                "district": "龙川县",
+                "province": "广东省"
+              },
+              "address": "广东省河源市龙川县老隆镇中山东路20号",
+              "category": "机构团体:政府机关",
+              "location": {
+                "lat": 24.100284,
+                "lng": 115.259864
+              }
+            },
+            "coordinates": {
+              "latitude": 24.100284,
+              "longitude": 115.259864
+            },
+            "administrative": {
+              "city": "河源市",
+              "district": "龙川县",
+              "province": "广东省"
+            }
+          },
+          "poi_id": "00d0e1be4c484e1baf584ceb509aa68d",
+          "source": {
+            "weight": 0.8,
+            "source_id": "QMAP_17548174407305109502",
+            "source_url": "https://map.qq.com/",
+            "source_name": "腾讯地图",
+            "source_type": "map_vendor"
+          },
+          "metadata": {
+            "run_id": "75d1a483-8c4b-48b6-b310-a558f6228433-1F9D1B7A21804750838ECB0126908398-20260317T052219Z-1f50f451",
+            "task_id": "b58f1dea-cf37-4925-b324-74c2228a66a3",
+            "map_source": "qmap",
+            "collection_branch": "internal_proxy",
+            "collection_method": "api"
+          },
+          "evidence_id": "EVD_20260317T052630Z_005",
+          "collected_at": "2026-03-17T05:26:30Z",
+          "verification": {
+            "is_valid": true,
+            "confidence": 0.8
+          }
+        },
+        {
+          "data": {
+            "name": "龙川县人民政府",
+            "phone": "0762-6752314;0762-6752723",
+            "address": "老隆镇中山东路20号",
+            "category": "政府机构及社会团体;政府机关;区县级政府及事业单位",
+            "raw_data": {
+              "id": "B02FA00D21",
+              "tel": "0762-6752314;0762-6752723",
+              "name": "龙川县人民政府",
+              "type": "政府机构及社会团体;政府机关;区县级政府及事业单位",
+              "match": "0",
+              "pcode": "440000",
+              "pname": "广东省",
+              "adcode": "441622",
+              "adname": "龙川县",
+              "keytag": "人民政府",
+              "photos": [
+                {
+                  "url": "http://store.is.autonavi.com/showpic/bdf53b37715efb9955a01fa7a7daf572"
+                },
+                {
+                  "url": "http://store.is.autonavi.com/showpic/9974f5967daa7b02012883677c73c3f7"
+                }
+              ],
+              "address": "老隆镇中山东路20号",
+              "biz_ext": {
+                "open_time": "08:30-12:00 14:30-17:30",
+                "opentime2": "周一至周五08:30-12:00；14:30-17:30(节假日除外)"
+              },
+              "citycode": "0762",
+              "cityname": "河源市",
+              "gridcode": "3615122002",
+              "location": "115.260020,24.100599",
+              "shopinfo": "2",
+              "typecode": "130104",
+              "recommend": "3",
+              "timestamp": "2026-02-02 18:15:44",
+              "indoor_map": "0",
+              "navi_poiid": "G50F047011_63",
+              "discount_num": "0",
+              "groupbuy_num": "0",
+              "entr_location": "115.259609,24.100012"
+            },
+            "coordinates": {
+              "latitude": 24.100599,
+              "longitude": 115.26002
+            },
+            "administrative": {
+              "city": "河源市",
+              "district": "龙川县",
+              "province": "广东省"
+            }
+          },
+          "poi_id": "00d0e1be4c484e1baf584ceb509aa68d",
+          "source": {
+            "weight": 0.85,
+            "source_id": "AMAP_B02FA00D21",
+            "source_url": "https://www.amap.com/",
+            "source_name": "高德地图",
+            "source_type": "map_vendor"
+          },
+          "metadata": {
+            "run_id": "75d1a483-8c4b-48b6-b310-a558f6228433-1F9D1B7A21804750838ECB0126908398-20260317T052219Z-1f50f451",
+            "task_id": "b58f1dea-cf37-4925-b324-74c2228a66a3",
+            "map_source": "amap",
+            "collection_branch": "internal_proxy",
+            "collection_method": "api"
+          },
+          "evidence_id": "EVD_20260317T052630Z_006",
+          "collected_at": "2026-03-17T05:26:30Z",
+          "verification": {
+            "is_valid": true,
+            "confidence": 0.85
+          }
+        },
+        {
+          "data": {
+            "name": "龙川县人民政府群众来访接待室",
+            "phone": "[]",
+            "address": "老隆镇中山东路20号",
+            "category": "政府机构及社会团体;政府机关;区县级政府及事业单位",
+            "raw_data": {
+              "id": "B02FA02HNV",
+              "name": "龙川县人民政府群众来访接待室",
+              "type": "政府机构及社会团体;政府机关;区县级政府及事业单位",
+              "match": "0",
+              "pcode": "440000",
+              "pname": "广东省",
+              "adcode": "441622",
+              "adname": "龙川县",
+              "keytag": "人民政府",
+              "address": "老隆镇中山东路20号",
+              "citycode": "0762",
+              "cityname": "河源市",
+              "gridcode": "3615121022",
+              "location": "115.260313,24.099737",
+              "shopinfo": "2",
+              "typecode": "130104",
+              "recommend": "0",
+              "timestamp": "2026-01-21 06:35:37",
+              "indoor_map": "0",
+              "navi_poiid": "G50F047011_1018",
+              "discount_num": "0",
+              "groupbuy_num": "0",
+              "entr_location": "115.260198,24.099615"
+            },
+            "coordinates": {
+              "latitude": 24.099737,
+              "longitude": 115.260313
+            },
+            "administrative": {
+              "city": "河源市",
+              "district": "龙川县",
+              "province": "广东省"
+            }
+          },
+          "poi_id": "00d0e1be4c484e1baf584ceb509aa68d",
+          "source": {
+            "weight": 0.85,
+            "source_id": "AMAP_B02FA02HNV",
+            "source_url": "https://www.amap.com/",
+            "source_name": "高德地图",
+            "source_type": "map_vendor"
+          },
+          "metadata": {
+            "run_id": "75d1a483-8c4b-48b6-b310-a558f6228433-1F9D1B7A21804750838ECB0126908398-20260317T052219Z-1f50f451",
+            "task_id": "b58f1dea-cf37-4925-b324-74c2228a66a3",
+            "map_source": "amap",
+            "collection_branch": "internal_proxy",
+            "collection_method": "api"
+          },
+          "evidence_id": "EVD_20260317T052630Z_007",
+          "collected_at": "2026-03-17T05:26:30Z",
+          "verification": {
+            "is_valid": true,
+            "confidence": 0.85
+          }
+        },
+        {
+          "data": {
+            "name": "龙川县人民政府龙川县监察委员会",
+            "phone": "0762-6752827",
+            "address": "中山东路与先烈路交叉口东北20米",
+            "category": "政府机构及社会团体;政府机关;政府机关相关",
+            "raw_data": {
+              "id": "B0FFLF9SPD",
+              "tel": "0762-6752827",
+              "name": "龙川县人民政府龙川县监察委员会",
+              "type": "政府机构及社会团体;政府机关;政府机关相关",
+              "match": "0",
+              "pcode": "440000",
+              "pname": "广东省",
+              "adcode": "441622",
+              "adname": "龙川县",
+              "keytag": "政府机关",
+              "photos": [
+                {
+                  "url": "http://store.is.autonavi.com/showpic/50ac51827aa5eaa65cb7c267f8e8938e"
+                }
+              ],
+              "address": "中山东路与先烈路交叉口东北20米",
+              "citycode": "0762",
+              "cityname": "河源市",
+              "gridcode": "3615122002",
+              "location": "115.259852,24.100091",
+              "shopinfo": "2",
+              "typecode": "130100",
+              "recommend": "0",
+              "timestamp": "2026-02-02 14:14:34",
+              "indoor_map": "0",
+              "discount_num": "0",
+              "groupbuy_num": "0"
+            },
+            "coordinates": {
+              "latitude": 24.100091,
+              "longitude": 115.259852
+            },
+            "administrative": {
+              "city": "河源市",
+              "district": "龙川县",
+              "province": "广东省"
+            }
+          },
+          "poi_id": "00d0e1be4c484e1baf584ceb509aa68d",
+          "source": {
+            "weight": 0.85,
+            "source_id": "AMAP_B0FFLF9SPD",
+            "source_url": "https://www.amap.com/",
+            "source_name": "高德地图",
+            "source_type": "map_vendor"
+          },
+          "metadata": {
+            "run_id": "75d1a483-8c4b-48b6-b310-a558f6228433-1F9D1B7A21804750838ECB0126908398-20260317T052219Z-1f50f451",
+            "task_id": "b58f1dea-cf37-4925-b324-74c2228a66a3",
+            "map_source": "amap",
+            "collection_branch": "internal_proxy",
+            "collection_method": "api"
+          },
+          "evidence_id": "EVD_20260317T052630Z_008",
+          "collected_at": "2026-03-17T05:26:30Z",
+          "verification": {
+            "is_valid": true,
+            "confidence": 0.85
+          }
+        }
+      ],
+      "changes_made": [
+        {
+          "field": "address",
+          "reason": "根据龙川县人民政府官方网站、高德地图和腾讯地图的权威证据，正确门牌号为20号而非18号",
+          "new_value": "广东省河源市龙川县老隆镇中山东路20号",
+          "old_value": "广东省河源市龙川县老隆镇中山东路18号龙川县人民政府"
+        }
+      ],
+      "verification_notes": "核实通过，建议按结构化修正更新1项字段，综合置信度0.99。",
+      "verify_time": "2026-03-17 13:27:21.004724",
+      "updatetime": "2026-03-17 22:41:52.750435",
+      "verified_by": "system",
+      "verification_version": "1.4.0"
+    },
+    "poi_qc": {
+      "task_id": "b58f1dea-cf37-4925-b324-74c2228a66a3",
+      "id": "00d0e1be4c484e1baf584ceb509aa68d",
+      "batch_id": "BATCH_20260317_22_41_52_292306383964082176",
+      "name": "龙川县人民政府",
+      "x_coord": 115.260056,
+      "y_coord": 24.100645,
+      "poi_type": "130104",
+      "address": "广东省河源市龙川县老隆镇中山东路20号",
+      "city": "河源市",
+      "city_adcode": "441600",
+      "poi_status": 1,
+      "verify_result": "核实通过",
+      "quality_status": "质检中",
+      "qc_status": null,
+      "qc_score": null,
+      "qc_result": null,
+      "is_qualified": null,
+      "has_risk": null,
+      "is_auto_approvable": null,
+      "is_manual_required": null,
+      "downgrade_issue_type": null,
+      "downgrade_status": null,
+      "is_downgrade_consistent": null,
+      "original_task_id": null,
+      "qc_time": null,
+      "updatetime": "2026-03-17 23:37:08.430376",
+      "qc_by": null,
+      "qc_version": null,
+      "verify_info": {
+        "name": {
+          "result": "pass",
+          "details": "名称与官方来源及图商数据完全一致",
+          "confidence": 1.0,
+          "evidence_refs": [
+            "EVD_20260317T052630Z_001",
+            "EVD_20260317T052630Z_006",
+            "EVD_20260317T052630Z_005"
+          ]
+        },
+        "address": {
+          "result": "fail",
+          "details": "输入地址为中山东路18号，但所有官方来源（县政府官网）和图商数据均显示为中山东路20号，存在门牌号错误",
+          "confidence": 1.0,
+          "evidence_refs": [
+            "EVD_20260317T052630Z_001",
+            "EVD_20260317T052630Z_006",
+            "EVD_20260317T052630Z_005"
+          ]
+        },
+        "category": {
+          "result": "pass",
+          "details": "输入类型代码130104与高德地图typecode完全匹配，确认为区县级政府及事业单位",
+          "confidence": 1.0,
+          "evidence_refs": [
+            "EVD_20260317T052630Z_006"
+          ]
+        },
+        "location": {
+          "score": 0.95,
+          "result": "fail",
+          "details": {
+            "source_dimensions": [
+              "address",
+              "coordinates"
+            ]
+          },
+          "confidence": 0.95
+        },
+        "existence": {
+          "result": "pass",
+          "details": "经龙川县人民政府官方网站和三大图商交叉验证，该POI真实存在",
+          "confidence": 1.0,
+          "evidence_refs": [
+            "EVD_20260317T052630Z_001",
+            "EVD_20260317T052630Z_002",
+            "EVD_20260317T052630Z_005",
+            "EVD_20260317T052630Z_006"
+          ]
+        },
+        "coordinates": {
+          "result": "pass",
+          "details": "输入坐标(115.260056, 24.100645)与高德地图(115.26002, 24.100599)和腾讯地图(115.259864, 24.100284)数据接近，位置偏差在合理范围内",
+          "confidence": 0.95,
+          "evidence_refs": [
+            "EVD_20260317T052630Z_006",
+            "EVD_20260317T052630Z_005"
+          ]
+        },
+        "administrative": {
+          "result": "pass",
+          "details": "行政区划信息完全一致：广东省河源市龙川县",
+          "confidence": 1.0,
+          "evidence_refs": [
+            "EVD_20260317T052630Z_001",
+            "EVD_20260317T052630Z_006"
+          ]
+        }
+      },
+      "evidence_record": [
+        {
+          "data": {
+            "name": "龙川县人民政府",
+            "phone": "0762-6754052",
+            "address": "广东省河源市龙川县老隆镇中山东路20号",
+            "raw_data": {
+              "data": {
+                "city": "河源市",
+                "name": "龙川县人民政府",
+                "phone": "0762-6754052",
+                "address": "广东省河源市龙川县老隆镇中山东路20号",
+                "district": "龙川县",
+                "postcode": "517300",
+                "province": "广东省"
+              },
+              "source": {
+                "source_url": "http://www.longchuan.gov.cn/zfxxgkml/sdz/jgzn/lxfs/content/post_693185.html",
+                "source_name": "龙川县人民政府联系方式",
+                "source_type": "official"
+              }
+            }
+          },
+          "poi_id": "00d0e1be4c484e1baf584ceb509aa68d",
+          "source": {
+            "weight": 1.0,
+            "source_id": "OFFICIAL_UNKNOWN",
+            "source_url": "http://www.longchuan.gov.cn/zfxxgkml/sdz/jgzn/lxfs/content/post_693185.html",
+            "source_name": "龙川县人民政府联系方式",
+            "source_type": "official"
+          },
+          "metadata": {
+            "run_id": "75d1a483-8c4b-48b6-b310-a558f6228433-1F9D1B7A21804750838ECB0126908398-20260317T052219Z-1f50f451",
+            "task_id": "b58f1dea-cf37-4925-b324-74c2228a66a3",
+            "collection_branch": "webfetch",
+            "collection_method": "crawl"
+          },
+          "evidence_id": "EVD_20260317T052630Z_001",
+          "collected_at": "2026-03-17T05:26:30Z",
+          "verification": {
+            "is_valid": true,
+            "confidence": 1.0
+          }
+        },
+        {
+          "data": {
+            "name": "龙川县人民政府",
+            "phone": "0762-6754052",
+            "address": "广东省河源市龙川县老隆镇中山东路20号",
+            "raw_data": {
+              "data": {
+                "city": "河源市",
+                "name": "龙川县人民政府",
+                "phone": "0762-6754052",
+                "address": "广东省河源市龙川县老隆镇中山东路20号",
+                "website": "http://www.longchuan.gov.cn/",
+                "district": "龙川县"
+              },
+              "source": {
+                "source_url": "http://www.longchuan.gov.cn/",
+                "source_name": "龙川县人民政府门户网站",
+                "source_type": "official"
+              },
+              "collected_at": "2026-03-17T05:23:00Z"
+            }
+          },
+          "poi_id": "00d0e1be4c484e1baf584ceb509aa68d",
+          "source": {
+            "weight": 1.0,
+            "source_id": "OFFICIAL_UNKNOWN",
+            "source_url": "http://www.longchuan.gov.cn/",
+            "source_name": "龙川县人民政府门户网站",
+            "source_type": "official"
+          },
+          "metadata": {
+            "run_id": "75d1a483-8c4b-48b6-b310-a558f6228433-1F9D1B7A21804750838ECB0126908398-20260317T052219Z-1f50f451",
+            "task_id": "b58f1dea-cf37-4925-b324-74c2228a66a3",
+            "collection_branch": "websearch",
+            "collection_method": "manual"
+          },
+          "evidence_id": "EVD_20260317T052630Z_002",
+          "collected_at": "2026-03-17T05:23:00Z",
+          "verification": {
+            "is_valid": true,
+            "confidence": 1.0
+          }
+        },
+        {
+          "data": {
+            "name": "龙川县人民政府",
+            "phone": "0762-6754052",
+            "address": "广东省河源市龙川县老隆镇中山东路20号",
+            "raw_data": {
+              "data": {
+                "city": "河源市",
+                "name": "龙川县人民政府",
+                "phone": "0762-6754052",
+                "address": "广东省河源市龙川县老隆镇中山东路20号",
+                "website": "http://www.longchuan.gov.cn/",
+                "district": "龙川县"
+              },
+              "source": {
+                "source_url": "http://www.longchuan.gov.cn/",
+                "source_name": "龙川县人民政府门户网站",
+                "source_type": "official"
+              }
+            }
+          },
+          "poi_id": "00d0e1be4c484e1baf584ceb509aa68d",
+          "source": {
+            "weight": 1.0,
+            "source_id": "OFFICIAL_UNKNOWN",
+            "source_url": "http://www.longchuan.gov.cn/",
+            "source_name": "龙川县人民政府门户网站",
+            "source_type": "official"
+          },
+          "metadata": {
+            "run_id": "75d1a483-8c4b-48b6-b310-a558f6228433-1F9D1B7A21804750838ECB0126908398-20260317T052219Z-1f50f451",
+            "task_id": "b58f1dea-cf37-4925-b324-74c2228a66a3",
+            "collection_branch": "webfetch",
+            "collection_method": "crawl"
+          },
+          "evidence_id": "EVD_20260317T052630Z_003",
+          "collected_at": "2026-03-17T05:26:30Z",
+          "verification": {
+            "is_valid": true,
+            "confidence": 1.0
+          }
+        },
+        {
+          "data": {
+            "name": "龙川县人民政府",
+            "phone": "0762-6754052",
+            "address": "广东省河源市龙川县老隆镇中山东路20号",
+            "raw_data": {
+              "data": {
+                "name": "龙川县人民政府",
+                "phone": "0762-6754052",
+                "address": "广东省河源市龙川县老隆镇中山东路20号",
+                "website": "http://www.longchuan.gov.cn/",
+                "office_hours": "上午8:30-12:00，下午14:30-17:30（法定工作日）"
+              },
+              "source": {
+                "source_url": "http://www.longchuan.gov.cn/zfxxgkml/sdz/jgzn/lxfs/content/post_693185.html",
+                "source_name": "龙川县政府联系方式页面",
+                "source_type": "official"
+              },
+              "collected_at": "2026-03-17T05:23:00Z"
+            }
+          },
+          "poi_id": "00d0e1be4c484e1baf584ceb509aa68d",
+          "source": {
+            "weight": 1.0,
+            "source_id": "OFFICIAL_UNKNOWN",
+            "source_url": "http://www.longchuan.gov.cn/zfxxgkml/sdz/jgzn/lxfs/content/post_693185.html",
+            "source_name": "龙川县政府联系方式页面",
+            "source_type": "official"
+          },
+          "metadata": {
+            "run_id": "75d1a483-8c4b-48b6-b310-a558f6228433-1F9D1B7A21804750838ECB0126908398-20260317T052219Z-1f50f451",
+            "task_id": "b58f1dea-cf37-4925-b324-74c2228a66a3",
+            "collection_branch": "websearch",
+            "collection_method": "manual"
+          },
+          "evidence_id": "EVD_20260317T052630Z_004",
+          "collected_at": "2026-03-17T05:23:00Z",
+          "verification": {
+            "is_valid": true,
+            "confidence": 1.0
+          }
+        },
+        {
+          "data": {
+            "name": "龙川县人民政府",
+            "phone": "0762-6752723;0762-6752314",
+            "address": "广东省河源市龙川县老隆镇中山东路20号",
+            "category": "机构团体:政府机关",
+            "raw_data": {
+              "id": "17548174407305109502",
+              "tel": "0762-6752723;0762-6752314",
+              "type": 0,
+              "title": "龙川县人民政府",
+              "ad_info": {
+                "city": "河源市",
+                "adcode": 441622,
+                "district": "龙川县",
+                "province": "广东省"
+              },
+              "address": "广东省河源市龙川县老隆镇中山东路20号",
+              "category": "机构团体:政府机关",
+              "location": {
+                "lat": 24.100284,
+                "lng": 115.259864
+              }
+            },
+            "coordinates": {
+              "latitude": 24.100284,
+              "longitude": 115.259864
+            },
+            "administrative": {
+              "city": "河源市",
+              "district": "龙川县",
+              "province": "广东省"
+            }
+          },
+          "poi_id": "00d0e1be4c484e1baf584ceb509aa68d",
+          "source": {
+            "weight": 0.8,
+            "source_id": "QMAP_17548174407305109502",
+            "source_url": "https://map.qq.com/",
+            "source_name": "腾讯地图",
+            "source_type": "map_vendor"
+          },
+          "metadata": {
+            "run_id": "75d1a483-8c4b-48b6-b310-a558f6228433-1F9D1B7A21804750838ECB0126908398-20260317T052219Z-1f50f451",
+            "task_id": "b58f1dea-cf37-4925-b324-74c2228a66a3",
+            "map_source": "qmap",
+            "collection_branch": "internal_proxy",
+            "collection_method": "api"
+          },
+          "evidence_id": "EVD_20260317T052630Z_005",
+          "collected_at": "2026-03-17T05:26:30Z",
+          "verification": {
+            "is_valid": true,
+            "confidence": 0.8
+          }
+        },
+        {
+          "data": {
+            "name": "龙川县人民政府",
+            "phone": "0762-6752314;0762-6752723",
+            "address": "老隆镇中山东路20号",
+            "category": "政府机构及社会团体;政府机关;区县级政府及事业单位",
+            "raw_data": {
+              "id": "B02FA00D21",
+              "tel": "0762-6752314;0762-6752723",
+              "name": "龙川县人民政府",
+              "type": "政府机构及社会团体;政府机关;区县级政府及事业单位",
+              "match": "0",
+              "pcode": "440000",
+              "pname": "广东省",
+              "adcode": "441622",
+              "adname": "龙川县",
+              "keytag": "人民政府",
+              "photos": [
+                {
+                  "url": "http://store.is.autonavi.com/showpic/bdf53b37715efb9955a01fa7a7daf572"
+                },
+                {
+                  "url": "http://store.is.autonavi.com/showpic/9974f5967daa7b02012883677c73c3f7"
+                }
+              ],
+              "address": "老隆镇中山东路20号",
+              "biz_ext": {
+                "open_time": "08:30-12:00 14:30-17:30",
+                "opentime2": "周一至周五08:30-12:00；14:30-17:30(节假日除外)"
+              },
+              "citycode": "0762",
+              "cityname": "河源市",
+              "gridcode": "3615122002",
+              "location": "115.260020,24.100599",
+              "shopinfo": "2",
+              "typecode": "130104",
+              "recommend": "3",
+              "timestamp": "2026-02-02 18:15:44",
+              "indoor_map": "0",
+              "navi_poiid": "G50F047011_63",
+              "discount_num": "0",
+              "groupbuy_num": "0",
+              "entr_location": "115.259609,24.100012"
+            },
+            "coordinates": {
+              "latitude": 24.100599,
+              "longitude": 115.26002
+            },
+            "administrative": {
+              "city": "河源市",
+              "district": "龙川县",
+              "province": "广东省"
+            }
+          },
+          "poi_id": "00d0e1be4c484e1baf584ceb509aa68d",
+          "source": {
+            "weight": 0.85,
+            "source_id": "AMAP_B02FA00D21",
+            "source_url": "https://www.amap.com/",
+            "source_name": "高德地图",
+            "source_type": "map_vendor"
+          },
+          "metadata": {
+            "run_id": "75d1a483-8c4b-48b6-b310-a558f6228433-1F9D1B7A21804750838ECB0126908398-20260317T052219Z-1f50f451",
+            "task_id": "b58f1dea-cf37-4925-b324-74c2228a66a3",
+            "map_source": "amap",
+            "collection_branch": "internal_proxy",
+            "collection_method": "api"
+          },
+          "evidence_id": "EVD_20260317T052630Z_006",
+          "collected_at": "2026-03-17T05:26:30Z",
+          "verification": {
+            "is_valid": true,
+            "confidence": 0.85
+          }
+        },
+        {
+          "data": {
+            "name": "龙川县人民政府群众来访接待室",
+            "phone": "[]",
+            "address": "老隆镇中山东路20号",
+            "category": "政府机构及社会团体;政府机关;区县级政府及事业单位",
+            "raw_data": {
+              "id": "B02FA02HNV",
+              "name": "龙川县人民政府群众来访接待室",
+              "type": "政府机构及社会团体;政府机关;区县级政府及事业单位",
+              "match": "0",
+              "pcode": "440000",
+              "pname": "广东省",
+              "adcode": "441622",
+              "adname": "龙川县",
+              "keytag": "人民政府",
+              "address": "老隆镇中山东路20号",
+              "citycode": "0762",
+              "cityname": "河源市",
+              "gridcode": "3615121022",
+              "location": "115.260313,24.099737",
+              "shopinfo": "2",
+              "typecode": "130104",
+              "recommend": "0",
+              "timestamp": "2026-01-21 06:35:37",
+              "indoor_map": "0",
+              "navi_poiid": "G50F047011_1018",
+              "discount_num": "0",
+              "groupbuy_num": "0",
+              "entr_location": "115.260198,24.099615"
+            },
+            "coordinates": {
+              "latitude": 24.099737,
+              "longitude": 115.260313
+            },
+            "administrative": {
+              "city": "河源市",
+              "district": "龙川县",
+              "province": "广东省"
+            }
+          },
+          "poi_id": "00d0e1be4c484e1baf584ceb509aa68d",
+          "source": {
+            "weight": 0.85,
+            "source_id": "AMAP_B02FA02HNV",
+            "source_url": "https://www.amap.com/",
+            "source_name": "高德地图",
+            "source_type": "map_vendor"
+          },
+          "metadata": {
+            "run_id": "75d1a483-8c4b-48b6-b310-a558f6228433-1F9D1B7A21804750838ECB0126908398-20260317T052219Z-1f50f451",
+            "task_id": "b58f1dea-cf37-4925-b324-74c2228a66a3",
+            "map_source": "amap",
+            "collection_branch": "internal_proxy",
+            "collection_method": "api"
+          },
+          "evidence_id": "EVD_20260317T052630Z_007",
+          "collected_at": "2026-03-17T05:26:30Z",
+          "verification": {
+            "is_valid": true,
+            "confidence": 0.85
+          }
+        },
+        {
+          "data": {
+            "name": "龙川县人民政府龙川县监察委员会",
+            "phone": "0762-6752827",
+            "address": "中山东路与先烈路交叉口东北20米",
+            "category": "政府机构及社会团体;政府机关;政府机关相关",
+            "raw_data": {
+              "id": "B0FFLF9SPD",
+              "tel": "0762-6752827",
+              "name": "龙川县人民政府龙川县监察委员会",
+              "type": "政府机构及社会团体;政府机关;政府机关相关",
+              "match": "0",
+              "pcode": "440000",
+              "pname": "广东省",
+              "adcode": "441622",
+              "adname": "龙川县",
+              "keytag": "政府机关",
+              "photos": [
+                {
+                  "url": "http://store.is.autonavi.com/showpic/50ac51827aa5eaa65cb7c267f8e8938e"
+                }
+              ],
+              "address": "中山东路与先烈路交叉口东北20米",
+              "citycode": "0762",
+              "cityname": "河源市",
+              "gridcode": "3615122002",
+              "location": "115.259852,24.100091",
+              "shopinfo": "2",
+              "typecode": "130100",
+              "recommend": "0",
+              "timestamp": "2026-02-02 14:14:34",
+              "indoor_map": "0",
+              "discount_num": "0",
+              "groupbuy_num": "0"
+            },
+            "coordinates": {
+              "latitude": 24.100091,
+              "longitude": 115.259852
+            },
+            "administrative": {
+              "city": "河源市",
+              "district": "龙川县",
+              "province": "广东省"
+            }
+          },
+          "poi_id": "00d0e1be4c484e1baf584ceb509aa68d",
+          "source": {
+            "weight": 0.85,
+            "source_id": "AMAP_B0FFLF9SPD",
+            "source_url": "https://www.amap.com/",
+            "source_name": "高德地图",
+            "source_type": "map_vendor"
+          },
+          "metadata": {
+            "run_id": "75d1a483-8c4b-48b6-b310-a558f6228433-1F9D1B7A21804750838ECB0126908398-20260317T052219Z-1f50f451",
+            "task_id": "b58f1dea-cf37-4925-b324-74c2228a66a3",
+            "map_source": "amap",
+            "collection_branch": "internal_proxy",
+            "collection_method": "api"
+          },
+          "evidence_id": "EVD_20260317T052630Z_008",
+          "collected_at": "2026-03-17T05:26:30Z",
+          "verification": {
+            "is_valid": true,
+            "confidence": 0.85
+          }
+        }
+      ]
+    }
+  },
+  {
+    "record_no": 2,
+    "poi_init": {
+      "task_id": "1b68b815-3dc5-4045-84b8-84de36813e35",
+      "id": "028D54C956ED475582159864A4EB06F0",
+      "name": "黄岛区人民政府",
+      "x_coord": 120.19849,
+      "y_coord": 35.96104,
+      "poi_type": "130104",
+      "address": "山东省青岛市黄岛区长江路街道长江中路369号黄岛区人民政府",
+      "city": "青岛市",
+      "city_adcode": "370200",
+      "verify_status": "已核实",
+      "verify_priority": "P0",
+      "status": 1,
+      "updatetime": "2026-03-17 10:41:10.074739"
+    },
+    "poi_verified": {
+      "task_id": "1b68b815-3dc5-4045-84b8-84de36813e35",
+      "id": "028D54C956ED475582159864A4EB06F0",
+      "name": "黄岛区人民政府",
+      "x_coord": 120.19849,
+      "y_coord": 35.96104,
+      "poi_type": "130104",
+      "address": "山东省青岛市黄岛区长江路街道长江中路369号黄岛区人民政府",
+      "city": "青岛市",
+      "city_adcode": "370200",
+      "verify_status": "已核实",
+      "verify_result": "核实通过",
+      "overall_confidence": 0.9732,
+      "poi_status": 1,
+      "original_task_id": "1b68b815-3dc5-4045-84b8-84de36813e35",
+      "original_id": "028D54C956ED475582159864A4EB06F0",
+      "verify_info": {
+        "name": {
+          "result": "pass",
+          "details": "输入名称'黄岛区人民政府'与官方名称'青岛市黄岛区人民政府'高度匹配，高德地图、互联网搜索源均确认此名称",
+          "confidence": 0.95,
+          "evidence_refs": [
+            "EVD_20260317T023956Z_002",
+            "EVD_20260317T023956Z_003",
+            "EVD_20260317T023956Z_004",
+            "EVD_20260317T023956Z_005"
+          ]
+        },
+        "address": {
+          "result": "pass",
+          "details": "输入地址'山东省青岛市黄岛区长江路街道长江中路369号'与高德地图'长江中路369号'核心地址一致，图商坐标与输入坐标接近(距离约68米)",
+          "confidence": 0.92,
+          "evidence_refs": [
+            "EVD_20260317T023956Z_003"
+          ]
+        },
+        "category": {
+          "result": "pass",
+          "details": "输入poi_type'130104'(政府机关-区县级政府及事业单位)与高德地图typecode完全匹配，官方网站确认为区县级政府机构",
+          "confidence": 1.0,
+          "evidence_refs": [
+            "EVD_20260317T023956Z_002",
+            "EVD_20260317T023956Z_003"
+          ]
+        },
+        "location": {
+          "score": 0.92,
+          "result": "pass",
+          "details": {
+            "source_dimensions": [
+              "address",
+              "coordinates"
+            ]
+          },
+          "confidence": 0.92
+        },
+        "existence": {
+          "result": "pass",
+          "details": "青岛西海岸新区政务网(www.huangdao.gov.cn)官方网站确认存在'中共青岛市黄岛区委、青岛市黄岛区人民政府'，权威性极高",
+          "confidence": 1.0,
+          "evidence_refs": [
+            "EVD_20260317T023956Z_002"
+          ]
+        },
+        "coordinates": {
+          "result": "pass",
+          "details": "输入坐标(120.19849, 35.96104)与高德地图坐标(120.197908, 35.960525)高度接近，经度差0.000582度，纬度差0.000515度，距离约68米，在合理误差范围内",
+          "confidence": 0.95,
+          "evidence_refs": [
+            "EVD_20260317T023956Z_003"
+          ]
+        },
+        "administrative": {
+          "result": "pass",
+          "details": "高德地图确认行政区划为'山东省-青岛市-黄岛区'，与输入city'青岛市'一致，adcode'370211'(黄岛区)准确",
+          "confidence": 1.0,
+          "evidence_refs": [
+            "EVD_20260317T023956Z_003"
+          ]
+        }
+      },
+      "evidence_record": [
+        {
+          "data": {
+            "name": "青岛西海岸新区政务服务中心",
+            "phone": "0532-85167682",
+            "address": "山东省青岛市黄岛区七墩山路77号南区",
+            "raw_data": {
+              "data": {
+                "name": "青岛西海岸新区政务服务中心",
+                "phone": "0532-85167682",
+                "address": "山东省青岛市黄岛区七墩山路77号南区"
+              },
+              "source": {
+                "source_url": "http://qdhdzwfw.sd.gov.cn/hd/icity/proinfo/index3?code=e634726c-1853-49a3-ac85-e18b9b674bac",
+                "source_name": "青岛西海岸新区政务服务网",
+                "source_type": "official"
+              }
+            }
+          },
+          "poi_id": "028D54C956ED475582159864A4EB06F0",
+          "source": {
+            "weight": 1.0,
+            "source_id": "OFFICIAL_UNKNOWN",
+            "source_url": "http://qdhdzwfw.sd.gov.cn/hd/icity/proinfo/index3?code=e634726c-1853-49a3-ac85-e18b9b674bac",
+            "source_name": "青岛西海岸新区政务服务网",
+            "source_type": "official"
+          },
+          "metadata": {
+            "run_id": "1b68b815-3dc5-4045-84b8-84de36813e35-028D54C956ED475582159864A4EB06F0-20260317T023652Z-39b0dfc4",
+            "task_id": "1b68b815-3dc5-4045-84b8-84de36813e35",
+            "collection_branch": "websearch",
+            "collection_method": "manual"
+          },
+          "evidence_id": "EVD_20260317T023956Z_001",
+          "collected_at": "2026-03-17T02:39:56Z",
+          "verification": {
+            "is_valid": true,
+            "confidence": 1.0
+          }
+        },
+        {
+          "data": {
+            "name": "青岛西海岸新区（中共青岛市黄岛区委、青岛市黄岛区人民政府）",
+            "raw_data": {
+              "data": {
+                "name": "青岛西海岸新区（中共青岛市黄岛区委、青岛市黄岛区人民政府）",
+                "description": "青岛西海岸新区政务网，提供政务公开、政务服务、互动交流等功能",
+                "alias_website": "https://www.xihaian.gov.cn/",
+                "official_website": "https://www.huangdao.gov.cn/"
+              },
+              "source": {
+                "source_url": "https://www.huangdao.gov.cn/",
+                "source_name": "青岛西海岸新区政务网",
+                "source_type": "official",
+                "site_id_code": "3702110002"
+              }
+            }
+          },
+          "poi_id": "028D54C956ED475582159864A4EB06F0",
+          "source": {
+            "weight": 1.0,
+            "source_id": "OFFICIAL_UNKNOWN",
+            "source_url": "https://www.huangdao.gov.cn/",
+            "source_name": "青岛西海岸新区政务网",
+            "source_type": "official"
+          },
+          "metadata": {
+            "run_id": "1b68b815-3dc5-4045-84b8-84de36813e35-028D54C956ED475582159864A4EB06F0-20260317T023652Z-39b0dfc4",
+            "task_id": "1b68b815-3dc5-4045-84b8-84de36813e35",
+            "collection_branch": "webfetch",
+            "collection_method": "crawl"
+          },
+          "evidence_id": "EVD_20260317T023956Z_002",
+          "collected_at": "2026-03-17T02:39:56Z",
+          "verification": {
+            "is_valid": true,
+            "confidence": 1.0
+          }
+        },
+        {
+          "data": {
+            "name": "青岛市黄岛区人民政府",
+            "phone": "[]",
+            "address": "长江中路369号",
+            "category": "政府机构及社会团体;政府机关;区县级政府及事业单位",
+            "raw_data": {
+              "id": "B0I3GZG2OC",
+              "name": "青岛市黄岛区人民政府",
+              "type": "政府机构及社会团体;政府机关;区县级政府及事业单位",
+              "alias": "黄岛区政府",
+              "match": "0",
+              "pcode": "370000",
+              "pname": "山东省",
+              "adcode": "370211",
+              "adname": "黄岛区",
+              "keytag": "人民政府",
+              "photos": [
+                {
+                  "url": "http://store.is.autonavi.com/showpic/88bf012e3bd23270d6cd4b540af202d1"
+                }
+              ],
+              "address": "长江中路369号",
+              "biz_ext": {
+                "open_time": "09:00-12:00 13:30-17:30",
+                "opentime2": "周一至周日 09:00-12:00；周一至周五 13:30-17:30"
+              },
+              "citycode": "0532",
+              "cityname": "青岛市",
+              "gridcode": "5320715502",
+              "location": "120.197908,35.960525",
+              "shopinfo": "2",
+              "typecode": "130104",
+              "recommend": "3",
+              "timestamp": "2026-02-09 11:34:23",
+              "indoor_map": "0",
+              "discount_num": "0",
+              "groupbuy_num": "0",
+              "business_area": "青岛西海岸新区"
+            },
+            "coordinates": {
+              "latitude": 35.960525,
+              "longitude": 120.197908
+            },
+            "administrative": {
+              "city": "青岛市",
+              "district": "黄岛区",
+              "province": "山东省"
+            }
+          },
+          "poi_id": "028D54C956ED475582159864A4EB06F0",
+          "source": {
+            "weight": 0.85,
+            "source_id": "AMAP_B0I3GZG2OC",
+            "source_url": "https://www.amap.com/",
+            "source_name": "高德地图",
+            "source_type": "map_vendor"
+          },
+          "metadata": {
+            "run_id": "1b68b815-3dc5-4045-84b8-84de36813e35-028D54C956ED475582159864A4EB06F0-20260317T023652Z-39b0dfc4",
+            "task_id": "1b68b815-3dc5-4045-84b8-84de36813e35",
+            "map_source": "amap",
+            "collection_branch": "internal_proxy",
+            "collection_method": "api"
+          },
+          "evidence_id": "EVD_20260317T023956Z_003",
+          "collected_at": "2026-03-17T02:39:56Z",
+          "verification": {
+            "is_valid": true,
+            "confidence": 0.85
+          }
+        },
+        {
+          "data": {
+            "name": "青岛市黄岛区人民政府",
+            "address": "山东省青岛市黄岛区深圳路181号",
+            "raw_data": {
+              "data": {
+                "name": "青岛市黄岛区人民政府",
+                "address": "山东省青岛市黄岛区深圳路181号"
+              },
+              "source": {
+                "source_url": "https://www.chayicha.net/detail/61f487c933666bed",
+                "source_name": "网络搜索结果",
+                "source_type": "internet"
+              }
+            }
+          },
+          "poi_id": "028D54C956ED475582159864A4EB06F0",
+          "source": {
+            "weight": 0.6,
+            "source_id": "INTERNET_UNKNOWN",
+            "source_url": "https://www.chayicha.net/detail/61f487c933666bed",
+            "source_name": "网络搜索结果",
+            "source_type": "internet"
+          },
+          "metadata": {
+            "run_id": "1b68b815-3dc5-4045-84b8-84de36813e35-028D54C956ED475582159864A4EB06F0-20260317T023652Z-39b0dfc4",
+            "task_id": "1b68b815-3dc5-4045-84b8-84de36813e35",
+            "collection_branch": "websearch",
+            "collection_method": "manual"
+          },
+          "evidence_id": "EVD_20260317T023956Z_004",
+          "collected_at": "2026-03-17T02:39:56Z",
+          "verification": {
+            "is_valid": true,
+            "confidence": 0.6
+          }
+        },
+        {
+          "data": {
+            "name": "青岛黄岛区人民政府",
+            "raw_data": {
+              "data": {
+                "name": "青岛黄岛区人民政府",
+                "description": "青岛本地宝为您提供青岛黄岛区人民政府信息，包括青岛黄岛区人民政府在哪里，电话，地址，地图，交通，办事等方面的信息。"
+              },
+              "source": {
+                "source_url": "https://m.qd.bendibao.com/wangdian/dian/20716.shtm",
+                "source_name": "青岛本地宝",
+                "source_type": "internet"
+              }
+            }
+          },
+          "poi_id": "028D54C956ED475582159864A4EB06F0",
+          "source": {
+            "weight": 0.6,
+            "source_id": "INTERNET_UNKNOWN",
+            "source_url": "https://m.qd.bendibao.com/wangdian/dian/20716.shtm",
+            "source_name": "青岛本地宝",
+            "source_type": "internet"
+          },
+          "metadata": {
+            "run_id": "1b68b815-3dc5-4045-84b8-84de36813e35-028D54C956ED475582159864A4EB06F0-20260317T023652Z-39b0dfc4",
+            "task_id": "1b68b815-3dc5-4045-84b8-84de36813e35",
+            "collection_branch": "websearch",
+            "collection_method": "manual"
+          },
+          "evidence_id": "EVD_20260317T023956Z_005",
+          "collected_at": "2026-03-17T02:39:56Z",
+          "verification": {
+            "is_valid": true,
+            "confidence": 0.6
+          }
+        }
+      ],
+      "changes_made": null,
+      "verification_notes": "核实通过，核心维度均满足要求，综合置信度0.97。",
+      "verify_time": "2026-03-17 10:41:10.074739",
+      "updatetime": "2026-03-17 22:41:52.750435",
+      "verified_by": "system",
+      "verification_version": "1.4.0"
+    },
+    "poi_qc": {
+      "task_id": "1b68b815-3dc5-4045-84b8-84de36813e35",
+      "id": "028D54C956ED475582159864A4EB06F0",
+      "batch_id": "BATCH_20260317_22_41_52_292306383964082176",
+      "name": "黄岛区人民政府",
+      "x_coord": 120.19849,
+      "y_coord": 35.96104,
+      "poi_type": "130104",
+      "address": "山东省青岛市黄岛区长江路街道长江中路369号黄岛区人民政府",
+      "city": "青岛市",
+      "city_adcode": "370200",
+      "poi_status": 1,
+      "verify_result": "核实通过",
+      "quality_status": "质检中",
+      "qc_status": null,
+      "qc_score": null,
+      "qc_result": null,
+      "is_qualified": null,
+      "has_risk": null,
+      "is_auto_approvable": null,
+      "is_manual_required": null,
+      "downgrade_issue_type": null,
+      "downgrade_status": null,
+      "is_downgrade_consistent": null,
+      "original_task_id": null,
+      "qc_time": null,
+      "updatetime": "2026-03-17 22:53:11.569225",
+      "qc_by": null,
+      "qc_version": null,
+      "verify_info": {
+        "name": {
+          "result": "pass",
+          "details": "输入名称'黄岛区人民政府'与官方名称'青岛市黄岛区人民政府'高度匹配，高德地图、互联网搜索源均确认此名称",
+          "confidence": 0.95,
+          "evidence_refs": [
+            "EVD_20260317T023956Z_002",
+            "EVD_20260317T023956Z_003",
+            "EVD_20260317T023956Z_004",
+            "EVD_20260317T023956Z_005"
+          ]
+        },
+        "address": {
+          "result": "pass",
+          "details": "输入地址'山东省青岛市黄岛区长江路街道长江中路369号'与高德地图'长江中路369号'核心地址一致，图商坐标与输入坐标接近(距离约68米)",
+          "confidence": 0.92,
+          "evidence_refs": [
+            "EVD_20260317T023956Z_003"
+          ]
+        },
+        "category": {
+          "result": "pass",
+          "details": "输入poi_type'130104'(政府机关-区县级政府及事业单位)与高德地图typecode完全匹配，官方网站确认为区县级政府机构",
+          "confidence": 1.0,
+          "evidence_refs": [
+            "EVD_20260317T023956Z_002",
+            "EVD_20260317T023956Z_003"
+          ]
+        },
+        "location": {
+          "score": 0.92,
+          "result": "pass",
+          "details": {
+            "source_dimensions": [
+              "address",
+              "coordinates"
+            ]
+          },
+          "confidence": 0.92
+        },
+        "existence": {
+          "result": "pass",
+          "details": "青岛西海岸新区政务网(www.huangdao.gov.cn)官方网站确认存在'中共青岛市黄岛区委、青岛市黄岛区人民政府'，权威性极高",
+          "confidence": 1.0,
+          "evidence_refs": [
+            "EVD_20260317T023956Z_002"
+          ]
+        },
+        "coordinates": {
+          "result": "pass",
+          "details": "输入坐标(120.19849, 35.96104)与高德地图坐标(120.197908, 35.960525)高度接近，经度差0.000582度，纬度差0.000515度，距离约68米，在合理误差范围内",
+          "confidence": 0.95,
+          "evidence_refs": [
+            "EVD_20260317T023956Z_003"
+          ]
+        },
+        "administrative": {
+          "result": "pass",
+          "details": "高德地图确认行政区划为'山东省-青岛市-黄岛区'，与输入city'青岛市'一致，adcode'370211'(黄岛区)准确",
+          "confidence": 1.0,
+          "evidence_refs": [
+            "EVD_20260317T023956Z_003"
+          ]
+        }
+      },
+      "evidence_record": [
+        {
+          "data": {
+            "name": "青岛西海岸新区政务服务中心",
+            "phone": "0532-85167682",
+            "address": "山东省青岛市黄岛区七墩山路77号南区",
+            "raw_data": {
+              "data": {
+                "name": "青岛西海岸新区政务服务中心",
+                "phone": "0532-85167682",
+                "address": "山东省青岛市黄岛区七墩山路77号南区"
+              },
+              "source": {
+                "source_url": "http://qdhdzwfw.sd.gov.cn/hd/icity/proinfo/index3?code=e634726c-1853-49a3-ac85-e18b9b674bac",
+                "source_name": "青岛西海岸新区政务服务网",
+                "source_type": "official"
+              }
+            }
+          },
+          "poi_id": "028D54C956ED475582159864A4EB06F0",
+          "source": {
+            "weight": 1.0,
+            "source_id": "OFFICIAL_UNKNOWN",
+            "source_url": "http://qdhdzwfw.sd.gov.cn/hd/icity/proinfo/index3?code=e634726c-1853-49a3-ac85-e18b9b674bac",
+            "source_name": "青岛西海岸新区政务服务网",
+            "source_type": "official"
+          },
+          "metadata": {
+            "run_id": "1b68b815-3dc5-4045-84b8-84de36813e35-028D54C956ED475582159864A4EB06F0-20260317T023652Z-39b0dfc4",
+            "task_id": "1b68b815-3dc5-4045-84b8-84de36813e35",
+            "collection_branch": "websearch",
+            "collection_method": "manual"
+          },
+          "evidence_id": "EVD_20260317T023956Z_001",
+          "collected_at": "2026-03-17T02:39:56Z",
+          "verification": {
+            "is_valid": true,
+            "confidence": 1.0
+          }
+        },
+        {
+          "data": {
+            "name": "青岛西海岸新区（中共青岛市黄岛区委、青岛市黄岛区人民政府）",
+            "raw_data": {
+              "data": {
+                "name": "青岛西海岸新区（中共青岛市黄岛区委、青岛市黄岛区人民政府）",
+                "description": "青岛西海岸新区政务网，提供政务公开、政务服务、互动交流等功能",
+                "alias_website": "https://www.xihaian.gov.cn/",
+                "official_website": "https://www.huangdao.gov.cn/"
+              },
+              "source": {
+                "source_url": "https://www.huangdao.gov.cn/",
+                "source_name": "青岛西海岸新区政务网",
+                "source_type": "official",
+                "site_id_code": "3702110002"
+              }
+            }
+          },
+          "poi_id": "028D54C956ED475582159864A4EB06F0",
+          "source": {
+            "weight": 1.0,
+            "source_id": "OFFICIAL_UNKNOWN",
+            "source_url": "https://www.huangdao.gov.cn/",
+            "source_name": "青岛西海岸新区政务网",
+            "source_type": "official"
+          },
+          "metadata": {
+            "run_id": "1b68b815-3dc5-4045-84b8-84de36813e35-028D54C956ED475582159864A4EB06F0-20260317T023652Z-39b0dfc4",
+            "task_id": "1b68b815-3dc5-4045-84b8-84de36813e35",
+            "collection_branch": "webfetch",
+            "collection_method": "crawl"
+          },
+          "evidence_id": "EVD_20260317T023956Z_002",
+          "collected_at": "2026-03-17T02:39:56Z",
+          "verification": {
+            "is_valid": true,
+            "confidence": 1.0
+          }
+        },
+        {
+          "data": {
+            "name": "青岛市黄岛区人民政府",
+            "phone": "[]",
+            "address": "长江中路369号",
+            "category": "政府机构及社会团体;政府机关;区县级政府及事业单位",
+            "raw_data": {
+              "id": "B0I3GZG2OC",
+              "name": "青岛市黄岛区人民政府",
+              "type": "政府机构及社会团体;政府机关;区县级政府及事业单位",
+              "alias": "黄岛区政府",
+              "match": "0",
+              "pcode": "370000",
+              "pname": "山东省",
+              "adcode": "370211",
+              "adname": "黄岛区",
+              "keytag": "人民政府",
+              "photos": [
+                {
+                  "url": "http://store.is.autonavi.com/showpic/88bf012e3bd23270d6cd4b540af202d1"
+                }
+              ],
+              "address": "长江中路369号",
+              "biz_ext": {
+                "open_time": "09:00-12:00 13:30-17:30",
+                "opentime2": "周一至周日 09:00-12:00；周一至周五 13:30-17:30"
+              },
+              "citycode": "0532",
+              "cityname": "青岛市",
+              "gridcode": "5320715502",
+              "location": "120.197908,35.960525",
+              "shopinfo": "2",
+              "typecode": "130104",
+              "recommend": "3",
+              "timestamp": "2026-02-09 11:34:23",
+              "indoor_map": "0",
+              "discount_num": "0",
+              "groupbuy_num": "0",
+              "business_area": "青岛西海岸新区"
+            },
+            "coordinates": {
+              "latitude": 35.960525,
+              "longitude": 120.197908
+            },
+            "administrative": {
+              "city": "青岛市",
+              "district": "黄岛区",
+              "province": "山东省"
+            }
+          },
+          "poi_id": "028D54C956ED475582159864A4EB06F0",
+          "source": {
+            "weight": 0.85,
+            "source_id": "AMAP_B0I3GZG2OC",
+            "source_url": "https://www.amap.com/",
+            "source_name": "高德地图",
+            "source_type": "map_vendor"
+          },
+          "metadata": {
+            "run_id": "1b68b815-3dc5-4045-84b8-84de36813e35-028D54C956ED475582159864A4EB06F0-20260317T023652Z-39b0dfc4",
+            "task_id": "1b68b815-3dc5-4045-84b8-84de36813e35",
+            "map_source": "amap",
+            "collection_branch": "internal_proxy",
+            "collection_method": "api"
+          },
+          "evidence_id": "EVD_20260317T023956Z_003",
+          "collected_at": "2026-03-17T02:39:56Z",
+          "verification": {
+            "is_valid": true,
+            "confidence": 0.85
+          }
+        },
+        {
+          "data": {
+            "name": "青岛市黄岛区人民政府",
+            "address": "山东省青岛市黄岛区深圳路181号",
+            "raw_data": {
+              "data": {
+                "name": "青岛市黄岛区人民政府",
+                "address": "山东省青岛市黄岛区深圳路181号"
+              },
+              "source": {
+                "source_url": "https://www.chayicha.net/detail/61f487c933666bed",
+                "source_name": "网络搜索结果",
+                "source_type": "internet"
+              }
+            }
+          },
+          "poi_id": "028D54C956ED475582159864A4EB06F0",
+          "source": {
+            "weight": 0.6,
+            "source_id": "INTERNET_UNKNOWN",
+            "source_url": "https://www.chayicha.net/detail/61f487c933666bed",
+            "source_name": "网络搜索结果",
+            "source_type": "internet"
+          },
+          "metadata": {
+            "run_id": "1b68b815-3dc5-4045-84b8-84de36813e35-028D54C956ED475582159864A4EB06F0-20260317T023652Z-39b0dfc4",
+            "task_id": "1b68b815-3dc5-4045-84b8-84de36813e35",
+            "collection_branch": "websearch",
+            "collection_method": "manual"
+          },
+          "evidence_id": "EVD_20260317T023956Z_004",
+          "collected_at": "2026-03-17T02:39:56Z",
+          "verification": {
+            "is_valid": true,
+            "confidence": 0.6
+          }
+        },
+        {
+          "data": {
+            "name": "青岛黄岛区人民政府",
+            "raw_data": {
+              "data": {
+                "name": "青岛黄岛区人民政府",
+                "description": "青岛本地宝为您提供青岛黄岛区人民政府信息，包括青岛黄岛区人民政府在哪里，电话，地址，地图，交通，办事等方面的信息。"
+              },
+              "source": {
+                "source_url": "https://m.qd.bendibao.com/wangdian/dian/20716.shtm",
+                "source_name": "青岛本地宝",
+                "source_type": "internet"
+              }
+            }
+          },
+          "poi_id": "028D54C956ED475582159864A4EB06F0",
+          "source": {
+            "weight": 0.6,
+            "source_id": "INTERNET_UNKNOWN",
+            "source_url": "https://m.qd.bendibao.com/wangdian/dian/20716.shtm",
+            "source_name": "青岛本地宝",
+            "source_type": "internet"
+          },
+          "metadata": {
+            "run_id": "1b68b815-3dc5-4045-84b8-84de36813e35-028D54C956ED475582159864A4EB06F0-20260317T023652Z-39b0dfc4",
+            "task_id": "1b68b815-3dc5-4045-84b8-84de36813e35",
+            "collection_branch": "websearch",
+            "collection_method": "manual"
+          },
+          "evidence_id": "EVD_20260317T023956Z_005",
+          "collected_at": "2026-03-17T02:39:56Z",
+          "verification": {
+            "is_valid": true,
+            "confidence": 0.6
+          }
+        }
+      ]
+    }
+  },
+  {
+    "record_no": 3,
+    "poi_init": {
+      "task_id": "ba2a1ff0-da0c-41c5-b0a3-5c4958d95244",
+      "id": "0a8373605c1f4fe18d67aa2ac53e97b8",
+      "name": "双台子区新区人民政府",
+      "x_coord": 122.07608,
+      "y_coord": 41.211834,
+      "poi_type": "130104",
+      "address": "辽宁省盘锦市双台子区统一镇双台子区新区人民政府",
+      "city": "盘锦市",
+      "city_adcode": "211100",
+      "verify_status": "已核实",
+      "verify_priority": "P0",
+      "status": 1,
+      "updatetime": "2026-03-17 13:44:17.943133"
+    },
+    "poi_verified": {
+      "task_id": "ba2a1ff0-da0c-41c5-b0a3-5c4958d95244",
+      "id": "0a8373605c1f4fe18d67aa2ac53e97b8",
+      "name": "双台子区人民政府",
+      "x_coord": 122.07608,
+      "y_coord": 41.211834,
+      "poi_type": "130104",
+      "address": "盘锦市双台子区新府大街10号",
+      "city": "盘锦市",
+      "city_adcode": "211100",
+      "verify_status": "需人工核实",
+      "verify_result": "需人工核实",
+      "overall_confidence": 0.9676,
+      "poi_status": 1,
+      "original_task_id": "ba2a1ff0-da0c-41c5-b0a3-5c4958d95244",
+      "original_id": "0a8373605c1f4fe18d67aa2ac53e97b8",
+      "verify_info": {
+        "name": {
+          "result": "fail",
+          "details": "输入名称为'双台子区新区人民政府'，但官方证据显示应为'双台子区人民政府'或'盘锦市双台子区人民政府'，'新区'可能为历史名称或误录入",
+          "confidence": 0.95,
+          "evidence_refs": [
+            "EVD_20260317T054245Z_001",
+            "EVD_20260317T054245Z_002",
+            "EVD_20260317T054245Z_004"
+          ]
+        },
+        "address": {
+          "result": "fail",
+          "details": "输入地址'辽宁省盘锦市双台子区统一镇双台子区新区人民政府'过于冗长且不规范，官方证据显示正确地址为'盘锦市双台子区新府大街10号'",
+          "confidence": 0.95,
+          "evidence_refs": [
+            "EVD_20260317T054245Z_001",
+            "EVD_20260317T054245Z_004"
+          ]
+        },
+        "category": {
+          "result": "pass",
+          "details": "POI类型130104(区县级政府及事业单位)与证据相符",
+          "confidence": 1.0,
+          "evidence_refs": [
+            "EVD_20260317T054245Z_001",
+            "EVD_20260317T054245Z_004"
+          ]
+        },
+        "location": {
+          "score": 0.9,
+          "result": "fail",
+          "details": {
+            "source_dimensions": [
+              "address",
+              "coordinates"
+            ]
+          },
+          "confidence": 0.9
+        },
+        "existence": {
+          "result": "pass",
+          "details": "双台子区人民政府确实存在，官方网站和多个证据源证实",
+          "confidence": 1.0,
+          "evidence_refs": [
+            "EVD_20260317T054245Z_001",
+            "EVD_20260317T054245Z_002",
+            "EVD_20260317T054245Z_004"
+          ]
+        },
+        "coordinates": {
+          "result": "pass",
+          "details": "输入坐标(122.07608, 41.211834)与高德地图坐标(122.07597, 41.212401)距离约63米，在合理误差范围内",
+          "confidence": 0.9,
+          "evidence_refs": [
+            "EVD_20260317T054245Z_004"
+          ]
+        }
+      },
+      "evidence_record": [
+        {
+          "data": {
+            "name": "双台子区人民政府",
+            "phone": "0427-2360714",
+            "address": "盘锦市双台子区新府大街10号",
+            "raw_data": {
+              "data": {
+                "fax": "0427-2360711",
+                "name": "双台子区人民政府",
+                "phone": "0427-2360714",
+                "address": "盘锦市双台子区新府大街10号",
+                "office_hours": "8:30—11:30，13:30—17:00（节假日、公休日除外）"
+              },
+              "source": {
+                "weight": 0.95,
+                "source_url": "https://www.stq.gov.cn/",
+                "source_name": "双台子区人民政府",
+                "source_type": "official"
+              },
+              "collected_at": "2026-03-17T05:40:03Z"
+            }
+          },
+          "poi_id": "0a8373605c1f4fe18d67aa2ac53e97b8",
+          "source": {
+            "weight": 0.95,
+            "source_id": "OFFICIAL_UNKNOWN",
+            "source_url": "https://www.stq.gov.cn/",
+            "source_name": "双台子区人民政府",
+            "source_type": "official"
+          },
+          "metadata": {
+            "run_id": "ba2a1ff0-da0c-41c5-b0a3-5c4958d95244-0a8373605c1f4fe18d67aa2ac53e97b8-20260317T053951Z-5391cfb5",
+            "task_id": "ba2a1ff0-da0c-41c5-b0a3-5c4958d95244",
+            "collection_branch": "websearch",
+            "collection_method": "manual"
+          },
+          "evidence_id": "EVD_20260317T054245Z_001",
+          "collected_at": "2026-03-17T05:40:03Z",
+          "verification": {
+            "is_valid": true,
+            "confidence": 0.95
+          }
+        },
+        {
+          "data": {
+            "name": "双台子区人民政府",
+            "phone": "0427-2360834",
+            "raw_data": {
+              "data": {
+                "icp": "辽ICP备06000634号-1",
+                "name": "双台子区人民政府",
+                "phone": "0427-2360834",
+                "gongan": "辽公网安备 21110202000072号",
+                "description": "盘锦市双台子区人民政府",
+                "website_code": "2111020001"
+              },
+              "source": {
+                "weight": 1.0,
+                "source_url": "https://www.stq.gov.cn/",
+                "source_name": "双台子区人民政府",
+                "source_type": "official"
+              },
+              "collected_at": "2026-03-17T05:40:05Z"
+            }
+          },
+          "poi_id": "0a8373605c1f4fe18d67aa2ac53e97b8",
+          "source": {
+            "weight": 1.0,
+            "source_id": "OFFICIAL_UNKNOWN",
+            "source_url": "https://www.stq.gov.cn/",
+            "source_name": "双台子区人民政府",
+            "source_type": "official"
+          },
+          "metadata": {
+            "run_id": "ba2a1ff0-da0c-41c5-b0a3-5c4958d95244-0a8373605c1f4fe18d67aa2ac53e97b8-20260317T053951Z-5391cfb5",
+            "task_id": "ba2a1ff0-da0c-41c5-b0a3-5c4958d95244",
+            "collection_branch": "webfetch",
+            "collection_method": "crawl"
+          },
+          "evidence_id": "EVD_20260317T054245Z_002",
+          "collected_at": "2026-03-17T05:40:05Z",
+          "verification": {
+            "is_valid": true,
+            "confidence": 1.0
+          }
+        },
+        {
+          "data": {
+            "name": "盘锦市人民政府",
+            "phone": "0427-2825267",
+            "address": "盘锦市辽东湾新区宏冠大厦",
+            "raw_data": {
+              "data": {
+                "name": "盘锦市人民政府",
+                "phone": "0427-2825267",
+                "address": "盘锦市辽东湾新区宏冠大厦",
+                "zipcode": "124000",
+                "office_hours": "8：30-17：00（周末和节假日除外）"
+              },
+              "source": {
+                "weight": 0.9,
+                "source_url": "https://www.panjin.gov.cn/html/3002/",
+                "source_name": "盘锦市人民政府",
+                "source_type": "official"
+              },
+              "collected_at": "2026-03-17T05:40:03Z"
+            }
+          },
+          "poi_id": "0a8373605c1f4fe18d67aa2ac53e97b8",
+          "source": {
+            "weight": 0.9,
+            "source_id": "OFFICIAL_UNKNOWN",
+            "source_url": "https://www.panjin.gov.cn/html/3002/",
+            "source_name": "盘锦市人民政府",
+            "source_type": "official"
+          },
+          "metadata": {
+            "run_id": "ba2a1ff0-da0c-41c5-b0a3-5c4958d95244-0a8373605c1f4fe18d67aa2ac53e97b8-20260317T053951Z-5391cfb5",
+            "task_id": "ba2a1ff0-da0c-41c5-b0a3-5c4958d95244",
+            "collection_branch": "websearch",
+            "collection_method": "manual"
+          },
+          "evidence_id": "EVD_20260317T054245Z_003",
+          "collected_at": "2026-03-17T05:40:03Z",
+          "verification": {
+            "is_valid": true,
+            "confidence": 0.9
+          }
+        },
+        {
+          "data": {
+            "name": "盘锦市双台子区人民政府",
+            "address": "塔湾街中信泰富A1",
+            "category": "政府机构及社会团体;政府及社会团体相关;政府及社会团体相关",
+            "raw_data": {
+              "id": "B0FFIWPSOO",
+              "name": "盘锦市双台子区人民政府",
+              "type": "政府机构及社会团体;政府及社会团体相关;政府及社会团体相关",
+              "pcode": "210000",
+              "pname": "辽宁省",
+              "adcode": "211102",
+              "adname": "双台子区",
+              "parent": "B0FFI3YO1V",
+              "address": "塔湾街中信泰富A1",
+              "citycode": "0427",
+              "cityname": "盘锦市",
+              "location": "122.075970,41.212401",
+              "typecode": "130000"
+            },
+            "coordinates": {
+              "latitude": 41.212401,
+              "longitude": 122.07597
+            },
+            "administrative": {
+              "city": "盘锦市",
+              "district": "双台子区",
+              "province": "辽宁省"
+            }
+          },
+          "poi_id": "0a8373605c1f4fe18d67aa2ac53e97b8",
+          "source": {
+            "weight": 0.85,
+            "source_id": "AMAP_B0FFIWPSOO",
+            "source_url": "https://www.amap.com/",
+            "source_name": "高德地图",
+            "source_type": "map_vendor"
+          },
+          "metadata": {
+            "run_id": "ba2a1ff0-da0c-41c5-b0a3-5c4958d95244-0a8373605c1f4fe18d67aa2ac53e97b8-20260317T053951Z-5391cfb5",
+            "task_id": "ba2a1ff0-da0c-41c5-b0a3-5c4958d95244",
+            "map_source": "amap",
+            "collection_branch": "internal_proxy",
+            "collection_method": "api"
+          },
+          "evidence_id": "EVD_20260317T054245Z_004",
+          "collected_at": "2026-03-17T05:42:45Z",
+          "verification": {
+            "is_valid": true,
+            "confidence": 0.85
+          }
+        }
+      ],
+      "changes_made": [
+        {
+          "field": "name",
+          "reason": "官方证据显示正确名称为'双台子区人民政府'，输入中的'新区'可能为误录入或历史名称",
+          "new_value": "双台子区人民政府",
+          "old_value": "双台子区新区人民政府"
+        },
+        {
+          "field": "address",
+          "reason": "输入地址过于冗长且不规范，官网显示正确地址为'盘锦市双台子区新府大街10号'",
+          "new_value": "盘锦市双台子区新府大街10号",
+          "old_value": "辽宁省盘锦市双台子区统一镇双台子区新区人民政府"
+        }
+      ],
+      "verification_notes": "需要人工复核，原因是名称、地址未通过或存在冲突，综合置信度0.97。",
+      "verify_time": "2026-03-17 13:44:17.943133",
+      "updatetime": "2026-03-17 22:41:52.750435",
+      "verified_by": "system",
+      "verification_version": "1.4.0"
+    },
+    "poi_qc": {
+      "task_id": "ba2a1ff0-da0c-41c5-b0a3-5c4958d95244",
+      "id": "0a8373605c1f4fe18d67aa2ac53e97b8",
+      "batch_id": "BATCH_20260317_22_41_52_292306383964082176",
+      "name": "双台子区人民政府",
+      "x_coord": 122.07608,
+      "y_coord": 41.211834,
+      "poi_type": "130104",
+      "address": "盘锦市双台子区新府大街10号",
+      "city": "盘锦市",
+      "city_adcode": "211100",
+      "poi_status": 1,
+      "verify_result": "需人工核实",
+      "quality_status": "已质检",
+      "qc_status": "risky",
+      "qc_score": 94,
+      "qc_result": {
+        "task_id": "ba2a1ff0-da0c-41c5-b0a3-5c4958d95244",
+        "has_risk": true,
+        "qc_score": 94,
+        "qc_status": "risky",
+        "risk_dims": [
+          "category"
+        ],
+        "explanation": "质检结果：有风险，得分 94 分。 通过维度：存在性、名称、坐标、地址、行政区划。 类型风险：类型风险：存在类型证据，但缺少与输入 poi_type 的 typecode 精确匹配，只能作为弱支撑。",
+        "triggered_rules": [
+          {
+            "rule_id": "R6",
+            "severity": "medium",
+            "dimension": "category",
+            "rule_name": "类型一致性检查"
+          }
+        ],
+        "statistics_flags": {
+          "is_qualified": false,
+          "is_auto_approvable": false,
+          "is_manual_required": true,
+          "downgrade_issue_type": "consistent",
+          "qc_manual_review_required": true,
+          "upstream_manual_review_required": true
+        },
+        "dimension_results": {
+          "name": {
+            "status": "pass",
+            "evidence": [
+              {
+                "data": {
+                  "name": "双台子区人民政府"
+                },
+                "source": {
+                  "weight": 0.95,
+                  "source_id": "OFFICIAL_UNKNOWN",
+                  "source_url": "https://www.stq.gov.cn/",
+                  "source_name": "双台子区人民政府",
+                  "source_type": "official"
+                },
+                "matching": {
+                  "name_similarity": 1.0
+                },
+                "evidence_id": "EVD_20260317T054245Z_001",
+                "collected_at": "2026-03-17T05:40:03Z",
+                "verification": {
+                  "is_valid": true,
+                  "confidence": 0.95
+                }
+              }
+            ],
+            "risk_level": "none",
+            "explanation": "名称通过：多条强支持证据，或单条高置信度强支持证据已足以稳定支持输入 name，且不存在硬冲突。",
+            "related_rules": [
+              "R2"
+            ]
+          },
+          "address": {
+            "status": "pass",
+            "evidence": [
+              {
+                "data": {
+                  "address": "盘锦市双台子区新府大街10号"
+                },
+                "source": {
+                  "weight": 0.95,
+                  "source_id": "OFFICIAL_UNKNOWN",
+                  "source_url": "https://www.stq.gov.cn/",
+                  "source_name": "双台子区人民政府",
+                  "source_type": "official"
+                },
+                "evidence_id": "EVD_20260317T054245Z_001",
+                "collected_at": "2026-03-17T05:40:03Z",
+                "verification": {
+                  "is_valid": true,
+                  "confidence": 0.95
+                }
+              }
+            ],
+            "risk_level": "none",
+            "explanation": "地址通过：存在精确地址支持。精确支持指道路主干和门牌号都一致，允许省市区前缀省略，但不允许篡改真实冲突点。",
+            "related_rules": [
+              "R4"
+            ]
+          },
+          "category": {
+            "status": "risk",
+            "evidence": [
+              {
+                "data": {
+                  "category": "政府机构及社会团体;政府及社会团体相关;政府及社会团体相关",
+                  "raw_data": {
+                    "typecode": "130000"
+                  }
+                },
+                "source": {
+                  "weight": 0.85,
+                  "source_id": "AMAP_B0FFIWPSOO",
+                  "source_url": "https://www.amap.com/",
+                  "source_name": "高德地图",
+                  "source_type": "map_vendor"
+                },
+                "evidence_id": "EVD_20260317T054245Z_004",
+                "collected_at": "2026-03-17T05:42:45Z",
+                "verification": {
+                  "is_valid": true,
+                  "confidence": 0.85
+                }
+              }
+            ],
+            "risk_level": "medium",
+            "explanation": "类型风险：存在类型证据，但缺少与输入 poi_type 的 typecode 精确匹配，只能作为弱支撑。",
+            "related_rules": [
+              "R6"
+            ]
+          },
+          "location": {
+            "status": "pass",
+            "evidence": [
+              {
+                "data": {
+                  "location": {
+                    "latitude": 41.212401,
+                    "longitude": 122.07597
+                  }
+                },
+                "source": {
+                  "weight": 0.85,
+                  "source_id": "AMAP_B0FFIWPSOO",
+                  "source_url": "https://www.amap.com/",
+                  "source_name": "高德地图",
+                  "source_type": "map_vendor"
+                },
+                "matching": {
+                  "location_distance": 63
+                },
+                "evidence_id": "EVD_20260317T054245Z_004",
+                "collected_at": "2026-03-17T05:42:45Z",
+                "verification": {
+                  "is_valid": true,
+                  "confidence": 0.85
+                }
+              }
+            ],
+            "risk_level": "none",
+            "explanation": "坐标通过：有效坐标证据与输入坐标的偏离不超过 200 米，可视为坐标一致。",
+            "related_rules": [
+              "R3"
+            ]
+          },
+          "existence": {
+            "status": "pass",
+            "evidence": [
+              {
+                "data": {
+                  "name": "双台子区人民政府",
+                  "address": "盘锦市双台子区新府大街10号"
+                },
+                "source": {
+                  "weight": 0.95,
+                  "source_id": "OFFICIAL_UNKNOWN",
+                  "source_url": "https://www.stq.gov.cn/",
+                  "source_name": "双台子区人民政府",
+                  "source_type": "official"
+                },
+                "evidence_id": "EVD_20260317T054245Z_001",
+                "collected_at": "2026-03-17T05:40:03Z",
+                "verification": {
+                  "is_valid": true,
+                  "confidence": 0.95
+                }
+              }
+            ],
+            "confidence": 0.9833,
+            "risk_level": "none",
+            "explanation": "存在性通过：多条有效证据支持，或单条高置信度有效证据已足以稳定支持该 POI 存在。",
+            "related_rules": [
+              "R1"
+            ]
+          },
+          "administrative": {
+            "status": "pass",
+            "evidence": [
+              {
+                "data": {
+                  "administrative": {
+                    "city": "盘锦市"
+                  }
+                },
+                "source": {
+                  "weight": 0.85,
+                  "source_id": "AMAP_B0FFIWPSOO",
+                  "source_url": "https://www.amap.com/",
+                  "source_name": "高德地图",
+                  "source_type": "map_vendor"
+                },
+                "evidence_id": "EVD_20260317T054245Z_004",
+                "collected_at": "2026-03-17T05:42:45Z",
+                "verification": {
+                  "is_valid": true,
+                  "confidence": 0.85
+                }
+              }
+            ],
+            "risk_level": "none",
+            "explanation": "行政区划通过：city 字段与证据一致。本维度主判定只比较输入 city 与证据 city；地址最多只能作为补充弱支持，不比较省份或区县。",
+            "related_rules": [
+              "R5"
+            ]
+          },
+          "evidence_sufficiency": {
+            "status": "pass",
+            "evidence": [
+              {
+                "source": {
+                  "weight": 0.95,
+                  "source_id": "OFFICIAL_UNKNOWN",
+                  "source_url": "https://www.stq.gov.cn/",
+                  "source_name": "双台子区人民政府",
+                  "source_type": "official"
+                },
+                "evidence_id": "EVD_20260317T054245Z_001",
+                "collected_at": "2026-03-17T05:40:03Z",
+                "verification": {
+                  "is_valid": true,
+                  "confidence": 0.95
+                }
+              },
+              {
+                "source": {
+                  "weight": 0.85,
+                  "source_id": "AMAP_B0FFIWPSOO",
+                  "source_url": "https://www.amap.com/",
+                  "source_name": "高德地图",
+                  "source_type": "map_vendor"
+                },
+                "evidence_id": "EVD_20260317T054245Z_004",
+                "collected_at": "2026-03-17T05:42:45Z",
+                "verification": {
+                  "is_valid": true,
+                  "confidence": 0.85
+                }
+              }
+            ],
+            "confidence": 0.9,
+            "risk_level": "none",
+            "explanation": "证据充分性通过：至少两条有效支持证据共同支撑最终结论，可支撑自动通过。",
+            "related_rules": [
+              "R8"
+            ]
+          },
+          "downgrade_consistency": {
+            "status": "pass",
+            "evidence": [],
+            "issue_type": "consistent",
+            "risk_level": "none",
+            "explanation": "降级一致性通过：QC 与上游对是否需要人工核实的判断一致。",
+            "is_consistent": true,
+            "related_rules": [
+              "R7"
+            ],
+            "qc_manual_review_required": true,
+            "upstream_manual_review_required": true
+          }
+        }
+      },
+      "is_qualified": 0,
+      "has_risk": 1,
+      "is_auto_approvable": 0,
+      "is_manual_required": 1,
+      "downgrade_issue_type": "consistent",
+      "downgrade_status": "pass",
+      "is_downgrade_consistent": 1,
+      "original_task_id": null,
+      "qc_time": null,
+      "updatetime": "2026-03-17 23:40:59.915213",
+      "qc_by": null,
+      "qc_version": null,
+      "verify_info": {
+        "name": {
+          "result": "fail",
+          "details": "输入名称为'双台子区新区人民政府'，但官方证据显示应为'双台子区人民政府'或'盘锦市双台子区人民政府'，'新区'可能为历史名称或误录入",
+          "confidence": 0.95,
+          "evidence_refs": [
+            "EVD_20260317T054245Z_001",
+            "EVD_20260317T054245Z_002",
+            "EVD_20260317T054245Z_004"
+          ]
+        },
+        "address": {
+          "result": "fail",
+          "details": "输入地址'辽宁省盘锦市双台子区统一镇双台子区新区人民政府'过于冗长且不规范，官方证据显示正确地址为'盘锦市双台子区新府大街10号'",
+          "confidence": 0.95,
+          "evidence_refs": [
+            "EVD_20260317T054245Z_001",
+            "EVD_20260317T054245Z_004"
+          ]
+        },
+        "category": {
+          "result": "pass",
+          "details": "POI类型130104(区县级政府及事业单位)与证据相符",
+          "confidence": 1.0,
+          "evidence_refs": [
+            "EVD_20260317T054245Z_001",
+            "EVD_20260317T054245Z_004"
+          ]
+        },
+        "location": {
+          "score": 0.9,
+          "result": "fail",
+          "details": {
+            "source_dimensions": [
+              "address",
+              "coordinates"
+            ]
+          },
+          "confidence": 0.9
+        },
+        "existence": {
+          "result": "pass",
+          "details": "双台子区人民政府确实存在，官方网站和多个证据源证实",
+          "confidence": 1.0,
+          "evidence_refs": [
+            "EVD_20260317T054245Z_001",
+            "EVD_20260317T054245Z_002",
+            "EVD_20260317T054245Z_004"
+          ]
+        },
+        "coordinates": {
+          "result": "pass",
+          "details": "输入坐标(122.07608, 41.211834)与高德地图坐标(122.07597, 41.212401)距离约63米，在合理误差范围内",
+          "confidence": 0.9,
+          "evidence_refs": [
+            "EVD_20260317T054245Z_004"
+          ]
+        }
+      },
+      "evidence_record": [
+        {
+          "data": {
+            "name": "双台子区人民政府",
+            "phone": "0427-2360714",
+            "address": "盘锦市双台子区新府大街10号",
+            "raw_data": {
+              "data": {
+                "fax": "0427-2360711",
+                "name": "双台子区人民政府",
+                "phone": "0427-2360714",
+                "address": "盘锦市双台子区新府大街10号",
+                "office_hours": "8:30—11:30，13:30—17:00（节假日、公休日除外）"
+              },
+              "source": {
+                "weight": 0.95,
+                "source_url": "https://www.stq.gov.cn/",
+                "source_name": "双台子区人民政府",
+                "source_type": "official"
+              },
+              "collected_at": "2026-03-17T05:40:03Z"
+            }
+          },
+          "poi_id": "0a8373605c1f4fe18d67aa2ac53e97b8",
+          "source": {
+            "weight": 0.95,
+            "source_id": "OFFICIAL_UNKNOWN",
+            "source_url": "https://www.stq.gov.cn/",
+            "source_name": "双台子区人民政府",
+            "source_type": "official"
+          },
+          "metadata": {
+            "run_id": "ba2a1ff0-da0c-41c5-b0a3-5c4958d95244-0a8373605c1f4fe18d67aa2ac53e97b8-20260317T053951Z-5391cfb5",
+            "task_id": "ba2a1ff0-da0c-41c5-b0a3-5c4958d95244",
+            "collection_branch": "websearch",
+            "collection_method": "manual"
+          },
+          "evidence_id": "EVD_20260317T054245Z_001",
+          "collected_at": "2026-03-17T05:40:03Z",
+          "verification": {
+            "is_valid": true,
+            "confidence": 0.95
+          }
+        },
+        {
+          "data": {
+            "name": "双台子区人民政府",
+            "phone": "0427-2360834",
+            "raw_data": {
+              "data": {
+                "icp": "辽ICP备06000634号-1",
+                "name": "双台子区人民政府",
+                "phone": "0427-2360834",
+                "gongan": "辽公网安备 21110202000072号",
+                "description": "盘锦市双台子区人民政府",
+                "website_code": "2111020001"
+              },
+              "source": {
+                "weight": 1.0,
+                "source_url": "https://www.stq.gov.cn/",
+                "source_name": "双台子区人民政府",
+                "source_type": "official"
+              },
+              "collected_at": "2026-03-17T05:40:05Z"
+            }
+          },
+          "poi_id": "0a8373605c1f4fe18d67aa2ac53e97b8",
+          "source": {
+            "weight": 1.0,
+            "source_id": "OFFICIAL_UNKNOWN",
+            "source_url": "https://www.stq.gov.cn/",
+            "source_name": "双台子区人民政府",
+            "source_type": "official"
+          },
+          "metadata": {
+            "run_id": "ba2a1ff0-da0c-41c5-b0a3-5c4958d95244-0a8373605c1f4fe18d67aa2ac53e97b8-20260317T053951Z-5391cfb5",
+            "task_id": "ba2a1ff0-da0c-41c5-b0a3-5c4958d95244",
+            "collection_branch": "webfetch",
+            "collection_method": "crawl"
+          },
+          "evidence_id": "EVD_20260317T054245Z_002",
+          "collected_at": "2026-03-17T05:40:05Z",
+          "verification": {
+            "is_valid": true,
+            "confidence": 1.0
+          }
+        },
+        {
+          "data": {
+            "name": "盘锦市人民政府",
+            "phone": "0427-2825267",
+            "address": "盘锦市辽东湾新区宏冠大厦",
+            "raw_data": {
+              "data": {
+                "name": "盘锦市人民政府",
+                "phone": "0427-2825267",
+                "address": "盘锦市辽东湾新区宏冠大厦",
+                "zipcode": "124000",
+                "office_hours": "8：30-17：00（周末和节假日除外）"
+              },
+              "source": {
+                "weight": 0.9,
+                "source_url": "https://www.panjin.gov.cn/html/3002/",
+                "source_name": "盘锦市人民政府",
+                "source_type": "official"
+              },
+              "collected_at": "2026-03-17T05:40:03Z"
+            }
+          },
+          "poi_id": "0a8373605c1f4fe18d67aa2ac53e97b8",
+          "source": {
+            "weight": 0.9,
+            "source_id": "OFFICIAL_UNKNOWN",
+            "source_url": "https://www.panjin.gov.cn/html/3002/",
+            "source_name": "盘锦市人民政府",
+            "source_type": "official"
+          },
+          "metadata": {
+            "run_id": "ba2a1ff0-da0c-41c5-b0a3-5c4958d95244-0a8373605c1f4fe18d67aa2ac53e97b8-20260317T053951Z-5391cfb5",
+            "task_id": "ba2a1ff0-da0c-41c5-b0a3-5c4958d95244",
+            "collection_branch": "websearch",
+            "collection_method": "manual"
+          },
+          "evidence_id": "EVD_20260317T054245Z_003",
+          "collected_at": "2026-03-17T05:40:03Z",
+          "verification": {
+            "is_valid": true,
+            "confidence": 0.9
+          }
+        },
+        {
+          "data": {
+            "name": "盘锦市双台子区人民政府",
+            "address": "塔湾街中信泰富A1",
+            "category": "政府机构及社会团体;政府及社会团体相关;政府及社会团体相关",
+            "raw_data": {
+              "id": "B0FFIWPSOO",
+              "name": "盘锦市双台子区人民政府",
+              "type": "政府机构及社会团体;政府及社会团体相关;政府及社会团体相关",
+              "pcode": "210000",
+              "pname": "辽宁省",
+              "adcode": "211102",
+              "adname": "双台子区",
+              "parent": "B0FFI3YO1V",
+              "address": "塔湾街中信泰富A1",
+              "citycode": "0427",
+              "cityname": "盘锦市",
+              "location": "122.075970,41.212401",
+              "typecode": "130000"
+            },
+            "coordinates": {
+              "latitude": 41.212401,
+              "longitude": 122.07597
+            },
+            "administrative": {
+              "city": "盘锦市",
+              "district": "双台子区",
+              "province": "辽宁省"
+            }
+          },
+          "poi_id": "0a8373605c1f4fe18d67aa2ac53e97b8",
+          "source": {
+            "weight": 0.85,
+            "source_id": "AMAP_B0FFIWPSOO",
+            "source_url": "https://www.amap.com/",
+            "source_name": "高德地图",
+            "source_type": "map_vendor"
+          },
+          "metadata": {
+            "run_id": "ba2a1ff0-da0c-41c5-b0a3-5c4958d95244-0a8373605c1f4fe18d67aa2ac53e97b8-20260317T053951Z-5391cfb5",
+            "task_id": "ba2a1ff0-da0c-41c5-b0a3-5c4958d95244",
+            "map_source": "amap",
+            "collection_branch": "internal_proxy",
+            "collection_method": "api"
+          },
+          "evidence_id": "EVD_20260317T054245Z_004",
+          "collected_at": "2026-03-17T05:42:45Z",
+          "verification": {
+            "is_valid": true,
+            "confidence": 0.85
+          }
+        }
+      ]
+    }
+  },
+  {
+    "record_no": 4,
+    "poi_init": {
+      "task_id": "2f567759-75cc-4852-a923-58251e8a8e81",
+      "id": "0e4688551a164507907c1d06f611df16",
+      "name": "泸西县人民政府",
+      "x_coord": 103.76687,
+      "y_coord": 24.532406,
+      "poi_type": "130104",
+      "address": "云南省红河哈尼族彝族自治州泸西县中枢镇人民路8号泸西县人民政府",
+      "city": "红河哈尼族彝族自治州",
+      "city_adcode": "532500",
+      "verify_status": "已核实",
+      "verify_priority": "P0",
+      "status": 1,
+      "updatetime": "2026-03-17 10:55:10.374050"
+    },
+    "poi_verified": {
+      "task_id": "2f567759-75cc-4852-a923-58251e8a8e81",
+      "id": "0e4688551a164507907c1d06f611df16",
+      "name": "泸西县人民政府",
+      "x_coord": 103.76687,
+      "y_coord": 24.532406,
+      "poi_type": "130104",
+      "address": "云南省红河哈尼族彝族自治州泸西县中枢镇人民路8号泸西县人民政府",
+      "city": "红河哈尼族彝族自治州",
+      "city_adcode": "532500",
+      "verify_status": "已核实",
+      "verify_result": "核实通过",
+      "overall_confidence": 0.9941,
+      "poi_status": 1,
+      "original_task_id": "2f567759-75cc-4852-a923-58251e8a8e81",
+      "original_id": "0e4688551a164507907c1d06f611df16",
+      "verify_info": {
+        "name": {
+          "result": "pass",
+          "details": "官网、高德地图、腾讯地图均显示名称为'泸西县人民政府'，与输入完全一致",
+          "confidence": 1.0,
+          "evidence_refs": [
+            "EVD_20260317T025148Z_001",
+            "EVD_20260317T025148Z_004",
+            "EVD_20260317T025148Z_005"
+          ]
+        },
+        "address": {
+          "result": "pass",
+          "details": "所有证据均显示地址为'人民路8号'，与输入地址'云南省红河哈尼族彝族自治州泸西县中枢镇人民路8号'一致",
+          "confidence": 1.0,
+          "evidence_refs": [
+            "EVD_20260317T025148Z_001",
+            "EVD_20260317T025148Z_002",
+            "EVD_20260317T025148Z_004",
+            "EVD_20260317T025148Z_005"
+          ]
+        },
+        "category": {
+          "result": "pass",
+          "details": "高德地图类型码为130104，与输入类型码完全匹配",
+          "confidence": 1.0,
+          "evidence_refs": [
+            "EVD_20260317T025148Z_005"
+          ]
+        },
+        "location": {
+          "score": 0.95,
+          "result": "pass",
+          "details": {
+            "source_dimensions": [
+              "address",
+              "coordinates"
+            ]
+          },
+          "confidence": 0.95
+        },
+        "existence": {
+          "result": "pass",
+          "details": "多个权威证据证明该POI存在，包括官方网站和多个图商数据",
+          "confidence": 1.0,
+          "evidence_refs": [
+            "EVD_20260317T025148Z_001",
+            "EVD_20260317T025148Z_004",
+            "EVD_20260317T025148Z_005"
+          ]
+        },
+        "coordinates": {
+          "result": "pass",
+          "details": "高德地图(103.766879, 24.532436)和腾讯地图(103.766917, 24.5324)与输入坐标(103.76687, 24.532406)非常接近，误差在合理范围内",
+          "confidence": 0.95,
+          "evidence_refs": [
+            "EVD_20260317T025148Z_004",
+            "EVD_20260317T025148Z_005"
+          ]
+        }
+      },
+      "evidence_record": [
+        {
+          "data": {
+            "name": "泸西县人民政府",
+            "phone": "0873-6621715",
+            "address": "云南省红河哈尼族彝族自治州泸西县中枢镇人民路8号",
+            "raw_data": {
+              "data": {
+                "name": "泸西县人民政府",
+                "phone": "0873-6621715",
+                "address": "云南省红河哈尼族彝族自治州泸西县中枢镇人民路8号",
+                "website": "https://www.hhlx.gov.cn/"
+              },
+              "source": {
+                "source_url": "https://www.hhlx.gov.cn/",
+                "source_name": "泸西县人民政府官网",
+                "source_type": "official"
+              },
+              "confidence": 0.98,
+              "collected_at": "2026-03-17T02:48:00Z"
+            }
+          },
+          "poi_id": "0e4688551a164507907c1d06f611df16",
+          "source": {
+            "weight": 1.0,
+            "source_id": "OFFICIAL_UNKNOWN",
+            "source_url": "https://www.hhlx.gov.cn/",
+            "source_name": "泸西县人民政府官网",
+            "source_type": "official"
+          },
+          "metadata": {
+            "run_id": "2f567759-75cc-4852-a923-58251e8a8e81-0e4688551a164507907c1d06f611df16-20260317T024730Z-827227e4",
+            "task_id": "2f567759-75cc-4852-a923-58251e8a8e81",
+            "collection_branch": "websearch",
+            "collection_method": "manual"
+          },
+          "evidence_id": "EVD_20260317T025148Z_001",
+          "collected_at": "2026-03-17T02:48:00Z",
+          "verification": {
+            "is_valid": true,
+            "confidence": 1.0
+          }
+        },
+        {
+          "data": {
+            "name": "泸西县人民政府",
+            "phone": "0873-6621715",
+            "address": "泸西县中枢镇人民路8号",
+            "raw_data": {
+              "data": {
+                "name": "泸西县人民政府",
+                "phone": "0873-6621715",
+                "address": "泸西县中枢镇人民路8号",
+                "organizer": "泸西县人民政府",
+                "organizer_office": "泸西县人民政府办公室"
+              },
+              "source": {
+                "source_url": "https://www.hhlx.gov.cn/",
+                "source_name": "泸西县人民政府官网",
+                "source_type": "official"
+              },
+              "confidence": 0.99,
+              "collected_at": "2026-03-17T02:48:30Z"
+            }
+          },
+          "poi_id": "0e4688551a164507907c1d06f611df16",
+          "source": {
+            "weight": 1.0,
+            "source_id": "OFFICIAL_UNKNOWN",
+            "source_url": "https://www.hhlx.gov.cn/",
+            "source_name": "泸西县人民政府官网",
+            "source_type": "official"
+          },
+          "metadata": {
+            "run_id": "2f567759-75cc-4852-a923-58251e8a8e81-0e4688551a164507907c1d06f611df16-20260317T024730Z-827227e4",
+            "task_id": "2f567759-75cc-4852-a923-58251e8a8e81",
+            "collection_branch": "webfetch",
+            "collection_method": "crawl"
+          },
+          "evidence_id": "EVD_20260317T025148Z_002",
+          "collected_at": "2026-03-17T02:48:30Z",
+          "verification": {
+            "is_valid": true,
+            "confidence": 1.0
+          }
+        },
+        {
+          "data": {
+            "name": "中枢镇人民政府综合大楼",
+            "address": "云南省红河哈尼族彝族自治州泸西县中枢镇人民路8号",
+            "category": "房地产;写字楼",
+            "raw_data": {
+              "uid": "65cb03919c6a7597a1d230bf",
+              "area": "泸西县",
+              "city": "红河哈尼族彝族自治州",
+              "name": "中枢镇人民政府综合大楼",
+              "adcode": "532527",
+              "detail": 1,
+              "address": "云南省红河哈尼族彝族自治州泸西县中枢镇人民路8号",
+              "location": {
+                "lat": 24.540162,
+                "lng": 103.766263
+              },
+              "province": "云南省",
+              "street_id": "65cb03919c6a7597a1d230bf",
+              "detail_info": {
+                "tag": "房地产;写字楼",
+                "type": "house",
+                "detail_url": "http://api.map.baidu.com/place/detail?uid=65cb03919c6a7597a1d230bf&output=html&source=placeapi_v3",
+                "classified_poi_tag": "房地产;写字楼"
+              }
+            },
+            "coordinates": {
+              "latitude": 24.533931,
+              "longitude": 103.759797
+            },
+            "administrative": {
+              "city": "红河哈尼族彝族自治州",
+              "district": "泸西县"
+            }
+          },
+          "poi_id": "0e4688551a164507907c1d06f611df16",
+          "source": {
+            "weight": 0.85,
+            "source_id": "BMAP_65CB03919C6A7597A1D230BF",
+            "source_url": "https://map.baidu.com/",
+            "source_name": "百度地图",
+            "source_type": "map_vendor"
+          },
+          "metadata": {
+            "run_id": "2f567759-75cc-4852-a923-58251e8a8e81-0e4688551a164507907c1d06f611df16-20260317T024730Z-827227e4",
+            "task_id": "2f567759-75cc-4852-a923-58251e8a8e81",
+            "map_source": "bmap",
+            "collection_branch": "internal_proxy",
+            "collection_method": "api"
+          },
+          "evidence_id": "EVD_20260317T025148Z_003",
+          "collected_at": "2026-03-17T02:51:48Z",
+          "verification": {
+            "is_valid": true,
+            "confidence": 0.85
+          }
+        },
+        {
+          "data": {
+            "name": "泸西县人民政府",
+            "phone": "0873-6629726",
+            "address": "云南省红河哈尼族彝族自治州泸西县人民路8号",
+            "category": "机构团体:政府机关",
+            "raw_data": {
+              "id": "10830474112554574635",
+              "tel": "0873-6629726",
+              "type": 0,
+              "title": "泸西县人民政府",
+              "ad_info": {
+                "city": "红河哈尼族彝族自治州",
+                "adcode": 532527,
+                "district": "泸西县",
+                "province": "云南省"
+              },
+              "address": "云南省红河哈尼族彝族自治州泸西县人民路8号",
+              "category": "机构团体:政府机关",
+              "location": {
+                "lat": 24.5324,
+                "lng": 103.766917
+              }
+            },
+            "coordinates": {
+              "latitude": 24.5324,
+              "longitude": 103.766917
+            },
+            "administrative": {
+              "city": "红河哈尼族彝族自治州",
+              "district": "泸西县",
+              "province": "云南省"
+            }
+          },
+          "poi_id": "0e4688551a164507907c1d06f611df16",
+          "source": {
+            "weight": 0.8,
+            "source_id": "QMAP_10830474112554574635",
+            "source_url": "https://map.qq.com/",
+            "source_name": "腾讯地图",
+            "source_type": "map_vendor"
+          },
+          "metadata": {
+            "run_id": "2f567759-75cc-4852-a923-58251e8a8e81-0e4688551a164507907c1d06f611df16-20260317T024730Z-827227e4",
+            "task_id": "2f567759-75cc-4852-a923-58251e8a8e81",
+            "map_source": "qmap",
+            "collection_branch": "internal_proxy",
+            "collection_method": "api"
+          },
+          "evidence_id": "EVD_20260317T025148Z_004",
+          "collected_at": "2026-03-17T02:51:48Z",
+          "verification": {
+            "is_valid": true,
+            "confidence": 0.8
+          }
+        },
+        {
+          "data": {
+            "name": "泸西县人民政府",
+            "address": "人民路8号",
+            "category": "政府机构及社会团体;政府机关;区县级政府及事业单位",
+            "raw_data": {
+              "id": "B0369009XI",
+              "name": "泸西县人民政府",
+              "type": "政府机构及社会团体;政府机关;区县级政府及事业单位",
+              "pcode": "530000",
+              "pname": "云南省",
+              "adcode": "532527",
+              "adname": "泸西县",
+              "address": "人民路8号",
+              "citycode": "0873",
+              "cityname": "红河哈尼族彝族自治州",
+              "location": "103.766879,24.532436",
+              "typecode": "130104"
+            },
+            "coordinates": {
+              "latitude": 24.532436,
+              "longitude": 103.766879
+            },
+            "administrative": {
+              "city": "红河哈尼族彝族自治州",
+              "district": "泸西县",
+              "province": "云南省"
+            }
+          },
+          "poi_id": "0e4688551a164507907c1d06f611df16",
+          "source": {
+            "weight": 0.85,
+            "source_id": "AMAP_B0369009XI",
+            "source_url": "https://www.amap.com/",
+            "source_name": "高德地图",
+            "source_type": "map_vendor"
+          },
+          "metadata": {
+            "run_id": "2f567759-75cc-4852-a923-58251e8a8e81-0e4688551a164507907c1d06f611df16-20260317T024730Z-827227e4",
+            "task_id": "2f567759-75cc-4852-a923-58251e8a8e81",
+            "map_source": "amap",
+            "collection_branch": "internal_proxy",
+            "collection_method": "api"
+          },
+          "evidence_id": "EVD_20260317T025148Z_005",
+          "collected_at": "2026-03-17T02:51:48Z",
+          "verification": {
+            "is_valid": true,
+            "confidence": 0.85
+          }
+        }
+      ],
+      "changes_made": null,
+      "verification_notes": "核实通过，核心维度均满足要求，综合置信度0.99。",
+      "verify_time": "2026-03-17 10:55:10.374050",
+      "updatetime": "2026-03-17 22:41:52.750435",
+      "verified_by": "system",
+      "verification_version": "1.4.0"
+    },
+    "poi_qc": {
+      "task_id": "2f567759-75cc-4852-a923-58251e8a8e81",
+      "id": "0e4688551a164507907c1d06f611df16",
+      "batch_id": "BATCH_20260317_22_41_52_292306383964082176",
+      "name": "泸西县人民政府",
+      "x_coord": 103.76687,
+      "y_coord": 24.532406,
+      "poi_type": "130104",
+      "address": "云南省红河哈尼族彝族自治州泸西县中枢镇人民路8号泸西县人民政府",
+      "city": "红河哈尼族彝族自治州",
+      "city_adcode": "532500",
+      "poi_status": 1,
+      "verify_result": "核实通过",
+      "quality_status": "质检中",
+      "qc_status": null,
+      "qc_score": null,
+      "qc_result": null,
+      "is_qualified": null,
+      "has_risk": null,
+      "is_auto_approvable": null,
+      "is_manual_required": null,
+      "downgrade_issue_type": null,
+      "downgrade_status": null,
+      "is_downgrade_consistent": null,
+      "original_task_id": null,
+      "qc_time": null,
+      "updatetime": "2026-03-17 22:56:48.267802",
+      "qc_by": null,
+      "qc_version": null,
+      "verify_info": {
+        "name": {
+          "result": "pass",
+          "details": "官网、高德地图、腾讯地图均显示名称为'泸西县人民政府'，与输入完全一致",
+          "confidence": 1.0,
+          "evidence_refs": [
+            "EVD_20260317T025148Z_001",
+            "EVD_20260317T025148Z_004",
+            "EVD_20260317T025148Z_005"
+          ]
+        },
+        "address": {
+          "result": "pass",
+          "details": "所有证据均显示地址为'人民路8号'，与输入地址'云南省红河哈尼族彝族自治州泸西县中枢镇人民路8号'一致",
+          "confidence": 1.0,
+          "evidence_refs": [
+            "EVD_20260317T025148Z_001",
+            "EVD_20260317T025148Z_002",
+            "EVD_20260317T025148Z_004",
+            "EVD_20260317T025148Z_005"
+          ]
+        },
+        "category": {
+          "result": "pass",
+          "details": "高德地图类型码为130104，与输入类型码完全匹配",
+          "confidence": 1.0,
+          "evidence_refs": [
+            "EVD_20260317T025148Z_005"
+          ]
+        },
+        "location": {
+          "score": 0.95,
+          "result": "pass",
+          "details": {
+            "source_dimensions": [
+              "address",
+              "coordinates"
+            ]
+          },
+          "confidence": 0.95
+        },
+        "existence": {
+          "result": "pass",
+          "details": "多个权威证据证明该POI存在，包括官方网站和多个图商数据",
+          "confidence": 1.0,
+          "evidence_refs": [
+            "EVD_20260317T025148Z_001",
+            "EVD_20260317T025148Z_004",
+            "EVD_20260317T025148Z_005"
+          ]
+        },
+        "coordinates": {
+          "result": "pass",
+          "details": "高德地图(103.766879, 24.532436)和腾讯地图(103.766917, 24.5324)与输入坐标(103.76687, 24.532406)非常接近，误差在合理范围内",
+          "confidence": 0.95,
+          "evidence_refs": [
+            "EVD_20260317T025148Z_004",
+            "EVD_20260317T025148Z_005"
+          ]
+        }
+      },
+      "evidence_record": [
+        {
+          "data": {
+            "name": "泸西县人民政府",
+            "phone": "0873-6621715",
+            "address": "云南省红河哈尼族彝族自治州泸西县中枢镇人民路8号",
+            "raw_data": {
+              "data": {
+                "name": "泸西县人民政府",
+                "phone": "0873-6621715",
+                "address": "云南省红河哈尼族彝族自治州泸西县中枢镇人民路8号",
+                "website": "https://www.hhlx.gov.cn/"
+              },
+              "source": {
+                "source_url": "https://www.hhlx.gov.cn/",
+                "source_name": "泸西县人民政府官网",
+                "source_type": "official"
+              },
+              "confidence": 0.98,
+              "collected_at": "2026-03-17T02:48:00Z"
+            }
+          },
+          "poi_id": "0e4688551a164507907c1d06f611df16",
+          "source": {
+            "weight": 1.0,
+            "source_id": "OFFICIAL_UNKNOWN",
+            "source_url": "https://www.hhlx.gov.cn/",
+            "source_name": "泸西县人民政府官网",
+            "source_type": "official"
+          },
+          "metadata": {
+            "run_id": "2f567759-75cc-4852-a923-58251e8a8e81-0e4688551a164507907c1d06f611df16-20260317T024730Z-827227e4",
+            "task_id": "2f567759-75cc-4852-a923-58251e8a8e81",
+            "collection_branch": "websearch",
+            "collection_method": "manual"
+          },
+          "evidence_id": "EVD_20260317T025148Z_001",
+          "collected_at": "2026-03-17T02:48:00Z",
+          "verification": {
+            "is_valid": true,
+            "confidence": 1.0
+          }
+        },
+        {
+          "data": {
+            "name": "泸西县人民政府",
+            "phone": "0873-6621715",
+            "address": "泸西县中枢镇人民路8号",
+            "raw_data": {
+              "data": {
+                "name": "泸西县人民政府",
+                "phone": "0873-6621715",
+                "address": "泸西县中枢镇人民路8号",
+                "organizer": "泸西县人民政府",
+                "organizer_office": "泸西县人民政府办公室"
+              },
+              "source": {
+                "source_url": "https://www.hhlx.gov.cn/",
+                "source_name": "泸西县人民政府官网",
+                "source_type": "official"
+              },
+              "confidence": 0.99,
+              "collected_at": "2026-03-17T02:48:30Z"
+            }
+          },
+          "poi_id": "0e4688551a164507907c1d06f611df16",
+          "source": {
+            "weight": 1.0,
+            "source_id": "OFFICIAL_UNKNOWN",
+            "source_url": "https://www.hhlx.gov.cn/",
+            "source_name": "泸西县人民政府官网",
+            "source_type": "official"
+          },
+          "metadata": {
+            "run_id": "2f567759-75cc-4852-a923-58251e8a8e81-0e4688551a164507907c1d06f611df16-20260317T024730Z-827227e4",
+            "task_id": "2f567759-75cc-4852-a923-58251e8a8e81",
+            "collection_branch": "webfetch",
+            "collection_method": "crawl"
+          },
+          "evidence_id": "EVD_20260317T025148Z_002",
+          "collected_at": "2026-03-17T02:48:30Z",
+          "verification": {
+            "is_valid": true,
+            "confidence": 1.0
+          }
+        },
+        {
+          "data": {
+            "name": "中枢镇人民政府综合大楼",
+            "address": "云南省红河哈尼族彝族自治州泸西县中枢镇人民路8号",
+            "category": "房地产;写字楼",
+            "raw_data": {
+              "uid": "65cb03919c6a7597a1d230bf",
+              "area": "泸西县",
+              "city": "红河哈尼族彝族自治州",
+              "name": "中枢镇人民政府综合大楼",
+              "adcode": "532527",
+              "detail": 1,
+              "address": "云南省红河哈尼族彝族自治州泸西县中枢镇人民路8号",
+              "location": {
+                "lat": 24.540162,
+                "lng": 103.766263
+              },
+              "province": "云南省",
+              "street_id": "65cb03919c6a7597a1d230bf",
+              "detail_info": {
+                "tag": "房地产;写字楼",
+                "type": "house",
+                "detail_url": "http://api.map.baidu.com/place/detail?uid=65cb03919c6a7597a1d230bf&output=html&source=placeapi_v3",
+                "classified_poi_tag": "房地产;写字楼"
+              }
+            },
+            "coordinates": {
+              "latitude": 24.533931,
+              "longitude": 103.759797
+            },
+            "administrative": {
+              "city": "红河哈尼族彝族自治州",
+              "district": "泸西县"
+            }
+          },
+          "poi_id": "0e4688551a164507907c1d06f611df16",
+          "source": {
+            "weight": 0.85,
+            "source_id": "BMAP_65CB03919C6A7597A1D230BF",
+            "source_url": "https://map.baidu.com/",
+            "source_name": "百度地图",
+            "source_type": "map_vendor"
+          },
+          "metadata": {
+            "run_id": "2f567759-75cc-4852-a923-58251e8a8e81-0e4688551a164507907c1d06f611df16-20260317T024730Z-827227e4",
+            "task_id": "2f567759-75cc-4852-a923-58251e8a8e81",
+            "map_source": "bmap",
+            "collection_branch": "internal_proxy",
+            "collection_method": "api"
+          },
+          "evidence_id": "EVD_20260317T025148Z_003",
+          "collected_at": "2026-03-17T02:51:48Z",
+          "verification": {
+            "is_valid": true,
+            "confidence": 0.85
+          }
+        },
+        {
+          "data": {
+            "name": "泸西县人民政府",
+            "phone": "0873-6629726",
+            "address": "云南省红河哈尼族彝族自治州泸西县人民路8号",
+            "category": "机构团体:政府机关",
+            "raw_data": {
+              "id": "10830474112554574635",
+              "tel": "0873-6629726",
+              "type": 0,
+              "title": "泸西县人民政府",
+              "ad_info": {
+                "city": "红河哈尼族彝族自治州",
+                "adcode": 532527,
+                "district": "泸西县",
+                "province": "云南省"
+              },
+              "address": "云南省红河哈尼族彝族自治州泸西县人民路8号",
+              "category": "机构团体:政府机关",
+              "location": {
+                "lat": 24.5324,
+                "lng": 103.766917
+              }
+            },
+            "coordinates": {
+              "latitude": 24.5324,
+              "longitude": 103.766917
+            },
+            "administrative": {
+              "city": "红河哈尼族彝族自治州",
+              "district": "泸西县",
+              "province": "云南省"
+            }
+          },
+          "poi_id": "0e4688551a164507907c1d06f611df16",
+          "source": {
+            "weight": 0.8,
+            "source_id": "QMAP_10830474112554574635",
+            "source_url": "https://map.qq.com/",
+            "source_name": "腾讯地图",
+            "source_type": "map_vendor"
+          },
+          "metadata": {
+            "run_id": "2f567759-75cc-4852-a923-58251e8a8e81-0e4688551a164507907c1d06f611df16-20260317T024730Z-827227e4",
+            "task_id": "2f567759-75cc-4852-a923-58251e8a8e81",
+            "map_source": "qmap",
+            "collection_branch": "internal_proxy",
+            "collection_method": "api"
+          },
+          "evidence_id": "EVD_20260317T025148Z_004",
+          "collected_at": "2026-03-17T02:51:48Z",
+          "verification": {
+            "is_valid": true,
+            "confidence": 0.8
+          }
+        },
+        {
+          "data": {
+            "name": "泸西县人民政府",
+            "address": "人民路8号",
+            "category": "政府机构及社会团体;政府机关;区县级政府及事业单位",
+            "raw_data": {
+              "id": "B0369009XI",
+              "name": "泸西县人民政府",
+              "type": "政府机构及社会团体;政府机关;区县级政府及事业单位",
+              "pcode": "530000",
+              "pname": "云南省",
+              "adcode": "532527",
+              "adname": "泸西县",
+              "address": "人民路8号",
+              "citycode": "0873",
+              "cityname": "红河哈尼族彝族自治州",
+              "location": "103.766879,24.532436",
+              "typecode": "130104"
+            },
+            "coordinates": {
+              "latitude": 24.532436,
+              "longitude": 103.766879
+            },
+            "administrative": {
+              "city": "红河哈尼族彝族自治州",
+              "district": "泸西县",
+              "province": "云南省"
+            }
+          },
+          "poi_id": "0e4688551a164507907c1d06f611df16",
+          "source": {
+            "weight": 0.85,
+            "source_id": "AMAP_B0369009XI",
+            "source_url": "https://www.amap.com/",
+            "source_name": "高德地图",
+            "source_type": "map_vendor"
+          },
+          "metadata": {
+            "run_id": "2f567759-75cc-4852-a923-58251e8a8e81-0e4688551a164507907c1d06f611df16-20260317T024730Z-827227e4",
+            "task_id": "2f567759-75cc-4852-a923-58251e8a8e81",
+            "map_source": "amap",
+            "collection_branch": "internal_proxy",
+            "collection_method": "api"
+          },
+          "evidence_id": "EVD_20260317T025148Z_005",
+          "collected_at": "2026-03-17T02:51:48Z",
+          "verification": {
+            "is_valid": true,
+            "confidence": 0.85
+          }
+        }
+      ]
+    }
+  },
+  {
+    "record_no": 5,
+    "poi_init": {
+      "task_id": "6286caab-80ad-48e3-8795-42c8deb083c1",
+      "id": "0E6FC0C7C2A54819A9ACA6695921F83F",
+      "name": "恩施土家族苗族自治州人民政府",
+      "x_coord": 109.488464,
+      "y_coord": 30.272049,
+      "poi_type": "130103",
+      "address": "湖北省恩施土家族苗族自治州恩施市舞阳坝街道舞阳大道一路21号恩施土家族苗族自治州人民政府",
+      "city": "恩施土家族苗族自治州",
+      "city_adcode": "422800",
+      "verify_status": "已核实",
+      "verify_priority": "P0",
+      "status": 1,
+      "updatetime": "2026-03-17 12:05:53.992099"
+    },
+    "poi_verified": {
+      "task_id": "6286caab-80ad-48e3-8795-42c8deb083c1",
+      "id": "0E6FC0C7C2A54819A9ACA6695921F83F",
+      "name": "恩施土家族苗族自治州人民政府",
+      "x_coord": 109.488464,
+      "y_coord": 30.272049,
+      "poi_type": "130103",
+      "address": "湖北省恩施市舞阳大道1巷21号",
+      "city": "恩施土家族苗族自治州",
+      "city_adcode": "422800",
+      "verify_status": "已核实",
+      "verify_result": "核实通过",
+      "overall_confidence": 0.9588,
+      "poi_status": 1,
+      "original_task_id": "6286caab-80ad-48e3-8795-42c8deb083c1",
+      "original_id": "0E6FC0C7C2A54819A9ACA6695921F83F",
+      "verify_info": {
+        "name": {
+          "result": "pass",
+          "details": "所有证据源名称完全匹配：恩施土家族苗族自治州人民政府",
+          "confidence": 1.0,
+          "evidence_refs": [
+            "EVD_20260317T040510Z_001",
+            "EVD_20260317T040510Z_005"
+          ]
+        },
+        "address": {
+          "result": "uncertain",
+          "details": "地址存在不一致：官方网站显示为金子坝路恩施州传媒中心报业大楼11楼，但高德和腾讯地图支持舞阳大道1巷21号。政府机构可能有多个办公地点，建议以官方最新信息为准",
+          "confidence": 0.7,
+          "evidence_refs": [
+            "EVD_20260317T040510Z_001",
+            "EVD_20260317T040510Z_004",
+            "EVD_20260317T040510Z_005"
+          ]
+        },
+        "category": {
+          "result": "pass",
+          "details": "POI类型码130103(地市级政府及事业单位)与高德地图分类完全匹配",
+          "confidence": 1.0,
+          "evidence_refs": [
+            "EVD_20260317T040510Z_005"
+          ]
+        },
+        "location": {
+          "score": 0.7,
+          "result": "uncertain",
+          "details": {
+            "source_dimensions": [
+              "address",
+              "coordinates"
+            ]
+          },
+          "confidence": 0.7
+        },
+        "existence": {
+          "result": "pass",
+          "details": "官方网站和多个图商均确认该政府机构存在",
+          "confidence": 1.0,
+          "evidence_refs": [
+            "EVD_20260317T040510Z_001",
+            "EVD_20260317T040510Z_002",
+            "EVD_20260317T040510Z_005"
+          ]
+        },
+        "coordinates": {
+          "result": "pass",
+          "details": "输入坐标(109.488464, 30.272049)与图商坐标高度一致：高德(109.488076, 30.272104)、腾讯(109.488203, 30.272586)，偏差在合理范围内",
+          "confidence": 0.95,
+          "evidence_refs": [
+            "EVD_20260317T040510Z_004",
+            "EVD_20260317T040510Z_005"
+          ]
+        }
+      },
+      "evidence_record": [
+        {
+          "data": {
+            "name": "恩施土家族苗族自治州人民政府",
+            "phone": "0718-8223960",
+            "address": "湖北省恩施市金子坝路恩施州传媒中心报业大楼11楼",
+            "raw_data": {
+              "data": {
+                "name": "恩施土家族苗族自治州人民政府",
+                "phone": "0718-8223960",
+                "address": "湖北省恩施市金子坝路恩施州传媒中心报业大楼11楼",
+                "alternative_address": "湖北省恩施州恩施市舞阳大道一巷21号"
+              },
+              "source": {
+                "source_url": "http://www.enshi.gov.cn/",
+                "source_name": "恩施州人民政府门户网站",
+                "source_type": "official"
+              },
+              "confidence": 1.0
+            }
+          },
+          "poi_id": "0E6FC0C7C2A54819A9ACA6695921F83F",
+          "source": {
+            "weight": 1.0,
+            "source_id": "OFFICIAL_UNKNOWN",
+            "source_url": "http://www.enshi.gov.cn/",
+            "source_name": "恩施州人民政府门户网站",
+            "source_type": "official"
+          },
+          "metadata": {
+            "run_id": "6286caab-80ad-48e3-8795-42c8deb083c1-0E6FC0C7C2A54819A9ACA6695921F83F-20260317T040300Z-5c631ebd",
+            "task_id": "6286caab-80ad-48e3-8795-42c8deb083c1",
+            "collection_branch": "websearch",
+            "collection_method": "manual"
+          },
+          "evidence_id": "EVD_20260317T040510Z_001",
+          "collected_at": "2026-03-17T04:05:10Z",
+          "verification": {
+            "is_valid": true,
+            "confidence": 1.0
+          }
+        },
+        {
+          "data": {
+            "name": "恩施土家族苗族自治州人民政府",
+            "phone": "0718-8223960",
+            "raw_data": {
+              "data": {
+                "name": "恩施土家族苗族自治州人民政府",
+                "phone": "0718-8223960",
+                "website": "http://www.enshi.gov.cn/",
+                "operator": "恩施日报社承办",
+                "organizer": "恩施土家族苗族自治州人民政府办公室主管主办",
+                "site_id_code": "4228000029"
+              },
+              "source": {
+                "source_url": "http://www.enshi.gov.cn/",
+                "source_name": "恩施州人民政府门户网站",
+                "source_type": "official"
+              },
+              "confidence": 1.0
+            }
+          },
+          "poi_id": "0E6FC0C7C2A54819A9ACA6695921F83F",
+          "source": {
+            "weight": 1.0,
+            "source_id": "OFFICIAL_UNKNOWN",
+            "source_url": "http://www.enshi.gov.cn/",
+            "source_name": "恩施州人民政府门户网站",
+            "source_type": "official"
+          },
+          "metadata": {
+            "run_id": "6286caab-80ad-48e3-8795-42c8deb083c1-0E6FC0C7C2A54819A9ACA6695921F83F-20260317T040300Z-5c631ebd",
+            "task_id": "6286caab-80ad-48e3-8795-42c8deb083c1",
+            "collection_branch": "webfetch",
+            "collection_method": "crawl"
+          },
+          "evidence_id": "EVD_20260317T040510Z_002",
+          "collected_at": "2026-03-17T04:05:10Z",
+          "verification": {
+            "is_valid": true,
+            "confidence": 1.0
+          }
+        },
+        {
+          "data": {
+            "name": "恩施土家族苗族自治州人民政府",
+            "phone": "0718-8223960",
+            "address": "湖北省恩施市金子坝路恩施州传媒中心报业大楼11楼",
+            "raw_data": {
+              "data": {
+                "name": "恩施土家族苗族自治州人民政府",
+                "phone": "0718-8223960",
+                "address": "湖北省恩施市金子坝路恩施州传媒中心报业大楼11楼"
+              },
+              "source": {
+                "source_url": "http://www.enshi.gov.cn/qt/201810/t20181012_390165.shtml",
+                "source_name": "恩施州人民政府门户网站-联系我们",
+                "source_type": "official"
+              },
+              "confidence": 1.0
+            }
+          },
+          "poi_id": "0E6FC0C7C2A54819A9ACA6695921F83F",
+          "source": {
+            "weight": 1.0,
+            "source_id": "OFFICIAL_UNKNOWN",
+            "source_url": "http://www.enshi.gov.cn/qt/201810/t20181012_390165.shtml",
+            "source_name": "恩施州人民政府门户网站-联系我们",
+            "source_type": "official"
+          },
+          "metadata": {
+            "run_id": "6286caab-80ad-48e3-8795-42c8deb083c1-0E6FC0C7C2A54819A9ACA6695921F83F-20260317T040300Z-5c631ebd",
+            "task_id": "6286caab-80ad-48e3-8795-42c8deb083c1",
+            "collection_branch": "websearch",
+            "collection_method": "manual"
+          },
+          "evidence_id": "EVD_20260317T040510Z_003",
+          "collected_at": "2026-03-17T04:05:10Z",
+          "verification": {
+            "is_valid": true,
+            "confidence": 1.0
+          }
+        },
+        {
+          "data": {
+            "name": "土家族苗族自治州人民政府",
+            "phone": "0718-8222183",
+            "address": "湖北省恩施土家族苗族自治州恩施市舞阳大道1巷21号",
+            "category": "机构团体:政府机关",
+            "raw_data": {
+              "id": "1896596476888922968",
+              "tel": "0718-8222183",
+              "type": 0,
+              "title": "土家族苗族自治州人民政府",
+              "ad_info": {
+                "city": "恩施土家族苗族自治州",
+                "adcode": 422801,
+                "district": "恩施市",
+                "province": "湖北省"
+              },
+              "address": "湖北省恩施土家族苗族自治州恩施市舞阳大道1巷21号",
+              "category": "机构团体:政府机关",
+              "location": {
+                "lat": 30.272586,
+                "lng": 109.488203
+              }
+            },
+            "coordinates": {
+              "latitude": 30.272586,
+              "longitude": 109.488203
+            },
+            "administrative": {
+              "city": "恩施土家族苗族自治州",
+              "district": "恩施市",
+              "province": "湖北省"
+            }
+          },
+          "poi_id": "0E6FC0C7C2A54819A9ACA6695921F83F",
+          "source": {
+            "weight": 0.8,
+            "source_id": "QMAP_1896596476888922968",
+            "source_url": "https://map.qq.com/",
+            "source_name": "腾讯地图",
+            "source_type": "map_vendor"
+          },
+          "metadata": {
+            "run_id": "6286caab-80ad-48e3-8795-42c8deb083c1-0E6FC0C7C2A54819A9ACA6695921F83F-20260317T040300Z-5c631ebd",
+            "task_id": "6286caab-80ad-48e3-8795-42c8deb083c1",
+            "map_source": "qmap",
+            "collection_branch": "internal_proxy",
+            "collection_method": "api"
+          },
+          "evidence_id": "EVD_20260317T040510Z_004",
+          "collected_at": "2026-03-17T04:05:10Z",
+          "verification": {
+            "is_valid": true,
+            "confidence": 0.8
+          }
+        },
+        {
+          "data": {
+            "name": "恩施土家族苗族自治州人民政府",
+            "phone": "0718-8222183",
+            "address": "舞阳大道1巷21号",
+            "category": "政府机构及社会团体;政府机关;地市级政府及事业单位",
+            "raw_data": {
+              "id": "B02CE0062V",
+              "tel": "0718-8222183",
+              "name": "恩施土家族苗族自治州人民政府",
+              "type": "政府机构及社会团体;政府机关;地市级政府及事业单位",
+              "match": "0",
+              "pcode": "420000",
+              "pname": "湖北省",
+              "adcode": "422801",
+              "adname": "恩施市",
+              "keytag": "人民政府",
+              "photos": [
+                {
+                  "url": "http://store.is.autonavi.com/showpic/27267f7b62ffa5be649db57de7b29cd1"
+                }
+              ],
+              "address": "舞阳大道1巷21号",
+              "biz_ext": {
+                "open_time": "24小时营业",
+                "opentime2": "周一至周日 00:00-24:00"
+              },
+              "citycode": "0718",
+              "cityname": "恩施土家族苗族自治州",
+              "gridcode": "4509332910",
+              "location": "109.488076,30.272104",
+              "shopinfo": "2",
+              "typecode": "130103",
+              "recommend": "3",
+              "timestamp": "2026-02-02 11:33:24",
+              "indoor_map": "0",
+              "navi_poiid": "H49F021012_157",
+              "discount_num": "0",
+              "groupbuy_num": "0",
+              "business_area": "东风大道",
+              "entr_location": "109.488003,30.272065"
+            },
+            "coordinates": {
+              "latitude": 30.272104,
+              "longitude": 109.488076
+            },
+            "administrative": {
+              "city": "恩施土家族苗族自治州",
+              "district": "恩施市",
+              "province": "湖北省"
+            }
+          },
+          "poi_id": "0E6FC0C7C2A54819A9ACA6695921F83F",
+          "source": {
+            "weight": 0.85,
+            "source_id": "AMAP_B02CE0062V",
+            "source_url": "https://www.amap.com/",
+            "source_name": "高德地图",
+            "source_type": "map_vendor"
+          },
+          "metadata": {
+            "run_id": "6286caab-80ad-48e3-8795-42c8deb083c1-0E6FC0C7C2A54819A9ACA6695921F83F-20260317T040300Z-5c631ebd",
+            "task_id": "6286caab-80ad-48e3-8795-42c8deb083c1",
+            "map_source": "amap",
+            "collection_branch": "internal_proxy",
+            "collection_method": "api"
+          },
+          "evidence_id": "EVD_20260317T040510Z_005",
+          "collected_at": "2026-03-17T04:05:10Z",
+          "verification": {
+            "is_valid": true,
+            "confidence": 0.85
+          }
+        }
+      ],
+      "changes_made": [
+        {
+          "field": "address",
+          "reason": "根据高德地图和腾讯地图数据，建议简化地址描述。官方网站显示办公地址为金子坝路恩施州传媒中心报业大楼11楼，政府机构可能存在多个办公地点，建议以官方最新信息为准",
+          "new_value": "湖北省恩施市舞阳大道1巷21号",
+          "old_value": "湖北省恩施土家族苗族自治州恩施市舞阳坝街道舞阳大道一路21号恩施土家族苗族自治州人民政府"
+        }
+      ],
+      "verification_notes": "核实通过，建议按结构化修正更新1项字段，综合置信度0.96。",
+      "verify_time": "2026-03-17 12:05:53.992099",
+      "updatetime": "2026-03-17 22:41:52.750435",
+      "verified_by": "system",
+      "verification_version": "1.4.0"
+    },
+    "poi_qc": {
+      "task_id": "6286caab-80ad-48e3-8795-42c8deb083c1",
+      "id": "0E6FC0C7C2A54819A9ACA6695921F83F",
+      "batch_id": "BATCH_20260317_22_41_52_292306383964082176",
+      "name": "恩施土家族苗族自治州人民政府",
+      "x_coord": 109.488464,
+      "y_coord": 30.272049,
+      "poi_type": "130103",
+      "address": "湖北省恩施市舞阳大道1巷21号",
+      "city": "恩施土家族苗族自治州",
+      "city_adcode": "422800",
+      "poi_status": 1,
+      "verify_result": "核实通过",
+      "quality_status": "质检中",
+      "qc_status": null,
+      "qc_score": null,
+      "qc_result": null,
+      "is_qualified": null,
+      "has_risk": null,
+      "is_auto_approvable": null,
+      "is_manual_required": null,
+      "downgrade_issue_type": null,
+      "downgrade_status": null,
+      "is_downgrade_consistent": null,
+      "original_task_id": null,
+      "qc_time": null,
+      "updatetime": "2026-03-17 23:08:32.474949",
+      "qc_by": null,
+      "qc_version": null,
+      "verify_info": {
+        "name": {
+          "result": "pass",
+          "details": "所有证据源名称完全匹配：恩施土家族苗族自治州人民政府",
+          "confidence": 1.0,
+          "evidence_refs": [
+            "EVD_20260317T040510Z_001",
+            "EVD_20260317T040510Z_005"
+          ]
+        },
+        "address": {
+          "result": "uncertain",
+          "details": "地址存在不一致：官方网站显示为金子坝路恩施州传媒中心报业大楼11楼，但高德和腾讯地图支持舞阳大道1巷21号。政府机构可能有多个办公地点，建议以官方最新信息为准",
+          "confidence": 0.7,
+          "evidence_refs": [
+            "EVD_20260317T040510Z_001",
+            "EVD_20260317T040510Z_004",
+            "EVD_20260317T040510Z_005"
+          ]
+        },
+        "category": {
+          "result": "pass",
+          "details": "POI类型码130103(地市级政府及事业单位)与高德地图分类完全匹配",
+          "confidence": 1.0,
+          "evidence_refs": [
+            "EVD_20260317T040510Z_005"
+          ]
+        },
+        "location": {
+          "score": 0.7,
+          "result": "uncertain",
+          "details": {
+            "source_dimensions": [
+              "address",
+              "coordinates"
+            ]
+          },
+          "confidence": 0.7
+        },
+        "existence": {
+          "result": "pass",
+          "details": "官方网站和多个图商均确认该政府机构存在",
+          "confidence": 1.0,
+          "evidence_refs": [
+            "EVD_20260317T040510Z_001",
+            "EVD_20260317T040510Z_002",
+            "EVD_20260317T040510Z_005"
+          ]
+        },
+        "coordinates": {
+          "result": "pass",
+          "details": "输入坐标(109.488464, 30.272049)与图商坐标高度一致：高德(109.488076, 30.272104)、腾讯(109.488203, 30.272586)，偏差在合理范围内",
+          "confidence": 0.95,
+          "evidence_refs": [
+            "EVD_20260317T040510Z_004",
+            "EVD_20260317T040510Z_005"
+          ]
+        }
+      },
+      "evidence_record": [
+        {
+          "data": {
+            "name": "恩施土家族苗族自治州人民政府",
+            "phone": "0718-8223960",
+            "address": "湖北省恩施市金子坝路恩施州传媒中心报业大楼11楼",
+            "raw_data": {
+              "data": {
+                "name": "恩施土家族苗族自治州人民政府",
+                "phone": "0718-8223960",
+                "address": "湖北省恩施市金子坝路恩施州传媒中心报业大楼11楼",
+                "alternative_address": "湖北省恩施州恩施市舞阳大道一巷21号"
+              },
+              "source": {
+                "source_url": "http://www.enshi.gov.cn/",
+                "source_name": "恩施州人民政府门户网站",
+                "source_type": "official"
+              },
+              "confidence": 1.0
+            }
+          },
+          "poi_id": "0E6FC0C7C2A54819A9ACA6695921F83F",
+          "source": {
+            "weight": 1.0,
+            "source_id": "OFFICIAL_UNKNOWN",
+            "source_url": "http://www.enshi.gov.cn/",
+            "source_name": "恩施州人民政府门户网站",
+            "source_type": "official"
+          },
+          "metadata": {
+            "run_id": "6286caab-80ad-48e3-8795-42c8deb083c1-0E6FC0C7C2A54819A9ACA6695921F83F-20260317T040300Z-5c631ebd",
+            "task_id": "6286caab-80ad-48e3-8795-42c8deb083c1",
+            "collection_branch": "websearch",
+            "collection_method": "manual"
+          },
+          "evidence_id": "EVD_20260317T040510Z_001",
+          "collected_at": "2026-03-17T04:05:10Z",
+          "verification": {
+            "is_valid": true,
+            "confidence": 1.0
+          }
+        },
+        {
+          "data": {
+            "name": "恩施土家族苗族自治州人民政府",
+            "phone": "0718-8223960",
+            "raw_data": {
+              "data": {
+                "name": "恩施土家族苗族自治州人民政府",
+                "phone": "0718-8223960",
+                "website": "http://www.enshi.gov.cn/",
+                "operator": "恩施日报社承办",
+                "organizer": "恩施土家族苗族自治州人民政府办公室主管主办",
+                "site_id_code": "4228000029"
+              },
+              "source": {
+                "source_url": "http://www.enshi.gov.cn/",
+                "source_name": "恩施州人民政府门户网站",
+                "source_type": "official"
+              },
+              "confidence": 1.0
+            }
+          },
+          "poi_id": "0E6FC0C7C2A54819A9ACA6695921F83F",
+          "source": {
+            "weight": 1.0,
+            "source_id": "OFFICIAL_UNKNOWN",
+            "source_url": "http://www.enshi.gov.cn/",
+            "source_name": "恩施州人民政府门户网站",
+            "source_type": "official"
+          },
+          "metadata": {
+            "run_id": "6286caab-80ad-48e3-8795-42c8deb083c1-0E6FC0C7C2A54819A9ACA6695921F83F-20260317T040300Z-5c631ebd",
+            "task_id": "6286caab-80ad-48e3-8795-42c8deb083c1",
+            "collection_branch": "webfetch",
+            "collection_method": "crawl"
+          },
+          "evidence_id": "EVD_20260317T040510Z_002",
+          "collected_at": "2026-03-17T04:05:10Z",
+          "verification": {
+            "is_valid": true,
+            "confidence": 1.0
+          }
+        },
+        {
+          "data": {
+            "name": "恩施土家族苗族自治州人民政府",
+            "phone": "0718-8223960",
+            "address": "湖北省恩施市金子坝路恩施州传媒中心报业大楼11楼",
+            "raw_data": {
+              "data": {
+                "name": "恩施土家族苗族自治州人民政府",
+                "phone": "0718-8223960",
+                "address": "湖北省恩施市金子坝路恩施州传媒中心报业大楼11楼"
+              },
+              "source": {
+                "source_url": "http://www.enshi.gov.cn/qt/201810/t20181012_390165.shtml",
+                "source_name": "恩施州人民政府门户网站-联系我们",
+                "source_type": "official"
+              },
+              "confidence": 1.0
+            }
+          },
+          "poi_id": "0E6FC0C7C2A54819A9ACA6695921F83F",
+          "source": {
+            "weight": 1.0,
+            "source_id": "OFFICIAL_UNKNOWN",
+            "source_url": "http://www.enshi.gov.cn/qt/201810/t20181012_390165.shtml",
+            "source_name": "恩施州人民政府门户网站-联系我们",
+            "source_type": "official"
+          },
+          "metadata": {
+            "run_id": "6286caab-80ad-48e3-8795-42c8deb083c1-0E6FC0C7C2A54819A9ACA6695921F83F-20260317T040300Z-5c631ebd",
+            "task_id": "6286caab-80ad-48e3-8795-42c8deb083c1",
+            "collection_branch": "websearch",
+            "collection_method": "manual"
+          },
+          "evidence_id": "EVD_20260317T040510Z_003",
+          "collected_at": "2026-03-17T04:05:10Z",
+          "verification": {
+            "is_valid": true,
+            "confidence": 1.0
+          }
+        },
+        {
+          "data": {
+            "name": "土家族苗族自治州人民政府",
+            "phone": "0718-8222183",
+            "address": "湖北省恩施土家族苗族自治州恩施市舞阳大道1巷21号",
+            "category": "机构团体:政府机关",
+            "raw_data": {
+              "id": "1896596476888922968",
+              "tel": "0718-8222183",
+              "type": 0,
+              "title": "土家族苗族自治州人民政府",
+              "ad_info": {
+                "city": "恩施土家族苗族自治州",
+                "adcode": 422801,
+                "district": "恩施市",
+                "province": "湖北省"
+              },
+              "address": "湖北省恩施土家族苗族自治州恩施市舞阳大道1巷21号",
+              "category": "机构团体:政府机关",
+              "location": {
+                "lat": 30.272586,
+                "lng": 109.488203
+              }
+            },
+            "coordinates": {
+              "latitude": 30.272586,
+              "longitude": 109.488203
+            },
+            "administrative": {
+              "city": "恩施土家族苗族自治州",
+              "district": "恩施市",
+              "province": "湖北省"
+            }
+          },
+          "poi_id": "0E6FC0C7C2A54819A9ACA6695921F83F",
+          "source": {
+            "weight": 0.8,
+            "source_id": "QMAP_1896596476888922968",
+            "source_url": "https://map.qq.com/",
+            "source_name": "腾讯地图",
+            "source_type": "map_vendor"
+          },
+          "metadata": {
+            "run_id": "6286caab-80ad-48e3-8795-42c8deb083c1-0E6FC0C7C2A54819A9ACA6695921F83F-20260317T040300Z-5c631ebd",
+            "task_id": "6286caab-80ad-48e3-8795-42c8deb083c1",
+            "map_source": "qmap",
+            "collection_branch": "internal_proxy",
+            "collection_method": "api"
+          },
+          "evidence_id": "EVD_20260317T040510Z_004",
+          "collected_at": "2026-03-17T04:05:10Z",
+          "verification": {
+            "is_valid": true,
+            "confidence": 0.8
+          }
+        },
+        {
+          "data": {
+            "name": "恩施土家族苗族自治州人民政府",
+            "phone": "0718-8222183",
+            "address": "舞阳大道1巷21号",
+            "category": "政府机构及社会团体;政府机关;地市级政府及事业单位",
+            "raw_data": {
+              "id": "B02CE0062V",
+              "tel": "0718-8222183",
+              "name": "恩施土家族苗族自治州人民政府",
+              "type": "政府机构及社会团体;政府机关;地市级政府及事业单位",
+              "match": "0",
+              "pcode": "420000",
+              "pname": "湖北省",
+              "adcode": "422801",
+              "adname": "恩施市",
+              "keytag": "人民政府",
+              "photos": [
+                {
+                  "url": "http://store.is.autonavi.com/showpic/27267f7b62ffa5be649db57de7b29cd1"
+                }
+              ],
+              "address": "舞阳大道1巷21号",
+              "biz_ext": {
+                "open_time": "24小时营业",
+                "opentime2": "周一至周日 00:00-24:00"
+              },
+              "citycode": "0718",
+              "cityname": "恩施土家族苗族自治州",
+              "gridcode": "4509332910",
+              "location": "109.488076,30.272104",
+              "shopinfo": "2",
+              "typecode": "130103",
+              "recommend": "3",
+              "timestamp": "2026-02-02 11:33:24",
+              "indoor_map": "0",
+              "navi_poiid": "H49F021012_157",
+              "discount_num": "0",
+              "groupbuy_num": "0",
+              "business_area": "东风大道",
+              "entr_location": "109.488003,30.272065"
+            },
+            "coordinates": {
+              "latitude": 30.272104,
+              "longitude": 109.488076
+            },
+            "administrative": {
+              "city": "恩施土家族苗族自治州",
+              "district": "恩施市",
+              "province": "湖北省"
+            }
+          },
+          "poi_id": "0E6FC0C7C2A54819A9ACA6695921F83F",
+          "source": {
+            "weight": 0.85,
+            "source_id": "AMAP_B02CE0062V",
+            "source_url": "https://www.amap.com/",
+            "source_name": "高德地图",
+            "source_type": "map_vendor"
+          },
+          "metadata": {
+            "run_id": "6286caab-80ad-48e3-8795-42c8deb083c1-0E6FC0C7C2A54819A9ACA6695921F83F-20260317T040300Z-5c631ebd",
+            "task_id": "6286caab-80ad-48e3-8795-42c8deb083c1",
+            "map_source": "amap",
+            "collection_branch": "internal_proxy",
+            "collection_method": "api"
+          },
+          "evidence_id": "EVD_20260317T040510Z_005",
+          "collected_at": "2026-03-17T04:05:10Z",
+          "verification": {
+            "is_valid": true,
+            "confidence": 0.85
+          }
+        }
+      ]
+    }
+  }
+]

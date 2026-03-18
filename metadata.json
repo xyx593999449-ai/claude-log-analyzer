@@ -1,0 +1,5 @@
+{
+  "name": "Claude Log Analyzer",
+  "description": "A visual analyzer for Claude Code stream-json logs to debug agents, analyze tool calls, and track token costs.",
+  "requestFramePermissions": []
+}
