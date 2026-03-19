@@ -15,38 +15,40 @@ function formatJson(value: unknown): string {
   }
 }
 
-function cardStyle(type: ParsedEvent["type"]): string {
-  if (type === "assistant") return "border-violet-200 bg-violet-50/70";
-  if (type === "tool_use") return "border-amber-200 bg-amber-50/80";
-  if (type === "tool_result") return "border-sky-200 bg-sky-50/80";
-  if (type === "user") return "border-emerald-200 bg-emerald-50/80";
+function cardStyle(event: ParsedEvent): string {
+  if (event.type === "tool_result" && event.isError) return "border-rose-300 bg-rose-50";
+  if (event.type === "assistant") return "border-violet-200 bg-violet-50/70";
+  if (event.type === "tool_use") return "border-amber-200 bg-amber-50/80";
+  if (event.type === "tool_result") return "border-sky-200 bg-sky-50/80";
+  if (event.type === "user") return "border-emerald-200 bg-emerald-50/80";
   return "border-slate-200 bg-white";
 }
 
-function markerStyle(type: ParsedEvent["type"]): string {
-  if (type === "assistant") return "bg-violet-500";
-  if (type === "tool_use") return "bg-amber-500";
-  if (type === "tool_result") return "bg-sky-500";
-  if (type === "user") return "bg-emerald-500";
+function markerStyle(event: ParsedEvent): string {
+  if (event.type === "tool_result" && event.isError) return "bg-rose-500";
+  if (event.type === "assistant") return "bg-violet-500";
+  if (event.type === "tool_use") return "bg-amber-500";
+  if (event.type === "tool_result") return "bg-sky-500";
+  if (event.type === "user") return "bg-emerald-500";
   return "bg-slate-400";
 }
 
 export function TimelineView({ timeline }: { timeline: ParsedEvent[] }) {
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_34px]">
-      <div className="max-h-[62vh] space-y-3 overflow-auto rounded-xl border border-slate-200 bg-slate-50 p-3">
-        {timeline.length === 0 ? <div className="text-xs text-slate-400">暂无时间线内容</div> : null}
+      <div className="ide-scrollbar max-h-[62vh] space-y-3 overflow-auto rounded-xl border border-slate-200 bg-slate-50 p-3">
+        {timeline.length === 0 ? <div className="text-xs text-slate-400">暂无时间线</div> : null}
         {timeline.map((event) => (
           <div key={event.id} className="grid grid-cols-[14px_1fr] gap-2">
             <div className="mt-2 h-3 w-3 rounded-full border border-white shadow-sm" style={{ background: "white" }}>
-              <div className={`h-3 w-3 rounded-full ${markerStyle(event.type)}`} />
+              <div className={`h-3 w-3 rounded-full ${markerStyle(event)}`} />
             </div>
-            <details className={`rounded-xl border px-3 py-2 text-xs text-slate-700 shadow-sm ${cardStyle(event.type)}`}>
+            <details className={`rounded-xl border px-3 py-2 text-xs text-slate-700 shadow-sm ${cardStyle(event)}`}>
               <summary className="cursor-pointer">
                 <span className="font-semibold uppercase tracking-wide">{event.type}</span>
                 <span className="ml-2 text-slate-600">{eventSummary(event).slice(0, 120)}</span>
               </summary>
-              <pre className="mt-2 max-h-48 overflow-auto rounded-lg border border-slate-200 bg-white p-2 text-[11px] text-slate-700">
+              <pre className="ide-scrollbar mt-2 max-h-48 overflow-auto rounded-lg border border-slate-200 bg-white p-2 text-[11px] text-slate-700">
                 {formatJson(event.raw)}
               </pre>
             </details>
@@ -56,11 +58,10 @@ export function TimelineView({ timeline }: { timeline: ParsedEvent[] }) {
       <div className="hidden max-h-[62vh] overflow-hidden rounded-xl border border-slate-200 bg-white p-1 lg:block">
         <div className="h-full space-y-[3px] overflow-hidden">
           {timeline.slice(0, 180).map((event) => (
-            <div key={`mini_${event.id}`} className={`h-[3px] rounded ${markerStyle(event.type)}`} />
+            <div key={`mini_${event.id}`} className={`h-[3px] rounded ${markerStyle(event)}`} />
           ))}
         </div>
       </div>
     </div>
   );
 }
-

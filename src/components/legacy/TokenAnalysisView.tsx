@@ -11,11 +11,11 @@ function formatCost(value: number): string {
 export function TokenAnalysisView({ stats }: { stats: LogStats }) {
   return (
     <div className="grid gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs md:grid-cols-2">
-      <MetricCard label="总 Token" value={formatNumber(stats.inputTokens + stats.outputTokens)} className="bg-indigo-50 border-indigo-200" />
-      <MetricCard label="输入 Token" value={formatNumber(stats.inputTokens)} className="bg-sky-50 border-sky-200" />
-      <MetricCard label="输出 Token" value={formatNumber(stats.outputTokens)} className="bg-amber-50 border-amber-200" />
-      <MetricCard label="Cache Token" value={formatNumber(stats.cacheTokens)} className="bg-emerald-50 border-emerald-200" />
-      <MetricCard label="日志成本(原始)" value={formatCost(stats.totalCost)} className="bg-violet-50 border-violet-200 md:col-span-2" />
+      <MetricCard label="总 Token" value={formatNumber(stats.inputTokens + stats.outputTokens)} className="border-indigo-200 bg-indigo-50" />
+      <MetricCard label="输入 Token" value={formatNumber(stats.inputTokens)} className="border-sky-200 bg-sky-50" />
+      <MetricCard label="输出 Token" value={formatNumber(stats.outputTokens)} className="border-amber-200 bg-amber-50" />
+      <MetricCard label="Cache Token" value={formatNumber(stats.cacheTokens)} className="border-emerald-200 bg-emerald-50" />
+      <MetricCard label="原始日志成本" value={formatCost(stats.totalCost)} className="border-violet-200 bg-violet-50 md:col-span-2" />
     </div>
   );
 }
@@ -28,4 +28,3 @@ function MetricCard({ label, value, className }: { label: string; value: string;
     </div>
   );
 }
-

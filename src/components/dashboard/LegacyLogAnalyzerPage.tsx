@@ -17,19 +17,18 @@ export function LegacyLogAnalyzerPage() {
 
   return (
     <AnalysisLayout
-      title="日志分析页"
-      subtitle="支持单文件快速解析，展示 Timeline / ToolAnalysis / TokenAnalysis / RawLog"
-      actions={<UploadPanel label="选择日志文件" onSelect={onFileChange} />}
+      title="日志分析"
+      subtitle="单文件模式"
+      actions={<UploadPanel label="上传日志" onSelect={onFileChange} />}
     >
       {logContent ? (
-        <LegacyLogViewer title={`日志解析结果 ${filename ? `(${filename})` : ""}`} rawLog={logContent} />
+        <LegacyLogViewer title={filename ? `日志分析 · ${filename}` : "日志分析"} rawLog={logContent} />
       ) : (
-        <div className="rounded-2xl border border-zinc-200 bg-white p-8 text-center text-zinc-500">
-          <ArrowLeftRight className="mx-auto mb-3 h-5 w-5" />
-          上传一份日志文件后即可查看解析详情
+        <div className="rounded-[28px] border border-slate-200 bg-white/84 p-10 text-center text-slate-500 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
+          <ArrowLeftRight className="mx-auto mb-3 h-6 w-6 text-slate-400" />
+          上传日志后开始分析
         </div>
       )}
     </AnalysisLayout>
   );
 }
-
