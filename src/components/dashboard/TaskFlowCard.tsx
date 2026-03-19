@@ -26,7 +26,7 @@ import {
   type AlertTone,
   type ProcessStageKey,
 } from "./dashboardModel";
-import { InfoBadge, MetaRow, StatusPill } from "./dashboardWidgets";
+import { InfoBadge, StatusPill } from "./dashboardWidgets";
 
 type PhaseKey = "verify" | "qc";
 
@@ -49,6 +49,8 @@ interface PhaseModuleMeta {
   conclusionValue: string;
   summaryLabel: string;
   summaryValue: string;
+  timestampLabel: string;
+  timestampValue: string;
   run: RunView | null;
   databaseStatusLabel: string;
   databaseStatusValue: string;
@@ -98,6 +100,7 @@ export function TaskFlowCard({
             <p className="mt-2 text-sm text-slate-500">
               {item.city ?? "未知城市"} / {item.poiType ?? "未知类型"} / POI_ID {item.poiId ?? "-"}
             </p>
+            {item.address ? <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-500">{item.address}</p> : null}
           </div>
 
           {evidenceSummary ? <EvidenceSummaryRow summary={evidenceSummary} /> : null}
@@ -128,10 +131,6 @@ export function TaskFlowCard({
         </div>
       </div>
 
-      <div className="mt-5">
-        <ProcessRail currentStage={stage.key} />
-      </div>
-
       <div className="mt-4 flex justify-center xl:justify-start">
         <button
           type="button"
@@ -144,59 +143,52 @@ export function TaskFlowCard({
       </div>
 
       {detailsOpen ? (
-        <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(280px,0.7fr)]">
-          <div className="space-y-4">
-            <PhasePanel module={verifyModule} expanded={modulesOpen} onToggle={() => setModulesOpen((value) => !value)} />
-            <PhasePanel module={qcModule} expanded={modulesOpen} onToggle={() => setModulesOpen((value) => !value)} />
-          </div>
+        <div className="mt-5 space-y-4">
+          <ProcessRail currentStage={stage.key} />
 
-          <div className="space-y-4">
-            <aside className="rounded-3xl border border-slate-200 bg-white p-4">
-              <div className="text-xs uppercase tracking-[0.24em] text-slate-400">任务元信息</div>
-              <div className="mt-3 space-y-3 text-sm text-slate-600">
-                <MetaRow label="地址" value={item.address ?? "-"} clamp={false} />
-                <MetaRow label="核实时间" value={formatDateTime(item.verifiedSummary.verifyTime)} />
-                <MetaRow label="质检时间" value={formatDateTime(item.qcSummary.qcTime)} />
-                <MetaRow label="核实置信度" value={item.verifiedSummary.overallConfidence == null ? "-" : String(item.verifiedSummary.overallConfidence)} />
-                <MetaRow label="质检评分" value={item.qcSummary.qcScore == null ? "-" : String(item.qcSummary.qcScore)} />
-              </div>
-            </aside>
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(280px,0.7fr)]">
+            <div className="space-y-4">
+              <PhasePanel module={verifyModule} expanded={modulesOpen} onToggle={() => setModulesOpen((value) => !value)} />
+              <PhasePanel module={qcModule} expanded={modulesOpen} onToggle={() => setModulesOpen((value) => !value)} />
+            </div>
 
-            <aside className="rounded-3xl border border-slate-200 bg-slate-50/80 p-4">
-              <div className="text-xs uppercase tracking-[0.24em] text-slate-400">异常与风险</div>
-              <div className="mt-3 space-y-3">
-                {alerts.length === 0 ? (
-                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                    未发现异常
-                  </div>
-                ) : (
-                  alerts.map((alert, alertIndex) => (
-                    <div key={`${alert.label}_${alertIndex}`} className={`rounded-2xl border px-4 py-3 ${getAlertClasses(alert.tone)}`}>
-                      <div className="flex items-center gap-2 text-sm font-medium">
-                        {alert.tone === "danger" ? (
-                          <ShieldX className="h-4 w-4" />
-                        ) : alert.tone === "warning" ? (
-                          <ShieldAlert className="h-4 w-4" />
-                        ) : (
-                          <AlertTriangle className="h-4 w-4" />
-                        )}
-                        {alert.label}
-                      </div>
-                      <p className="mt-2 text-xs leading-6 opacity-90">{alert.detail}</p>
+            <div className="space-y-4">
+              <aside className="rounded-3xl border border-slate-200 bg-slate-50/80 p-4">
+                <div className="text-xs uppercase tracking-[0.24em] text-slate-400">异常与风险</div>
+                <div className="mt-3 space-y-3">
+                  {alerts.length === 0 ? (
+                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                      未发现异常
                     </div>
-                  ))
-                )}
-              </div>
-            </aside>
+                  ) : (
+                    alerts.map((alert, alertIndex) => (
+                      <div key={`${alert.label}_${alertIndex}`} className={`rounded-2xl border px-4 py-3 ${getAlertClasses(alert.tone)}`}>
+                        <div className="flex items-center gap-2 text-sm font-medium">
+                          {alert.tone === "danger" ? (
+                            <ShieldX className="h-4 w-4" />
+                          ) : alert.tone === "warning" ? (
+                            <ShieldAlert className="h-4 w-4" />
+                          ) : (
+                            <AlertTriangle className="h-4 w-4" />
+                          )}
+                          {alert.label}
+                        </div>
+                        <p className="mt-2 text-xs leading-6 opacity-90">{alert.detail}</p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </aside>
 
-            <button
-              className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 py-3 text-sm font-medium text-white transition hover:-translate-y-0.5 hover:brightness-110"
-              onClick={() => onOpenLogs(item.taskId)}
-            >
-              <FileSearch className="h-4 w-4" />
-              查看日志详情
-              <ChevronRight className="h-4 w-4" />
-            </button>
+              <button
+                className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 py-3 text-sm font-medium text-white transition hover:-translate-y-0.5 hover:brightness-110"
+                onClick={() => onOpenLogs(item.taskId)}
+              >
+                <FileSearch className="h-4 w-4" />
+                查看日志详情
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
           </div>
         </div>
       ) : null}
@@ -237,6 +229,10 @@ function PhasePanel({
       <div className="mt-4 grid gap-3">
         <MetricCard label="当前结论" value={module.conclusionValue} />
         <MetricCard label={module.summaryLabel} value={module.summaryValue} clamp={false} />
+        <div className="grid gap-3 sm:grid-cols-2">
+          <MetricCard label={module.timestampLabel} value={module.timestampValue} />
+          <MetricCard label={module.scoreLabel} value={module.scoreValue} />
+        </div>
       </div>
 
       {expanded ? (
@@ -253,7 +249,6 @@ function PhasePanel({
             <MetricCard label="总 Token" value={formatNumber(module.run?.totalTokens ?? 0)} />
             <MetricCard label="估算成本" value={formatCost(module.run?.totalCostUsd ?? 0)} />
             <MetricCard label={module.databaseStatusLabel} value={module.databaseStatusValue} />
-            <MetricCard label={module.scoreLabel} value={module.scoreValue} />
           </div>
 
           {module.errorSummary ? (
@@ -378,6 +373,8 @@ function buildPhaseModuleMeta(item: DashboardTaskItem, phase: PhaseKey): PhaseMo
       conclusionValue: item.verifyResult ?? item.verifiedStatus ?? (item.verifyRun ? "核实中" : "待核实"),
       summaryLabel: "核实结论摘要",
       summaryValue: readTextAtPath(item.raw.poiVerified, ["verification_notes"]) ?? "暂无核实摘要",
+      timestampLabel: "核实时间",
+      timestampValue: formatDateTime(item.verifiedSummary.verifyTime ?? item.verifyRun?.endedAt ?? item.verifyRun?.startedAt),
       run: item.verifyRun,
       databaseStatusLabel: "数据库核实状态",
       databaseStatusValue: item.verifiedStatus ?? "-",
@@ -400,6 +397,8 @@ function buildPhaseModuleMeta(item: DashboardTaskItem, phase: PhaseKey): PhaseMo
       readTextAtPath(item.raw.poiQc, ["qc_result_explanation"]) ??
       readTextAtPath(item.raw.poiQc, ["qc_result", "explanation"]) ??
       "暂无质检摘要",
+    timestampLabel: "质检时间",
+    timestampValue: formatDateTime(item.qcSummary.qcTime ?? item.qcRun?.endedAt ?? item.qcRun?.startedAt),
     run: item.qcRun,
     databaseStatusLabel: "数据库质检状态",
     databaseStatusValue: item.qcStatus ?? item.qualityStatus ?? "-",

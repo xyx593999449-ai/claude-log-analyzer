@@ -6,11 +6,13 @@ import type { AggregatedTaskRun, AnalysisPhase, DashboardFilters, ImportSnapshot
 export interface DashboardOverview {
   totalTasks: number;
   verifyStatusCounts: Array<{ status: string; count: number }>;
+  flowStageCounts: Array<{ stage: string; count: number }>;
   verifyMetrics: Metrics;
   qcMetrics: Metrics;
   manualMonitoring: {
     manualTaskCount: number;
     anomalyCount: number;
+    qcRejectedCount: number;
     latestImport: ImportSnapshot | null;
   };
 }
@@ -598,6 +600,44 @@ export class DashboardRepository implements DashboardRepositoryPort {
         .all() as Array<{ status: string; count: number }>
     ).map((item) => ({ status: item.status, count: Number(item.count) }));
 
+    const flowStageCounts = (
+      this.db
+        .prepare(`
+          WITH latest AS (
+            SELECT *
+            FROM temp_task_analysis
+            WHERE id IN (SELECT MAX(id) FROM temp_task_analysis GROUP BY task_id, phase)
+          ),
+          verify_runs AS (SELECT * FROM latest WHERE phase = 'verify'),
+          qc_runs AS (SELECT * FROM latest WHERE phase = 'qc')
+          SELECT
+            CASE
+              WHEN q.is_qualified IS NOT NULL
+                OR COALESCE(q.quality_status, '') = '已质检'
+                OR COALESCE(q.qc_status, '') != ''
+              THEN 'qc_done'
+              WHEN qr.task_id IS NOT NULL
+                OR COALESCE(q.quality_status, '') = '质检中'
+              THEN 'qc_running'
+              WHEN vr.status = 'success'
+                OR COALESCE(v.verify_status, '') != ''
+                OR COALESCE(v.verify_result, '') != ''
+              THEN 'verified_waiting_qc'
+              WHEN vr.task_id IS NOT NULL
+              THEN 'verifying'
+              ELSE 'pending_verify'
+            END AS stage,
+            COUNT(*) AS count
+          FROM poi_init i
+          LEFT JOIN poi_verified v ON v.task_id = i.task_id
+          LEFT JOIN poi_qc q ON q.task_id = i.task_id
+          LEFT JOIN verify_runs vr ON vr.task_id = i.task_id
+          LEFT JOIN qc_runs qr ON qr.task_id = i.task_id
+          GROUP BY stage
+        `)
+        .all() as Array<{ stage: string; count: number }>
+    ).map((item) => ({ stage: item.stage, count: Number(item.count) }));
+
     const metricsRows = this.db
       .prepare(`
         WITH latest AS (
@@ -756,14 +796,28 @@ export class DashboardRepository implements DashboardRepositoryPort {
       ).count,
     );
 
+    const qcRejectedCount = Number(
+      (
+        this.db
+          .prepare(`
+            SELECT COUNT(*) as count
+            FROM poi_qc
+            WHERE is_qualified = 0
+          `)
+          .get() as { count: number }
+      ).count,
+    );
+
     return {
       totalTasks,
       verifyStatusCounts,
+      flowStageCounts,
       verifyMetrics,
       qcMetrics,
       manualMonitoring: {
         manualTaskCount,
         anomalyCount,
+        qcRejectedCount,
         latestImport: await this.latestImport(),
       },
     };
@@ -890,13 +944,9 @@ export class DashboardRepository implements DashboardRepositoryPort {
   }
 
   async getTaskLogDetail(taskId: string): Promise<TaskLogDetail> {
-    const latestImportRow = this.db.prepare("SELECT * FROM analysis_imports ORDER BY created_at DESC LIMIT 1").get() as
-      | Record<string, unknown>
-      | undefined;
-
     const runRows = this.db
       .prepare(`
-        SELECT phase, session_ids_json
+        SELECT phase, session_ids_json, import_batch_id
         FROM temp_task_analysis
         WHERE task_id = ?
           AND id IN (
@@ -908,16 +958,26 @@ export class DashboardRepository implements DashboardRepositoryPort {
       `)
       .all(taskId, taskId) as Array<Record<string, unknown>>;
 
+    const verifyImportBatchId = String(runRows.find((row) => row.phase === "verify")?.import_batch_id ?? "") || null;
+    const qcImportBatchId = String(runRows.find((row) => row.phase === "qc")?.import_batch_id ?? "") || null;
+    const verifyImportRow = verifyImportBatchId
+      ? (this.db.prepare("SELECT verify_claude_log FROM analysis_imports WHERE import_batch_id = ? LIMIT 1").get(verifyImportBatchId) as Record<string, unknown> | undefined)
+      : undefined;
+    const qcImportRow = qcImportBatchId
+      ? (this.db.prepare("SELECT qc_claude_log FROM analysis_imports WHERE import_batch_id = ? LIMIT 1").get(qcImportBatchId) as Record<string, unknown> | undefined)
+      : undefined;
+
     const verifySessionIds =
       safeJsonParse<string[]>(String(runRows.find((row) => row.phase === "verify")?.session_ids_json ?? "[]")) ?? [];
     const qcSessionIds =
       safeJsonParse<string[]>(String(runRows.find((row) => row.phase === "qc")?.session_ids_json ?? "[]")) ?? [];
 
     const filterBySessions = (rawLog: string, sessionIds: string[]): string => {
-      if (!rawLog || sessionIds.length === 0) return "";
+      if (!rawLog) return "";
+      if (sessionIds.length === 0) return rawLog;
       const sessionSet = new Set(sessionIds);
       const lines = rawLog.split(/\r?\n/);
-      return lines
+      const filtered = lines
         .filter((line) => {
           for (const sessionId of sessionSet) {
             if (line.includes(`"session_id":"${sessionId}"`) || line.includes(`"session_id": "${sessionId}"`)) {
@@ -927,12 +987,13 @@ export class DashboardRepository implements DashboardRepositoryPort {
           return false;
         })
         .join("\n");
+      return filtered.trim() ? filtered : rawLog;
     };
 
     return {
       taskId,
-      verifyRawLog: filterBySessions(String(latestImportRow?.verify_claude_log ?? ""), verifySessionIds),
-      qcRawLog: filterBySessions(String(latestImportRow?.qc_claude_log ?? ""), qcSessionIds),
+      verifyRawLog: filterBySessions(String(verifyImportRow?.verify_claude_log ?? ""), verifySessionIds),
+      qcRawLog: filterBySessions(String(qcImportRow?.qc_claude_log ?? ""), qcSessionIds),
       verifySessionIds,
       qcSessionIds,
     };

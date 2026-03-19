@@ -409,6 +409,44 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
       count: Number(item.count ?? 0),
     }));
 
+    const flowStageCountsRes = await this.pool.query(`
+      WITH latest AS (
+        SELECT *
+        FROM temp_task_analysis
+        WHERE id IN (SELECT MAX(id) FROM temp_task_analysis GROUP BY task_id, phase)
+      ),
+      verify_runs AS (SELECT * FROM latest WHERE phase = 'verify'),
+      qc_runs AS (SELECT * FROM latest WHERE phase = 'qc')
+      SELECT
+        CASE
+          WHEN q.is_qualified IS NOT NULL
+            OR COALESCE(q.quality_status, '') = '已质检'
+            OR COALESCE(q.qc_status, '') != ''
+          THEN 'qc_done'
+          WHEN qr.task_id IS NOT NULL
+            OR COALESCE(q.quality_status, '') = '质检中'
+          THEN 'qc_running'
+          WHEN vr.status = 'success'
+            OR COALESCE(v.verify_status, '') != ''
+            OR COALESCE(v.verify_result, '') != ''
+          THEN 'verified_waiting_qc'
+          WHEN vr.task_id IS NOT NULL
+          THEN 'verifying'
+          ELSE 'pending_verify'
+        END AS stage,
+        COUNT(*)::bigint AS count
+      FROM poi_init i
+      LEFT JOIN poi_verified v ON v.task_id = i.task_id
+      LEFT JOIN poi_qc q ON q.task_id = i.task_id
+      LEFT JOIN verify_runs vr ON vr.task_id = i.task_id
+      LEFT JOIN qc_runs qr ON qr.task_id = i.task_id
+      GROUP BY stage
+    `);
+    const flowStageCounts = flowStageCountsRes.rows.map((item) => ({
+      stage: String(item.stage),
+      count: Number(item.count ?? 0),
+    }));
+
     const metricsRowsRes = await this.pool.query(`
       WITH latest AS (
         SELECT *
@@ -543,14 +581,23 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
     `);
     const anomalyCount = Number(anomalyCountRes.rows[0]?.count ?? 0);
 
+    const qcRejectedCountRes = await this.pool.query(`
+      SELECT COUNT(*)::bigint as count
+      FROM poi_qc
+      WHERE is_qualified = 0
+    `);
+    const qcRejectedCount = Number(qcRejectedCountRes.rows[0]?.count ?? 0);
+
     return {
       totalTasks,
       verifyStatusCounts,
+      flowStageCounts,
       verifyMetrics,
       qcMetrics,
       manualMonitoring: {
         manualTaskCount,
         anomalyCount,
+        qcRejectedCount,
         latestImport: await this.latestImport(),
       },
     };
@@ -684,12 +731,9 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
 
   async getTaskLogDetail(taskId: string): Promise<TaskLogDetail> {
     await this.ready();
-    const latestImportRes = await this.pool.query("SELECT * FROM analysis_imports ORDER BY created_at DESC LIMIT 1");
-    const latestImportRow = latestImportRes.rows[0] as Record<string, unknown> | undefined;
-
     const runRowsRes = await this.pool.query(
       `
-      SELECT phase, session_ids_json
+      SELECT phase, session_ids_json, import_batch_id
       FROM temp_task_analysis
       WHERE task_id = $1
         AND id IN (
@@ -703,16 +747,27 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
     );
 
     const runRows = runRowsRes.rows as Array<Record<string, unknown>>;
+    const verifyImportBatchId = String(runRows.find((row) => row.phase === "verify")?.import_batch_id ?? "") || null;
+    const qcImportBatchId = String(runRows.find((row) => row.phase === "qc")?.import_batch_id ?? "") || null;
+    const verifyImportRes = verifyImportBatchId
+      ? await this.pool.query("SELECT verify_claude_log FROM analysis_imports WHERE import_batch_id = $1 LIMIT 1", [verifyImportBatchId])
+      : { rows: [] as Array<Record<string, unknown>> };
+    const qcImportRes = qcImportBatchId
+      ? await this.pool.query("SELECT qc_claude_log FROM analysis_imports WHERE import_batch_id = $1 LIMIT 1", [qcImportBatchId])
+      : { rows: [] as Array<Record<string, unknown>> };
+    const verifyImportRow = verifyImportRes.rows[0] as Record<string, unknown> | undefined;
+    const qcImportRow = qcImportRes.rows[0] as Record<string, unknown> | undefined;
     const verifySessionIds =
       safeJsonParse<string[]>(String(runRows.find((row) => row.phase === "verify")?.session_ids_json ?? "[]")) ?? [];
     const qcSessionIds =
       safeJsonParse<string[]>(String(runRows.find((row) => row.phase === "qc")?.session_ids_json ?? "[]")) ?? [];
 
     const filterBySessions = (rawLog: string, sessionIds: string[]): string => {
-      if (!rawLog || sessionIds.length === 0) return "";
+      if (!rawLog) return "";
+      if (sessionIds.length === 0) return rawLog;
       const sessionSet = new Set(sessionIds);
       const lines = rawLog.split(/\r?\n/);
-      return lines
+      const filtered = lines
         .filter((line) => {
           for (const sessionId of sessionSet) {
             if (line.includes(`"session_id":"${sessionId}"`) || line.includes(`"session_id": "${sessionId}"`)) {
@@ -722,12 +777,13 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
           return false;
         })
         .join("\n");
+      return filtered.trim() ? filtered : rawLog;
     };
 
     return {
       taskId,
-      verifyRawLog: filterBySessions(String(latestImportRow?.verify_claude_log ?? ""), verifySessionIds),
-      qcRawLog: filterBySessions(String(latestImportRow?.qc_claude_log ?? ""), qcSessionIds),
+      verifyRawLog: filterBySessions(String(verifyImportRow?.verify_claude_log ?? ""), verifySessionIds),
+      qcRawLog: filterBySessions(String(qcImportRow?.qc_claude_log ?? ""), qcSessionIds),
       verifySessionIds,
       qcSessionIds,
     };

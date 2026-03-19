@@ -24,10 +24,20 @@ interface ImportPayload {
   qcClaudeLog?: string;
 }
 
+export type UploadRole = "executor" | "claude" | "unknown";
+export type UploadPhase = "verify" | "qc";
+
+export interface UploadLogFile {
+  phase: UploadPhase;
+  role: UploadRole;
+  file: File;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const isFormData = init?.body instanceof FormData;
   const requestInit: RequestInit = {
     headers: {
-      "Content-Type": "application/json",
+      ...(isFormData ? {} : { "Content-Type": "application/json" }),
       ...(init?.headers ?? {}),
     },
     ...init,
@@ -84,6 +94,19 @@ export function importLogs(payload: ImportPayload): Promise<ImportResult> {
   return request<ImportResult>("/api/dashboard/import", {
     method: "POST",
     body: JSON.stringify(payload),
+  });
+}
+
+export function importLogsByFiles(payload: { source: string; files: UploadLogFile[] }): Promise<ImportResult> {
+  const formData = new FormData();
+  formData.append("source", payload.source);
+  for (const item of payload.files) {
+    formData.append(`${item.phase}_${item.role}`, item.file, item.file.name);
+  }
+
+  return request<ImportResult>("/api/dashboard/import-files", {
+    method: "POST",
+    body: formData,
   });
 }
 

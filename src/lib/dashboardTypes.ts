@@ -25,11 +25,13 @@ export interface ImportSnapshot {
 export interface DashboardOverview {
   totalTasks: number;
   verifyStatusCounts: Array<{ status: string; count: number }>;
+  flowStageCounts: Array<{ stage: string; count: number }>;
   verifyMetrics: Metrics;
   qcMetrics: Metrics;
   manualMonitoring: {
     manualTaskCount: number;
     anomalyCount: number;
+    qcRejectedCount: number;
     latestImport: ImportSnapshot | null;
   };
 }
