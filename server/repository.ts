@@ -381,28 +381,45 @@ function buildTaskFilterSql(filters: DashboardFilters): { whereSql: string; para
     limit: filters.pageSize,
     offset: (filters.page - 1) * filters.pageSize,
   };
+  const alertClauses: string[] = [];
 
   if (filters.search) {
-    clauses.push("(i.task_id LIKE @search OR i.id LIKE @search OR i.name LIKE @search OR i.address LIKE @search OR i.city LIKE @search)");
+    clauses.push("(task_id LIKE @search OR poi_id LIKE @search OR name LIKE @search OR address LIKE @search OR city LIKE @search)");
     params.search = `%${filters.search}%`;
   }
 
   if (filters.verifyStatus) {
-    clauses.push("COALESCE(v.verify_status, i.verify_status, '') = @verifyStatus");
+    clauses.push("COALESCE(verified_status, init_verify_status, '') = @verifyStatus");
     params.verifyStatus = filters.verifyStatus;
   }
 
   if (filters.qcStatus) {
-    clauses.push("COALESCE(q.qc_status, '') = @qcStatus");
+    clauses.push("COALESCE(NULLIF(quality_status, ''), NULLIF(qc_status, ''), '') = @qcStatus");
     params.qcStatus = filters.qcStatus;
   }
 
   if (filters.manualOnly) {
-    clauses.push(`(COALESCE(q.is_manual_required, 0) = 1 OR COALESCE(v.verify_status, '') = '${VERIFY_MANUAL}')`);
+    clauses.push(`(COALESCE(verify_result, '') = '${VERIFY_MANUAL}' OR COALESCE(is_qualified, 0) <> 1)`);
   }
 
   if (filters.anomalyOnly) {
     clauses.push("COALESCE(has_anomaly, 0) = 1");
+  }
+
+  for (const tag of filters.alertTags) {
+    if (tag === "核实阻塞异常") alertClauses.push("COALESCE(verify_retry_count, 0) > 5");
+    if (tag === "核实执行异常") alertClauses.push("(verify_task_id IS NOT NULL AND COALESCE(verify_status, '') <> 'success' AND COALESCE(verify_retry_count, 0) <= 5)");
+    if (tag === "质检阻塞异常") alertClauses.push("COALESCE(qc_retry_count, 0) > 5");
+    if (tag === "质检执行异常") alertClauses.push("(qc_task_id IS NOT NULL AND COALESCE(qc_status_run, '') <> 'success' AND COALESCE(qc_retry_count, 0) <= 5)");
+    if (tag === "需人工介入") alertClauses.push(`(COALESCE(verify_result, '') = '${VERIFY_MANUAL}' OR COALESCE(is_qualified, 0) <> 1)`);
+    if (tag === "质检不通过") alertClauses.push("is_qualified = 0");
+    if (tag === "高风险任务") alertClauses.push("(COALESCE(has_risk, 0) = 1 OR COALESCE(qc_status, '') = 'risky')");
+    if (tag === "核实状态不一致") alertClauses.push("COALESCE(verify_mismatch_reason, '') != ''");
+    if (tag === "质检状态不一致") alertClauses.push("COALESCE(qc_mismatch_reason, '') != ''");
+  }
+
+  if (alertClauses.length > 0) {
+    clauses.push(`(${alertClauses.join(" OR ")})`);
   }
 
   return {
@@ -430,7 +447,9 @@ function normalizeTask(row: Record<string, unknown>): DashboardTaskItem {
     verifyResult: (row.verify_result as string | null) ?? null,
     qcStatus: (row.qc_status as string | null) ?? null,
     qualityStatus: (row.quality_status as string | null) ?? null,
-    isManualRequired: boolish(row.is_manual_required) || (row.verified_status as string | null) === VERIFY_MANUAL,
+    isManualRequired:
+      (row.verify_result as string | null) === VERIFY_MANUAL ||
+      (row.is_qualified == null ? false : !boolish(row.is_qualified)),
     hasRisk: boolish(row.has_risk),
     verifyRun,
     qcRun,
@@ -577,14 +596,25 @@ export class DashboardRepository implements DashboardRepositoryPort {
     const verifyStatuses = (
       this.db
         .prepare(
-          "SELECT DISTINCT COALESCE(verify_status,'') as status FROM poi_init WHERE verify_status IS NOT NULL AND verify_status != '' ORDER BY verify_status",
+          `
+            SELECT DISTINCT COALESCE(v.verify_status, i.verify_status, '') as status
+            FROM poi_init i
+            LEFT JOIN poi_verified v ON v.task_id = i.task_id
+            WHERE COALESCE(v.verify_status, i.verify_status, '') != ''
+            ORDER BY status
+          `,
         )
         .all() as Array<{ status: string }>
     ).map((row) => row.status);
 
     const qcStatuses = (
       this.db
-        .prepare("SELECT DISTINCT COALESCE(qc_status,'') as status FROM poi_qc WHERE qc_status IS NOT NULL AND qc_status != '' ORDER BY qc_status")
+        .prepare(`
+          SELECT DISTINCT COALESCE(NULLIF(quality_status, ''), NULLIF(qc_status, ''), '') as status
+          FROM poi_qc
+          WHERE COALESCE(NULLIF(quality_status, ''), NULLIF(qc_status, ''), '') != ''
+          ORDER BY status
+        `)
         .all() as Array<{ status: string }>
     ).map((row) => row.status);
 
@@ -755,7 +785,8 @@ export class DashboardRepository implements DashboardRepositoryPort {
             FROM poi_init i
             LEFT JOIN poi_verified v ON v.task_id = i.task_id
             LEFT JOIN poi_qc q ON q.task_id = i.task_id
-            WHERE COALESCE(q.is_manual_required, 0) = 1 OR COALESCE(v.verify_status, '') = '${VERIFY_MANUAL}'
+            WHERE COALESCE(v.verify_result, '') = '${VERIFY_MANUAL}'
+               OR COALESCE(q.is_qualified, 0) <> 1
           `)
           .get() as { count: number }
       ).count,

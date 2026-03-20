@@ -92,6 +92,7 @@ export interface DashboardFilters {
   search: string;
   verifyStatus: string;
   qcStatus: string;
+  alertTags: string[];
   manualOnly: boolean;
   anomalyOnly: boolean;
 }

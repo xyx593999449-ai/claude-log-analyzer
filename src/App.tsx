@@ -27,7 +27,7 @@ export default function App() {
             </div>
             <div>
               <div className="text-xs uppercase tracking-[0.28em] text-slate-400">Claude Log Analyzer</div>
-              <div className="mt-1 font-display text-2xl font-semibold text-slate-950">流程与日志指挥台</div>
+              <div className="mt-1 font-display text-2xl font-semibold text-slate-950">大poi核实数字员工</div>
             </div>
           </div>
 

@@ -120,7 +120,9 @@ function normalizeTask(row: Record<string, unknown>): DashboardTaskItem {
     verifyResult: (row.verify_result as string | null) ?? null,
     qcStatus: (row.qc_status as string | null) ?? null,
     qualityStatus: (row.quality_status as string | null) ?? null,
-    isManualRequired: boolish(row.is_manual_required) || (row.verified_status as string | null) === VERIFY_MANUAL,
+    isManualRequired:
+      (row.verify_result as string | null) === VERIFY_MANUAL ||
+      (row.is_qualified == null ? false : !boolish(row.is_qualified)),
     hasRisk: boolish(row.has_risk),
     verifyRun,
     qcRun,
@@ -155,35 +157,52 @@ function normalizeTask(row: Record<string, unknown>): DashboardTaskItem {
 
 function buildTaskFilterSqlPg(filters: DashboardFilters): { whereSql: string; params: unknown[] } {
   const clauses: string[] = [];
+  const alertClauses: string[] = [];
   const params: unknown[] = [];
   let idx = 1;
 
   if (filters.search) {
     clauses.push(
-      `(i.task_id ILIKE $${idx} OR i.id ILIKE $${idx} OR i.name ILIKE $${idx} OR i.address ILIKE $${idx} OR i.city ILIKE $${idx})`,
+      `(task_id ILIKE $${idx} OR poi_id ILIKE $${idx} OR name ILIKE $${idx} OR address ILIKE $${idx} OR city ILIKE $${idx})`,
     );
     params.push(`%${filters.search}%`);
     idx += 1;
   }
 
   if (filters.verifyStatus) {
-    clauses.push(`COALESCE(v.verify_status, i.verify_status, '') = $${idx}`);
+    clauses.push(`COALESCE(verified_status, init_verify_status, '') = $${idx}`);
     params.push(filters.verifyStatus);
     idx += 1;
   }
 
   if (filters.qcStatus) {
-    clauses.push(`COALESCE(q.qc_status, '') = $${idx}`);
+    clauses.push(`COALESCE(NULLIF(quality_status, ''), NULLIF(qc_status, ''), '') = $${idx}`);
     params.push(filters.qcStatus);
     idx += 1;
   }
 
   if (filters.manualOnly) {
-    clauses.push(`(COALESCE(q.is_manual_required, 0) = 1 OR COALESCE(v.verify_status, '') = '${VERIFY_MANUAL}')`);
+    clauses.push(`(COALESCE(verify_result, '') = '${VERIFY_MANUAL}' OR COALESCE(is_qualified, 0) <> 1)`);
   }
 
   if (filters.anomalyOnly) {
     clauses.push("COALESCE(has_anomaly, 0) = 1");
+  }
+
+  for (const tag of filters.alertTags) {
+    if (tag === "核实阻塞异常") alertClauses.push("COALESCE(verify_retry_count, 0) > 5");
+    if (tag === "核实执行异常") alertClauses.push("(verify_task_id IS NOT NULL AND COALESCE(verify_status, '') <> 'success' AND COALESCE(verify_retry_count, 0) <= 5)");
+    if (tag === "质检阻塞异常") alertClauses.push("COALESCE(qc_retry_count, 0) > 5");
+    if (tag === "质检执行异常") alertClauses.push("(qc_task_id IS NOT NULL AND COALESCE(qc_status_run, '') <> 'success' AND COALESCE(qc_retry_count, 0) <= 5)");
+    if (tag === "需人工介入") alertClauses.push(`(COALESCE(verify_result, '') = '${VERIFY_MANUAL}' OR COALESCE(is_qualified, 0) <> 1)`);
+    if (tag === "质检不通过") alertClauses.push("is_qualified = 0");
+    if (tag === "高风险任务") alertClauses.push("(COALESCE(has_risk, 0) = 1 OR COALESCE(qc_status, '') = 'risky')");
+    if (tag === "核实状态不一致") alertClauses.push("COALESCE(verify_mismatch_reason, '') <> ''");
+    if (tag === "质检状态不一致") alertClauses.push("COALESCE(qc_mismatch_reason, '') <> ''");
+  }
+
+  if (alertClauses.length > 0) {
+    clauses.push(`(${alertClauses.join(" OR ")})`);
   }
 
   return {
@@ -385,10 +404,21 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
   async getFilterOptions(): Promise<DashboardFilterOptions> {
     await this.ready();
     const verifyStatusesRes = await this.pool.query(
-      "SELECT DISTINCT COALESCE(verify_status,'') as status FROM poi_init WHERE verify_status IS NOT NULL AND verify_status != '' ORDER BY verify_status",
+      `
+        SELECT DISTINCT COALESCE(v.verify_status, i.verify_status, '') as status
+        FROM poi_init i
+        LEFT JOIN poi_verified v ON v.task_id = i.task_id
+        WHERE COALESCE(v.verify_status, i.verify_status, '') != ''
+        ORDER BY status
+      `,
     );
     const qcStatusesRes = await this.pool.query(
-      "SELECT DISTINCT COALESCE(qc_status,'') as status FROM poi_qc WHERE qc_status IS NOT NULL AND qc_status != '' ORDER BY qc_status",
+      `
+        SELECT DISTINCT COALESCE(NULLIF(quality_status, ''), NULLIF(qc_status, ''), '') as status
+        FROM poi_qc
+        WHERE COALESCE(NULLIF(quality_status, ''), NULLIF(qc_status, ''), '') != ''
+        ORDER BY status
+      `,
     );
     return {
       verifyStatuses: verifyStatusesRes.rows.map((row) => String(row.status)),
@@ -547,7 +577,8 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
       FROM poi_init i
       LEFT JOIN poi_verified v ON v.task_id = i.task_id
       LEFT JOIN poi_qc q ON q.task_id = i.task_id
-      WHERE COALESCE(q.is_manual_required, 0) = 1 OR COALESCE(v.verify_status, '') = '${VERIFY_MANUAL}'
+      WHERE COALESCE(v.verify_result, '') = '${VERIFY_MANUAL}'
+         OR COALESCE(q.is_qualified, 0) <> 1
     `);
     const manualTaskCount = Number(manualTaskCountRes.rows[0]?.count ?? 0);
 

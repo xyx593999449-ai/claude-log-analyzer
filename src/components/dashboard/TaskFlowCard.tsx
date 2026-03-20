@@ -22,6 +22,7 @@ import {
   getProcessStage,
   getStageIndex,
   getStageTone,
+  isBlockingRunIssue,
   PROCESS_STAGES,
   type AlertTone,
   type ProcessStageKey,
@@ -33,6 +34,12 @@ type PhaseKey = "verify" | "qc";
 interface EvidenceSourceTag {
   sourceName: string;
   count: number;
+  details?: EvidenceDetail[];
+}
+
+interface EvidenceDetail {
+  sourceUrl: string;
+  rawData: string;
 }
 
 interface EvidenceSummary {
@@ -71,7 +78,7 @@ export function TaskFlowCard({
 }) {
   const stage = getProcessStage(item);
   const alerts = buildAlerts(item);
-  const evidenceSummary = extractEvidenceSummary(item);
+  const evidenceSummary = extractEvidenceSummaryWithDetails(item);
   const verifyModule = buildPhaseModuleMeta(item, "verify");
   const qcModule = buildPhaseModuleMeta(item, "qc");
   const hasCritical = alerts.some((alert) => alert.tone === "danger");
@@ -80,7 +87,7 @@ export function TaskFlowCard({
 
   return (
     <article
-      className={`reveal-card rounded-[30px] border p-5 shadow-[0_18px_50px_rgba(15,23,42,0.05)] ${
+      className={`reveal-card relative overflow-visible rounded-[30px] border p-5 shadow-[0_18px_50px_rgba(15,23,42,0.05)] ${
         hasCritical ? "border-rose-200 bg-rose-50/30" : "border-slate-200 bg-white/88"
       }`}
       style={{ animationDelay: `${Math.min(index, 5) * 70}ms` }}
@@ -103,7 +110,7 @@ export function TaskFlowCard({
             {item.address ? <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-500">{item.address}</p> : null}
           </div>
 
-          {evidenceSummary ? <EvidenceSummaryRow summary={evidenceSummary} /> : null}
+          {evidenceSummary ? <EvidenceSummaryHoverRow summary={evidenceSummary} /> : null}
 
           <div className="flex flex-wrap gap-2">
             {alerts.slice(0, 4).map((alert, alertIndex) => (
@@ -298,6 +305,48 @@ function EvidenceSummaryRow({ summary }: { summary: EvidenceSummary }) {
   );
 }
 
+function EvidenceSummaryHoverRow({ summary }: { summary: EvidenceSummary }) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-medium text-sky-700">
+        证据 {summary.total} 条
+      </span>
+      {summary.sources.map((source) => {
+        const details = source.details ?? [];
+        return (
+          <div key={source.sourceName} className="group relative z-0 hover:z-[160]">
+            <span className="inline-flex rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600">
+              {source.sourceName} {source.count}
+            </span>
+            <div className="pointer-events-none absolute left-0 top-full z-[180] mt-2 hidden w-[440px] max-w-[calc(100vw-2rem)] rounded-2xl border border-slate-200 bg-white p-3 text-xs text-slate-700 shadow-[0_20px_50px_rgba(15,23,42,0.2)] group-hover:pointer-events-auto group-hover:block hover:pointer-events-auto hover:block">
+              <div className="mb-2 flex items-center justify-between text-[11px] text-slate-500">
+                <span>{source.sourceName}</span>
+                <span>{source.count} 条</span>
+              </div>
+              <div className="max-h-72 space-y-3 overflow-auto pr-1">
+                {details.length ? (
+                  details.map((detail, index) => (
+                    <div key={`${source.sourceName}_${index}`} className="rounded-xl border border-slate-200 bg-slate-50 p-2">
+                      <div className="text-[11px] text-slate-500">source_url</div>
+                      <div className="select-text break-all text-slate-800">{detail.sourceUrl || "-"}</div>
+                      <div className="mt-2 text-[11px] text-slate-500">raw_data</div>
+                      <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-all rounded-lg border border-slate-200 bg-white p-2 text-[11px] leading-5 text-slate-700 select-text">
+                        {detail.rawData || "-"}
+                      </pre>
+                    </div>
+                  ))
+                ) : (
+                  <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-2 text-slate-500">暂无证据详情</div>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function AlertChip({
   label,
   detail,
@@ -309,9 +358,9 @@ function AlertChip({
   tone: AlertTone;
 }) {
   return (
-    <div className="group relative" title={detail}>
+    <div className="group relative z-0 hover:z-[150]" title={detail}>
       <StatusPill label={label} tone={tone} />
-      <div className="pointer-events-none absolute left-0 top-full z-20 mt-2 hidden w-64 rounded-2xl border border-slate-200 bg-slate-950 px-3 py-2 text-[11px] leading-5 text-slate-100 shadow-[0_18px_40px_rgba(15,23,42,0.24)] group-hover:block">
+      <div className="pointer-events-none absolute left-0 top-full z-[170] mt-2 hidden w-64 rounded-2xl border border-slate-200 bg-slate-950 px-3 py-2 text-[11px] leading-5 text-slate-100 shadow-[0_18px_40px_rgba(15,23,42,0.24)] group-hover:pointer-events-auto group-hover:block">
         {detail}
       </div>
     </div>
@@ -409,42 +458,20 @@ function buildPhaseModuleMeta(item: DashboardTaskItem, phase: PhaseKey): PhaseMo
 }
 
 function getVerifyModuleBadge(item: DashboardTaskItem): { label: string; tone: AlertTone } {
-  if (item.verifyRun && item.verifyRun.status !== "success") {
-    return { label: "执行异常", tone: "danger" };
-  }
-
-  if (item.isManualRequired || item.verifyResult === "需人工核实") {
-    return { label: "需人工核实", tone: "warning" };
-  }
-
-  if (item.verifyResult || item.verifiedStatus) {
-    return { label: "稳定", tone: "success" };
-  }
-
-  if (item.verifyRun) {
-    return { label: "进行中", tone: "info" };
-  }
-
+  if (isBlockingRunIssue(item.verifyRun)) return { label: "阻塞异常", tone: "danger" };
+  if (item.verifyRun && item.verifyRun.status !== "success") return { label: "执行异常", tone: "warning" };
+  if (item.isManualRequired || item.verifyResult === "需人工核实") return { label: "需人工核实", tone: "warning" };
+  if (item.verifyResult || item.verifiedStatus) return { label: "稳定", tone: "success" };
+  if (item.verifyRun) return { label: "进行中", tone: "info" };
   return { label: "未开始", tone: "neutral" };
 }
 
 function getQcModuleBadge(item: DashboardTaskItem): { label: string; tone: AlertTone } {
-  if (item.qcRun && item.qcRun.status !== "success") {
-    return { label: "执行异常", tone: "danger" };
-  }
-
-  if (item.qcSummary.isQualified === false) {
-    return { label: "需关注", tone: "danger" };
-  }
-
-  if (item.qcSummary.isQualified === true) {
-    return { label: "稳定", tone: "success" };
-  }
-
-  if (item.qcRun || item.qualityStatus || item.qcStatus) {
-    return { label: "进行中", tone: "info" };
-  }
-
+  if (isBlockingRunIssue(item.qcRun)) return { label: "阻塞异常", tone: "danger" };
+  if (item.qcRun && item.qcRun.status !== "success") return { label: "执行异常", tone: "warning" };
+  if (item.qcSummary.isQualified === false) return { label: "需关注", tone: "danger" };
+  if (item.qcSummary.isQualified === true) return { label: "稳定", tone: "success" };
+  if (item.qcRun || item.qualityStatus || item.qcStatus) return { label: "进行中", tone: "info" };
   return { label: "未开始", tone: "neutral" };
 }
 
@@ -454,12 +481,54 @@ function getQcConclusion(item: DashboardTaskItem): string {
   return item.qualityStatus ?? item.qcStatus ?? (item.qcRun ? "质检中" : "待质检");
 }
 
+function extractEvidenceSummaryWithDetails(item: DashboardTaskItem): EvidenceSummary | null {
+  const evidence = readArrayAtPath(item.raw.poiVerified, ["evidence_record"]);
+  if (!evidence.length) return null;
+
+  const sourceCounter = new Map<string, EvidenceSourceTag>();
+  for (const entry of evidence) {
+    const sourceName =
+      readTextAtPath(entry, ["source", "source_name"]) ??
+      readTextAtPath(entry, ["data", "raw_data", "source", "source_name"]) ??
+      "其他来源";
+    const sourceUrl =
+      readTextAtPath(entry, ["source", "source_url"]) ??
+      readTextAtPath(entry, ["data", "raw_data", "source_url"]) ??
+      readTextAtPath(entry, ["data", "source_url"]) ??
+      "";
+    const rawDataValue =
+      readUnknownAtPath(entry, ["data", "raw_data"]) ??
+      readUnknownAtPath(entry, ["raw_data"]) ??
+      readUnknownAtPath(entry, ["source"]);
+
+    const current = sourceCounter.get(sourceName);
+    if (current) {
+      current.count += 1;
+      if ((current.details?.length ?? 0) < 5) {
+        current.details = [...(current.details ?? []), { sourceUrl, rawData: stringifyEvidenceRawData(rawDataValue) }];
+      }
+    } else {
+      sourceCounter.set(sourceName, {
+        sourceName,
+        count: 1,
+        details: [{ sourceUrl, rawData: stringifyEvidenceRawData(rawDataValue) }],
+      });
+    }
+  }
+
+  return {
+    total: evidence.length,
+    sources: Array.from(sourceCounter.values()).sort(
+      (left, right) => right.count - left.count || left.sourceName.localeCompare(right.sourceName, "zh-CN"),
+    ),
+  };
+}
+
 function extractEvidenceSummary(item: DashboardTaskItem): EvidenceSummary | null {
   const evidence = readArrayAtPath(item.raw.poiVerified, ["evidence_record"]);
   if (!evidence.length) return null;
 
   const sourceCounter = new Map<string, number>();
-
   for (const entry of evidence) {
     const sourceName =
       readTextAtPath(entry, ["source", "source_name"]) ??
@@ -476,26 +545,42 @@ function extractEvidenceSummary(item: DashboardTaskItem): EvidenceSummary | null
   };
 }
 
+function readUnknownAtPath(source: unknown, path: string[]): unknown {
+  let current = source;
+  for (const key of path) {
+    if (!current || typeof current !== "object" || Array.isArray(current)) return null;
+    current = (current as Record<string, unknown>)[key];
+  }
+  return current;
+}
+
+function stringifyEvidenceRawData(value: unknown): string {
+  if (value == null) return "";
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+}
+
 function readArrayAtPath(source: unknown, path: string[]): Record<string, unknown>[] {
   let current = source;
-
   for (const key of path) {
     if (!current || typeof current !== "object" || Array.isArray(current)) return [];
     current = (current as Record<string, unknown>)[key];
   }
-
   if (!Array.isArray(current)) return [];
   return current.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object" && !Array.isArray(item));
 }
 
 function readTextAtPath(source: unknown, path: string[]): string | null {
   let current = source;
-
   for (const key of path) {
     if (!current || typeof current !== "object" || Array.isArray(current)) return null;
     current = (current as Record<string, unknown>)[key];
   }
-
   if (typeof current !== "string") return null;
   const text = current.trim();
   return text ? text : null;

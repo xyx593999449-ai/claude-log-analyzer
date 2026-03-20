@@ -54,6 +54,10 @@ function parseBoolean(value: unknown): boolean {
 function parseFilters(query: Record<string, unknown>): DashboardFilters {
   const page = Math.max(1, Number(query.page ?? 1) || 1);
   const pageSize = Math.min(200, Math.max(10, Number(query.pageSize ?? 20) || 20));
+  const alertTags = String(query.alertTags ?? "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
 
   return {
     page,
@@ -61,6 +65,7 @@ function parseFilters(query: Record<string, unknown>): DashboardFilters {
     search: String(query.search ?? "").trim(),
     verifyStatus: String(query.verifyStatus ?? "").trim(),
     qcStatus: String(query.qcStatus ?? "").trim(),
+    alertTags,
     manualOnly: parseBoolean(query.manualOnly),
     anomalyOnly: parseBoolean(query.anomalyOnly),
   };

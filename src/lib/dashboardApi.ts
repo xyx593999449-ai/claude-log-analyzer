@@ -12,6 +12,7 @@ interface TaskQuery {
   search: string;
   verifyStatus: string;
   qcStatus: string;
+  alertTags: string[];
   manualOnly: boolean;
   anomalyOnly: boolean;
 }
@@ -80,6 +81,7 @@ export function fetchTaskList(query: TaskQuery): Promise<TaskListResult> {
     search: query.search,
     verifyStatus: query.verifyStatus,
     qcStatus: query.qcStatus,
+    alertTags: query.alertTags.join(","),
     manualOnly: String(query.manualOnly),
     anomalyOnly: String(query.anomalyOnly),
   });

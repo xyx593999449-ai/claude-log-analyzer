@@ -9,18 +9,11 @@ import {
   formatDateTime,
   formatNumber,
   formatPercent,
-  getProcessStage,
   type AlertTone,
   type ProcessStageKey,
   type UploadItem,
 } from "./dashboardModel";
-import {
-  ExecutionCard,
-  SectionIntro,
-  SpotlightCard,
-  StatusPill,
-  UploadZone,
-} from "./dashboardWidgets";
+import { ExecutionCard, SectionIntro, SpotlightCard, StatusPill, UploadZone } from "./dashboardWidgets";
 
 interface DashboardHomeProps {
   onOpenLogs: (taskId: string) => void;
@@ -32,6 +25,7 @@ interface QueryState {
   search: string;
   verifyStatus: string;
   qcStatus: string;
+  alertTags: string[];
   manualOnly: boolean;
   anomalyOnly: boolean;
 }
@@ -58,6 +52,18 @@ interface FlowBranchItem {
   tone: AlertTone;
 }
 
+const ALERT_FILTER_TAGS: Array<{ label: string; tone: AlertTone }> = [
+  { label: "核实阻塞异常", tone: "danger" },
+  { label: "核实执行异常", tone: "warning" },
+  { label: "质检阻塞异常", tone: "danger" },
+  { label: "质检执行异常", tone: "warning" },
+  { label: "需人工介入", tone: "warning" },
+  { label: "质检不通过", tone: "danger" },
+  { label: "高风险任务", tone: "danger" },
+  { label: "核实状态不一致", tone: "warning" },
+  { label: "质检状态不一致", tone: "warning" },
+];
+
 export function DashboardHome({ onOpenLogs }: DashboardHomeProps) {
   const [overview, setOverview] = useState<DashboardOverview | null>(null);
   const [taskList, setTaskList] = useState<TaskListResult | null>(null);
@@ -72,6 +78,7 @@ export function DashboardHome({ onOpenLogs }: DashboardHomeProps) {
     search: "",
     verifyStatus: "",
     qcStatus: "",
+    alertTags: [],
     manualOnly: false,
     anomalyOnly: false,
   });
@@ -81,7 +88,6 @@ export function DashboardHome({ onOpenLogs }: DashboardHomeProps) {
   async function loadOverviewAndTasks(currentQuery: QueryState): Promise<void> {
     setLoading(true);
     setError("");
-
     try {
       const [overviewRes, tasksRes] = await Promise.all([fetchOverview(), fetchTaskList(currentQuery)]);
       setOverview(overviewRes);
@@ -113,7 +119,6 @@ export function DashboardHome({ onOpenLogs }: DashboardHomeProps) {
   async function handleImport(): Promise<void> {
     setImporting(true);
     setError("");
-
     try {
       if (verifyUploads.length === 0 && qcUploads.length === 0) {
         throw new Error("请先上传核实或质检日志文件");
@@ -122,16 +127,8 @@ export function DashboardHome({ onOpenLogs }: DashboardHomeProps) {
       const result = await importLogsByFiles({
         source: "manual_upload",
         files: [
-          ...verifyUploads.map((item) => ({
-            phase: "verify" as const,
-            role: item.role,
-            file: item.file,
-          })),
-          ...qcUploads.map((item) => ({
-            phase: "qc" as const,
-            role: item.role,
-            file: item.file,
-          })),
+          ...verifyUploads.map((item) => ({ phase: "verify" as const, role: item.role, file: item.file })),
+          ...qcUploads.map((item) => ({ phase: "qc" as const, role: item.role, file: item.file })),
         ],
       });
 
@@ -152,7 +149,6 @@ export function DashboardHome({ onOpenLogs }: DashboardHomeProps) {
   async function handleClearCache(): Promise<void> {
     setLoading(true);
     setError("");
-
     try {
       await clearCache();
       setVerifyUploads([]);
@@ -166,6 +162,16 @@ export function DashboardHome({ onOpenLogs }: DashboardHomeProps) {
     }
   }
 
+  function toggleAlertTag(label: string): void {
+    setQuery((prev) => ({
+      ...prev,
+      page: 1,
+      alertTags: prev.alertTags.includes(label)
+        ? prev.alertTags.filter((item) => item !== label)
+        : [...prev.alertTags, label],
+    }));
+  }
+
   const totalTasks = overview?.totalTasks ?? 0;
   const manualTaskCount = overview?.manualMonitoring.manualTaskCount ?? 0;
   const anomalyCount = overview?.manualMonitoring.anomalyCount ?? 0;
@@ -174,6 +180,7 @@ export function DashboardHome({ onOpenLogs }: DashboardHomeProps) {
   const manualRate = totalTasks > 0 ? manualTaskCount / totalTasks : 0;
   const totalSelectedUploads = verifyUploads.length + qcUploads.length;
   const latestImportTime = overview?.manualMonitoring.latestImport?.importedAt ?? null;
+
   const overviewStageData: StageDistributionItem[] = PROCESS_STAGES.map((stage) => ({
     key: stage.key,
     label: stage.label,
@@ -181,6 +188,7 @@ export function DashboardHome({ onOpenLogs }: DashboardHomeProps) {
     description: stage.description,
     value: overview?.flowStageCounts.find((item) => item.stage === stage.key)?.count ?? 0,
   }));
+
   const overviewBranches: FlowBranchItem[] = [
     {
       id: "manual",
@@ -205,30 +213,15 @@ export function DashboardHome({ onOpenLogs }: DashboardHomeProps) {
     },
   ];
 
-  const currentPageStageData: StageDistributionItem[] = PROCESS_STAGES.map((stage) => ({
-    key: stage.key,
-    label: stage.label,
-    shortLabel: stage.shortLabel,
-    description: stage.description,
-    value: (taskList?.items ?? []).filter((item) => getProcessStage(item).key === stage.key).length,
-  }));
-
-  const currentPageTotal = taskList?.items.length ?? 0;
-  const currentPageAnomalyCount = (taskList?.items ?? []).filter((item) => buildAlerts(item).length > 0).length;
   const currentPageAlertTags = useMemo<AlertTagItem[]>(() => {
     const tagCounter = new Map<string, AlertTagItem>();
-
     for (const item of taskList?.items ?? []) {
       for (const alert of buildAlerts(item)) {
         const current = tagCounter.get(alert.label);
         if (current) {
           current.count += 1;
         } else {
-          tagCounter.set(alert.label, {
-            label: alert.label,
-            tone: alert.tone,
-            count: 1,
-          });
+          tagCounter.set(alert.label, { label: alert.label, tone: alert.tone, count: 1 });
         }
       }
     }
@@ -237,6 +230,14 @@ export function DashboardHome({ onOpenLogs }: DashboardHomeProps) {
       (left, right) => right.count - left.count || left.label.localeCompare(right.label, "zh-CN"),
     );
   }, [taskList]);
+
+  const alertTagCountMap = useMemo(() => {
+    const counter = new Map<string, number>();
+    for (const item of currentPageAlertTags) {
+      counter.set(item.label, item.count);
+    }
+    return counter;
+  }, [currentPageAlertTags]);
 
   return (
     <div className="dashboard-shell min-h-screen text-slate-900">
@@ -346,7 +347,7 @@ export function DashboardHome({ onOpenLogs }: DashboardHomeProps) {
           </div>
         </section>
 
-        <section className="reveal-card delay-1 rounded-[28px] border border-white/70 bg-white/84 p-5 shadow-[0_25px_80px_rgba(15,23,42,0.06)] backdrop-blur">
+        <section className="reveal-card delay-1 relative overflow-visible rounded-[28px] border border-white/70 bg-white/84 p-5 shadow-[0_25px_80px_rgba(15,23,42,0.06)] backdrop-blur">
           <SectionIntro eyebrow="Execution Compare" title="核实与质检横向对比" />
           <div className="mt-5 grid gap-5 xl:grid-cols-2">
             <ExecutionCard title="核实执行概览" metrics={overview?.verifyMetrics} tone="verify" />
@@ -356,7 +357,7 @@ export function DashboardHome({ onOpenLogs }: DashboardHomeProps) {
 
         {error ? <div className="reveal-card delay-2 rounded-2xl border border-rose-200 bg-rose-50/90 px-4 py-3 text-sm text-rose-700">{error}</div> : null}
 
-        <section className="reveal-card delay-3 rounded-[28px] border border-white/70 bg-white/84 p-5 shadow-[0_25px_80px_rgba(15,23,42,0.06)] backdrop-blur">
+        <section className="reveal-card delay-3 relative overflow-visible rounded-[28px] border border-white/70 bg-white/84 p-5 shadow-[0_25px_80px_rgba(15,23,42,0.06)] backdrop-blur">
           <SectionIntro eyebrow="Task Flowboard" title="任务详情列表" />
 
           <div className="mt-5 grid gap-3 xl:grid-cols-[minmax(0,1fr)_190px_190px_190px]">
@@ -415,25 +416,47 @@ export function DashboardHome({ onOpenLogs }: DashboardHomeProps) {
             </div>
           </div>
 
-          <div className="mt-5 space-y-4">
-            <div className="rounded-3xl border border-slate-200 bg-slate-50/70 p-4">
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <h3 className="text-sm font-semibold text-slate-900">当前页流程分布</h3>
-                </div>
-                <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-500">
-                  当前页 {formatNumber(currentPageTotal)} 条
-                </span>
+          <div className="mt-4 rounded-3xl border border-slate-200 bg-slate-50/70 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="text-xs uppercase tracking-[0.24em] text-slate-400">Alert Filter</div>
+                <div className="mt-2 text-sm font-semibold text-slate-900">异常情况筛选</div>
               </div>
-              <StageDistributionBoard stages={currentPageStageData} total={currentPageTotal} />
+              {query.alertTags.length > 0 ? (
+                <button
+                  type="button"
+                  className="rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-100"
+                  onClick={() => setQuery((prev) => ({ ...prev, page: 1, alertTags: [] }))}
+                >
+                  清空异常标签
+                </button>
+              ) : null}
             </div>
 
-            <AlertTagBoard total={currentPageTotal} anomalyCount={currentPageAnomalyCount} tags={currentPageAlertTags} />
+            <div className="mt-4 flex flex-wrap gap-2">
+              {ALERT_FILTER_TAGS.map((tag) => {
+                const active = query.alertTags.includes(tag.label);
+                const count = alertTagCountMap.get(tag.label) ?? 0;
+                return (
+                  <button
+                    key={tag.label}
+                    type="button"
+                    onClick={() => toggleAlertTag(tag.label)}
+                    className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${
+                      active ? getActiveTagClasses(tag.tone) : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                    }`}
+                  >
+                    {tag.label}
+                    <span className="ml-1">{formatNumber(count)}条</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           <div className="mt-6 space-y-4">
             {loading ? <div className="rounded-3xl border border-slate-200 bg-slate-50/70 px-4 py-10 text-center text-sm text-slate-500">正在刷新列表...</div> : null}
-            {!loading && currentPageTotal === 0 ? <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50/70 px-4 py-12 text-center text-sm text-slate-500">暂无匹配数据</div> : null}
+            {!loading && (taskList?.items.length ?? 0) === 0 ? <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50/70 px-4 py-12 text-center text-sm text-slate-500">暂无匹配数据</div> : null}
             {!loading ? (taskList?.items ?? []).map((item, index) => <TaskFlowCard key={item.taskId} item={item} index={index} onOpenLogs={onOpenLogs} />) : null}
           </div>
 
@@ -526,10 +549,8 @@ function MetroFlowOverview({
                     </div>
                     <p className="mt-4 text-sm leading-6 text-inherit/80">{stage.description}</p>
                     <div className="mt-6">
-                      <div>
-                        <div className="text-[11px] uppercase tracking-[0.22em] text-inherit/60">任务量</div>
-                        <div className="mt-2 text-3xl font-semibold">{formatNumber(stage.value)}</div>
-                      </div>
+                      <div className="text-[11px] uppercase tracking-[0.22em] text-inherit/60">任务量</div>
+                      <div className="mt-2 text-3xl font-semibold">{formatNumber(stage.value)}</div>
                     </div>
                   </article>
                 </div>
@@ -569,9 +590,7 @@ function MetroFlowOverview({
               <div className="text-[11px] uppercase tracking-[0.24em] text-slate-400">Exception Notes</div>
               <div className="mt-2 text-sm font-semibold text-slate-900">全量异常分支</div>
             </div>
-            <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-500">
-              辅助观察
-            </span>
+            <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-500">辅助观察</span>
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
             {branches.map((branch) => (
@@ -587,150 +606,26 @@ function MetroFlowOverview({
   );
 }
 
-function StageDistributionBoard({
-  stages,
-  total,
-}: {
-  stages: StageDistributionItem[];
-  total: number;
-}) {
-  return (
-    <div className="rounded-3xl border border-slate-200 bg-white px-4 py-5">
-      <div className="grid gap-3 md:grid-cols-5">
-        {stages.map((stage) => {
-          const theme = getStageDistributionTheme(stage.key);
-          return (
-            <article key={stage.key} className={`rounded-2xl border px-3 py-3 ${theme.cardClass}`}>
-              <div className="flex items-start justify-between gap-3">
-                <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-xs font-semibold ${theme.badgeClass}`}>
-                  {stage.value}
-                </div>
-                <div className="rounded-full border border-white/60 bg-white/70 px-2.5 py-1 text-[11px] font-medium text-inherit/80">
-                  {total > 0 ? formatPercent(stage.value / total) : "0.00%"}
-                </div>
-              </div>
-              <div className="mt-3">
-                <div className="text-sm font-semibold">{stage.shortLabel}</div>
-                <div className="mt-1 text-xs leading-5 text-inherit/80">{stage.description}</div>
-              </div>
-              <div className="mt-4 flex items-end justify-between gap-3">
-                <div className="text-[11px] uppercase tracking-[0.2em] text-inherit/60">任务量</div>
-                <div className="text-2xl font-semibold">{formatNumber(stage.value)}</div>
-              </div>
-            </article>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function getMetroStageTheme(stage: ProcessStageKey): {
-  cardClass: string;
-  badgeClass: string;
-} {
+function getMetroStageTheme(stage: ProcessStageKey): { cardClass: string; badgeClass: string } {
   if (stage === "pending_verify") {
-    return {
-      cardClass: "border-slate-200 bg-white text-slate-700",
-      badgeClass: "border-slate-300 bg-slate-100 text-slate-700",
-    };
+    return { cardClass: "border-slate-200 bg-white text-slate-700", badgeClass: "border-slate-300 bg-slate-100 text-slate-700" };
   }
-
   if (stage === "verifying") {
-    return {
-      cardClass: "border-teal-200 bg-teal-50 text-teal-900",
-      badgeClass: "border-teal-300 bg-teal-600 text-white",
-    };
+    return { cardClass: "border-teal-200 bg-teal-50 text-teal-900", badgeClass: "border-teal-300 bg-teal-600 text-white" };
   }
-
   if (stage === "verified_waiting_qc") {
-    return {
-      cardClass: "border-emerald-200 bg-emerald-50 text-emerald-900",
-      badgeClass: "border-emerald-300 bg-emerald-600 text-white",
-    };
+    return { cardClass: "border-emerald-200 bg-emerald-50 text-emerald-900", badgeClass: "border-emerald-300 bg-emerald-600 text-white" };
   }
-
   if (stage === "qc_running") {
-    return {
-      cardClass: "border-indigo-300 bg-indigo-950 text-white",
-      badgeClass: "border-indigo-200 bg-indigo-100 text-indigo-700",
-    };
+    return { cardClass: "border-indigo-300 bg-indigo-950 text-white", badgeClass: "border-indigo-200 bg-indigo-100 text-indigo-700" };
   }
-
-  return {
-    cardClass: "border-sky-200 bg-sky-50 text-sky-900",
-    badgeClass: "border-sky-300 bg-white text-sky-700",
-  };
+  return { cardClass: "border-sky-200 bg-sky-50 text-sky-900", badgeClass: "border-sky-300 bg-white text-sky-700" };
 }
 
-function AlertTagBoard({
-  total,
-  anomalyCount,
-  tags,
-}: {
-  total: number;
-  anomalyCount: number;
-  tags: AlertTagItem[];
-}) {
-  return (
-    <aside className="rounded-3xl border border-rose-200 bg-rose-50/40 p-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="text-xs uppercase tracking-[0.24em] text-rose-400">Current Alerts</div>
-          <h3 className="mt-2 text-sm font-semibold text-slate-900">当前页异常标记</h3>
-          <p className="mt-2 text-xs text-slate-500">
-            异常任务 {formatNumber(anomalyCount)} / {formatNumber(total || 0)}
-          </p>
-        </div>
-        <span className="rounded-full border border-rose-200 bg-white px-3 py-1.5 text-xs font-medium text-rose-600">
-          {total > 0 ? formatPercent(anomalyCount / total) : "0.00%"}
-        </span>
-      </div>
-
-      <div className="mt-4 flex flex-wrap gap-2">
-        {tags.length === 0 ? <StatusPill label="无异常标记" tone="success" /> : null}
-        {tags.map((tag) => (
-          <StatusPill key={tag.label} label={`${tag.label} ${formatNumber(tag.count)}条`} tone={tag.tone} />
-        ))}
-      </div>
-    </aside>
-  );
-}
-
-function getStageDistributionTheme(stage: ProcessStageKey): {
-  cardClass: string;
-  badgeClass: string;
-} {
-  if (stage === "pending_verify") {
-    return {
-      cardClass: "border-slate-200 bg-white text-slate-600",
-      badgeClass: "border-slate-300 bg-slate-100 text-slate-700",
-    };
-  }
-
-  if (stage === "verifying") {
-    return {
-      cardClass: "border-teal-200 bg-teal-50 text-teal-800",
-      badgeClass: "border-teal-300 bg-teal-600 text-white",
-    };
-  }
-
-  if (stage === "verified_waiting_qc") {
-    return {
-      cardClass: "border-emerald-200 bg-emerald-50 text-emerald-800",
-      badgeClass: "border-emerald-300 bg-emerald-600 text-white",
-    };
-  }
-
-  if (stage === "qc_running") {
-    return {
-      cardClass: "border-indigo-300 bg-indigo-950 text-white",
-      badgeClass: "border-indigo-200 bg-indigo-100 text-indigo-700",
-    };
-  }
-
-  return {
-    cardClass: "border-sky-200 bg-sky-50 text-sky-800",
-    badgeClass: "border-sky-300 bg-white text-sky-700",
-  };
+function getActiveTagClasses(tone: AlertTone): string {
+  if (tone === "danger") return "border-rose-200 bg-rose-50 text-rose-700";
+  if (tone === "warning") return "border-amber-200 bg-amber-50 text-amber-800";
+  if (tone === "info") return "border-cyan-200 bg-cyan-50 text-cyan-700";
+  if (tone === "success") return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  return "border-slate-200 bg-slate-100 text-slate-700";
 }

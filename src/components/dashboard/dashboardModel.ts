@@ -34,36 +34,11 @@ export const GLM_PRICE_INPUT = 4;
 export const GLM_PRICE_OUTPUT = 18;
 
 export const PROCESS_STAGES: ProcessStageMeta[] = [
-  {
-    key: "pending_verify",
-    label: "待核实",
-    shortLabel: "待核实",
-    description: "尚未进入核实流程",
-  },
-  {
-    key: "verifying",
-    label: "核实中",
-    shortLabel: "核实中",
-    description: "核实执行中或等待重试",
-  },
-  {
-    key: "verified_waiting_qc",
-    label: "核实完成待质检",
-    shortLabel: "待质检",
-    description: "核实结果已产出",
-  },
-  {
-    key: "qc_running",
-    label: "质检中",
-    shortLabel: "质检中",
-    description: "质检执行中或待复核",
-  },
-  {
-    key: "qc_done",
-    label: "质检完成",
-    shortLabel: "已质检",
-    description: "质检结论已回写",
-  },
+  { key: "pending_verify", label: "待核实", shortLabel: "待核实", description: "尚未进入核实流程" },
+  { key: "verifying", label: "核实中", shortLabel: "核实中", description: "核实执行中或等待重试" },
+  { key: "verified_waiting_qc", label: "核实完成待质检", shortLabel: "待质检", description: "核实结果已产出" },
+  { key: "qc_running", label: "质检中", shortLabel: "质检中", description: "质检执行中或待复核" },
+  { key: "qc_done", label: "质检完成", shortLabel: "已质检", description: "质检结论已回写" },
 ];
 
 export const PIE_COLORS = ["#0f766e", "#d97706", "#2563eb", "#e11d48", "#7c3aed", "#475569"];
@@ -123,13 +98,11 @@ export function inferRoleByContent(content: string): UploadRole {
     (content.includes('"type":"message"') ||
       content.includes('"type":"content_block_start"') ||
       content.includes('"type":"stream_event"'));
-
   if (hasClaudeSignals) return "claude";
 
   const hasExecutorSignals =
     content.includes("task_id") &&
     (content.includes("worker_id") || content.includes("row_number") || content.includes("batch_id"));
-
   if (hasExecutorSignals) return "executor";
   return "unknown";
 }
@@ -141,14 +114,9 @@ export function getRunTone(run: RunView | null): AlertTone {
 }
 
 export function getProcessStage(item: DashboardTaskItem): ProcessStageMeta {
-  const verifyCompleted =
-    item.verifyRun?.status === "success" ||
-    Boolean(item.verifiedStatus) ||
-    Boolean(item.verifyResult);
+  const verifyCompleted = item.verifyRun?.status === "success" || Boolean(item.verifiedStatus) || Boolean(item.verifyResult);
   const qcCompleted =
-    item.qcSummary.isQualified !== null ||
-    item.qualityStatus === "已质检" ||
-    Boolean(item.qcStatus);
+    item.qcSummary.isQualified !== null || item.qualityStatus === "已质检" || Boolean(item.qcStatus);
   const qcAttempted = Boolean(item.qcRun) || item.qualityStatus === "质检中";
 
   if (qcCompleted) return PROCESS_STAGES[4];
@@ -176,22 +144,38 @@ export function getStatusClasses(tone: AlertTone): string {
   return "border-slate-200 bg-slate-100 text-slate-600";
 }
 
+export function isBlockingRunIssue(run: RunView | null | undefined): boolean {
+  return (run?.retryCount ?? 0) > 5;
+}
+
 export function buildAlerts(item: DashboardTaskItem): FlowAlert[] {
   const alerts: FlowAlert[] = [];
 
-  if (item.verifyRun && item.verifyRun.status !== "success") {
+  if (isBlockingRunIssue(item.verifyRun)) {
+    alerts.push({
+      label: "核实阻塞异常",
+      detail: `核实流程重试 ${item.verifyRun?.retryCount ?? 0} 次，已超过阻塞阈值`,
+      tone: "danger",
+    });
+  } else if (item.verifyRun && item.verifyRun.status !== "success") {
     alerts.push({
       label: "核实执行异常",
       detail: item.verifyRun.errorSummary || `核实执行状态为 ${item.verifyRun.status ?? "unknown"}`,
-      tone: "danger",
+      tone: "warning",
     });
   }
 
-  if (item.qcRun && item.qcRun.status !== "success") {
+  if (isBlockingRunIssue(item.qcRun)) {
+    alerts.push({
+      label: "质检阻塞异常",
+      detail: `质检流程重试 ${item.qcRun?.retryCount ?? 0} 次，已超过阻塞阈值`,
+      tone: "danger",
+    });
+  } else if (item.qcRun && item.qcRun.status !== "success") {
     alerts.push({
       label: "质检执行异常",
       detail: item.qcRun.errorSummary || `质检执行状态为 ${item.qcRun.status ?? "unknown"}`,
-      tone: "danger",
+      tone: "warning",
     });
   }
 

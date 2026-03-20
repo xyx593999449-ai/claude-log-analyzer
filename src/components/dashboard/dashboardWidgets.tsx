@@ -155,7 +155,7 @@ export function ExecutionCard({
         };
 
   return (
-    <article className={`rounded-[28px] border p-5 shadow-[0_20px_60px_rgba(15,23,42,0.06)] ${theme.ring}`}>
+    <article className={`relative overflow-visible rounded-[28px] border p-5 shadow-[0_20px_60px_rgba(15,23,42,0.06)] ${theme.ring}`}>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="text-xs uppercase tracking-[0.24em] text-slate-500">{title}</div>
@@ -193,7 +193,7 @@ function MetricChip({
   icon?: ReactNode;
 }) {
   return (
-    <div className="group relative rounded-2xl border border-white/80 bg-white/82 px-4 py-3">
+    <div className="group relative z-0 overflow-visible rounded-2xl border border-white/80 bg-white/82 px-4 py-3 hover:z-[140]">
       <div className="flex items-center gap-2 text-xs uppercase tracking-[0.22em] text-slate-400">
         {icon}
         <span>{label}</span>
@@ -202,7 +202,7 @@ function MetricChip({
       <div className="mt-2 text-sm font-semibold text-slate-900">{value}</div>
 
       {tooltip ? (
-        <div className="pointer-events-none absolute left-4 top-full z-20 mt-2 hidden w-64 rounded-2xl border border-slate-200 bg-slate-950 px-3 py-2 text-[11px] leading-5 text-slate-100 shadow-[0_18px_40px_rgba(15,23,42,0.24)] group-hover:block">
+        <div className="pointer-events-none absolute left-4 top-full z-[160] mt-2 hidden w-64 rounded-2xl border border-slate-200 bg-slate-950 px-3 py-2 text-[11px] leading-5 text-slate-100 shadow-[0_18px_40px_rgba(15,23,42,0.24)] group-hover:pointer-events-auto group-hover:block">
           {tooltip}
         </div>
       ) : null}
