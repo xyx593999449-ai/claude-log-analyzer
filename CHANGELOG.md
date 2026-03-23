@@ -1,20 +1,17 @@
 # Changelog
 
 ## [Unreleased]
+### Refactored
+
+- **系统架构瘦身**：全面剥离独立文本保管与大文件内存解析机制（已移除所有后端 parser），将当前工程改造为纯只读展示型前端，规避潜在的 OOM 风险。
+- **直连数据检索**：重写底层读获取逻辑，废弃原本地日志索引，改为按需提取会话（Session IDs），并联合查询外部调度系统流式上报的新原生日志表 `poi_claude_log`。
+- **前端入口隐退**：通过注释隐藏了前端原有大文件日志手动导入关联组件，彻底对齐流式架构。
+- **底层数据库规整**：根据业务方规范，将旧内部状态指标表 `temp_task_analysis` 全局更名为 `poi_task_analysis`。
 
 ### Changed
 
 - 默认环境切换为 PostgreSQL（`DB_CLIENT=pg`），并更新 `.gitignore` 允许提交 `.env` 文件。
-
-### Fixed
-
-- 修复 `src/components/dashboard/DashboardHome.tsx`、`src/components/dashboard/TaskFlowCard.tsx` 与 `src/components/dashboard/dashboardModel.ts` 的乱码、未闭合字符串和 JSX 结构损坏问题，恢复项目可构建状态。
-
-### Changed
-
 - 统一提升首页指标卡、任务卡证据摘要与异常标签的悬浮层层级，避免 tooltip 被相邻模块遮挡。
-
-### Added
 
 - 新增首页日志导入折叠区，支持核实日志和质检日志分阶段上传。
 - 新增核实 / 质检执行概览横向对比卡片，并补充平均成本指标与悬浮说明。
