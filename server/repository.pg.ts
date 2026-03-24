@@ -1,5 +1,5 @@
 import { Pool, type PoolClient } from "pg";
-import type { AggregatedTaskRun, AnalysisPhase, DashboardFilters, ImportSnapshot } from "./types";
+import type { AggregatedTaskRun, AnalysisPhase, DashboardFilters, ImportSnapshot, BatchOverviewItem } from "./types";
 import type {
   DashboardFilterOptions,
   DashboardOverview,
@@ -203,6 +203,12 @@ function buildTaskFilterSqlPg(filters: DashboardFilters): { whereSql: string; pa
 
   if (alertClauses.length > 0) {
     clauses.push(`(${alertClauses.join(" OR ")})`);
+  }
+
+  if (filters.batch) {
+    clauses.push(`task_id LIKE $${idx}`);
+    params.push(`%\\_${filters.batch}`);
+    idx += 1;
   }
 
   return {
@@ -850,5 +856,169 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
       verifySessionIds,
       qcSessionIds,
     };
+  }
+
+  async getBatches(): Promise<BatchOverviewItem[]> {
+    await this.ready();
+    const rowsRes = await this.pool.query(`
+      WITH latest AS (
+        SELECT *
+        FROM poi_task_analysis
+        WHERE id IN (SELECT MAX(id) FROM poi_task_analysis GROUP BY task_id, phase)
+      ),
+      verify_runs AS (SELECT * FROM latest WHERE phase = 'verify'),
+      qc_runs AS (SELECT * FROM latest WHERE phase = 'qc'),
+      merged AS (
+        SELECT
+          i.task_id,
+          v.verify_result,
+          q.is_qualified,
+          CASE
+            WHEN (
+              (vr.task_id IS NOT NULL AND v.verify_status IS NOT NULL AND (
+                (vr.status = 'success' AND v.verify_status NOT IN ('${VERIFY_DONE}','${VERIFY_MANUAL}'))
+                OR (vr.status <> 'success' AND v.verify_status IN ('${VERIFY_DONE}','${VERIFY_MANUAL}'))
+              ))
+              OR (qr.task_id IS NOT NULL AND q.qc_status IS NOT NULL AND qr.status <> 'success')
+            ) THEN 1
+            ELSE 0
+          END AS has_anomaly,
+          vr.duration_ms AS vr_duration,
+          qr.duration_ms AS qr_duration,
+          vr.total_input_tokens AS vr_in_tok,
+          vr.total_output_tokens AS vr_out_tok,
+          vr.total_cache_tokens AS vr_cache_tok,
+          qr.total_input_tokens AS qr_in_tok,
+          qr.total_output_tokens AS qr_out_tok,
+          qr.total_cache_tokens AS qr_cache_tok,
+          vr.started_at AS vr_started,
+          vr.ended_at AS vr_ended,
+          qr.started_at AS qr_started,
+          qr.ended_at AS qr_ended,
+          vr.status AS vr_status,
+          qr.status AS qr_status
+        FROM poi_init i
+        LEFT JOIN poi_verified v ON v.task_id = i.task_id
+        LEFT JOIN poi_qc q ON q.task_id = i.task_id
+        LEFT JOIN verify_runs vr ON vr.task_id = i.task_id
+        LEFT JOIN qc_runs qr ON qr.task_id = i.task_id
+      )
+      SELECT * FROM merged
+    `);
+
+    const rows = rowsRes.rows as Array<Record<string, unknown>>;
+    
+    interface BatchInternalState {
+      batchId: string;
+      taskCount: number;
+      manualTaskCount: number;
+      anomalyCount: number;
+      qcTaskCount: number;
+      qcRejectedCount: number;
+      totalDurationMs: number;
+      totalTokens: number;
+      minStarted: string | null;
+      maxEnded: string | null;
+      anyTaskStarted: boolean;
+      allTasksCompleted: boolean;
+    }
+    const batchMap = new Map<string, BatchInternalState>();
+
+    for (const row of rows) {
+      const taskId = String(row.task_id);
+      let batchId = "default";
+      const match = taskId.match(/_([^_]+_[0-9]+)$/);
+      if (match) {
+        batchId = match[1];
+      } else {
+        const parts = taskId.split('_');
+        if (parts.length >= 2) {
+          batchId = parts.slice(-2).join('_');
+        } else {
+          batchId = taskId;
+        }
+      }
+
+      let item = batchMap.get(batchId);
+      if (!item) {
+        item = { 
+          batchId, taskCount: 0, manualTaskCount: 0, anomalyCount: 0, 
+          qcTaskCount: 0, qcRejectedCount: 0, totalDurationMs: 0, totalTokens: 0,
+          minStarted: null, maxEnded: null, anyTaskStarted: false, allTasksCompleted: true
+        };
+        batchMap.set(batchId, item);
+      }
+
+      item.taskCount++;
+
+      const isManual = (row.verify_result === "${VERIFY_MANUAL}") || (row.is_qualified != null ? !boolish(row.is_qualified) : false);
+      if (isManual) item.manualTaskCount++;
+      if (row.has_anomaly === 1) item.anomalyCount++;
+      if (row.is_qualified != null) {
+        item.qcTaskCount++;
+        if (!boolish(row.is_qualified)) item.qcRejectedCount++;
+      }
+
+      item.totalDurationMs += (Number(row.vr_duration) || 0) + (Number(row.qr_duration) || 0);
+      item.totalTokens += (Number(row.vr_in_tok) || 0) + (Number(row.vr_out_tok) || 0) + (Number(row.vr_cache_tok) || 0) +
+                          (Number(row.qr_in_tok) || 0) + (Number(row.qr_out_tok) || 0) + (Number(row.qr_cache_tok) || 0);
+
+      const vrStarted = row.vr_started as string | null;
+      const qrStarted = row.qr_started as string | null;
+      const vrEnded = row.vr_ended as string | null;
+      const qrEnded = row.qr_ended as string | null;
+
+      if (vrStarted) {
+        item.anyTaskStarted = true;
+        if (!item.minStarted || (new Date(vrStarted) < new Date(item.minStarted))) item.minStarted = String(vrStarted);
+      }
+      if (qrStarted) {
+        item.anyTaskStarted = true;
+        if (!item.minStarted || (new Date(qrStarted) < new Date(item.minStarted))) item.minStarted = String(qrStarted);
+      }
+
+      if (vrEnded) {
+        if (!item.maxEnded || (new Date(vrEnded) > new Date(item.maxEnded))) item.maxEnded = String(vrEnded);
+      }
+      if (qrEnded) {
+        if (!item.maxEnded || (new Date(qrEnded) > new Date(item.maxEnded))) item.maxEnded = String(qrEnded);
+      }
+
+      if (!vrStarted && !qrStarted) {
+        item.allTasksCompleted = false;
+      } else {
+        const isVrRunning = row.vr_status === 'running' || row.vr_status === 'pending';
+        const isQrRunning = row.qr_status === 'running' || row.qr_status === 'pending';
+        if (isVrRunning || isQrRunning) {
+          item.allTasksCompleted = false;
+        }
+      }
+    }
+
+    const result: BatchOverviewItem[] = Array.from(batchMap.values()).map(b => {
+      let status: "pending" | "running" | "completed" = "running";
+      if (!b.anyTaskStarted) status = "pending";
+      else if (b.allTasksCompleted) status = "completed";
+      
+      const automationRate = b.taskCount > 0 ? (b.taskCount - b.manualTaskCount) / b.taskCount : 0;
+      const qcPassRate = b.qcTaskCount > 0 ? (b.qcTaskCount - b.qcRejectedCount) / b.qcTaskCount : 0;
+
+      return {
+        batchId: b.batchId,
+        taskCount: b.taskCount,
+        manualTaskCount: b.manualTaskCount,
+        anomalyCount: b.anomalyCount,
+        qcRejectedCount: b.qcRejectedCount,
+        totalDurationMs: b.totalDurationMs,
+        automationRate: Math.max(0, automationRate),
+        qcPassRate: Math.max(0, qcPassRate),
+        createdAt: b.minStarted,
+        completedAt: status === "completed" ? b.maxEnded : null,
+        totalTokens: b.totalTokens,
+        status
+      };
+    });
+
+    return result.sort((a, b) => b.batchId.localeCompare(a.batchId));
   }
 }

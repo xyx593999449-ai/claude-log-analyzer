@@ -1,9 +1,10 @@
-﻿import type {
+import type {
   DashboardOverview,
   FilterOptions,
   ImportResult,
   TaskListResult,
   TaskLogDetail,
+  BatchOverviewItem,
 } from "./dashboardTypes";
 
 interface TaskQuery {
@@ -36,9 +37,11 @@ export interface UploadLogFile {
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const isFormData = init?.body instanceof FormData;
+  const dbClient = localStorage.getItem("dashboard_db_client") || "sqlite";
   const requestInit: RequestInit = {
     headers: {
       ...(isFormData ? {} : { "Content-Type": "application/json" }),
+      "x-db-client": dbClient,
       ...(init?.headers ?? {}),
     },
     ...init,
@@ -73,6 +76,11 @@ export function fetchOverview(): Promise<DashboardOverview> {
 export function fetchFilterOptions(): Promise<FilterOptions> {
   return request<FilterOptions>("/api/dashboard/filter-options");
 }
+
+export function fetchBatches(): Promise<BatchOverviewItem[]> {
+  return request<BatchOverviewItem[]>("/api/dashboard/batches");
+}
+
 
 export function fetchTaskList(query: TaskQuery): Promise<TaskListResult> {
   const params = new URLSearchParams({

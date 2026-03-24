@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { ArrowLeft, FileSearch, ShieldCheck, ShieldUser } from "lucide-react";
 import { fetchTaskLogs } from "../../lib/dashboardApi";
+import { useParams, useNavigate } from "react-router-dom";
 import type { TaskLogDetail } from "../../lib/dashboardTypes";
 import { AnalysisLayout } from "../legacy/AnalysisLayout";
 import { LegacyLogViewer } from "../legacy/LegacyLogViewer";
@@ -13,7 +14,9 @@ interface TaskLogPageProps {
 
 type PhaseTab = "verify" | "qc";
 
-export function TaskLogPage({ taskId, onBack }: TaskLogPageProps) {
+export function TaskLogPage() {
+  const { taskId } = useParams<{ taskId: string }>();
+  const navigate = useNavigate();
   const [detail, setDetail] = useState<TaskLogDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -59,7 +62,7 @@ export function TaskLogPage({ taskId, onBack }: TaskLogPageProps) {
       actions={
         <button
           className="inline-flex items-center gap-2 rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm text-slate-700 transition hover:-translate-y-0.5 hover:bg-slate-50"
-          onClick={onBack}
+          onClick={() => navigate(-1)}
         >
           <ArrowLeft className="h-4 w-4" />
           返回首页

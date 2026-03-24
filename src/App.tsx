@@ -1,22 +1,26 @@
-import { useState } from "react";
 import type { ReactNode } from "react";
-import { LayoutDashboard, Logs, Waypoints } from "lucide-react";
+import { Routes, Route, NavLink, Navigate, Outlet } from "react-router-dom";
+import { LayoutDashboard, Logs, Waypoints, ListTree, Database, Server } from "lucide-react";
 import { DashboardHome } from "./components/dashboard/DashboardHome";
 import { LegacyLogAnalyzerPage } from "./components/dashboard/LegacyLogAnalyzerPage";
 import { TaskLogPage } from "./components/dashboard/TaskLogPage";
-
-type PageState =
-  | { kind: "dashboard" }
-  | { kind: "analyzer" }
-  | { kind: "log"; taskId: string };
+import { BatchOverviewPage } from "./components/dashboard/BatchOverviewPage";
 
 export default function App() {
-  const [page, setPage] = useState<PageState>({ kind: "dashboard" });
+  return (
+    <Routes>
+      <Route path="/" element={<Layout />}>
+        <Route index element={<Navigate to="/batches" replace />} />
+        <Route path="batches" element={<BatchOverviewPage />} />
+        <Route path="tasks" element={<DashboardHome />} />
+        <Route path="logs/:taskId" element={<TaskLogPage />} />
+        <Route path="analyzer" element={<LegacyLogAnalyzerPage />} />
+      </Route>
+    </Routes>
+  );
+}
 
-  if (page.kind === "log") {
-    return <TaskLogPage taskId={page.taskId} onBack={() => setPage({ kind: "dashboard" })} />;
-  }
-
+function Layout() {
   return (
     <div className="min-h-screen">
       <header className="sticky top-0 z-30 border-b border-white/60 bg-[rgba(246,242,234,0.82)] backdrop-blur-xl">
@@ -31,55 +35,51 @@ export default function App() {
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            <NavButton
-              active={page.kind === "dashboard"}
-              icon={<LayoutDashboard className="h-4 w-4" />}
-              label="主看板"
-              onClick={() => setPage({ kind: "dashboard" })}
-            />
-            <NavButton
-              active={page.kind === "analyzer"}
-              icon={<Logs className="h-4 w-4" />}
-              label="日志分析"
-              onClick={() => setPage({ kind: "analyzer" })}
-            />
+          <div className="flex flex-wrap items-center gap-2">
+            <NavButton to="/batches" icon={<ListTree className="h-4 w-4" />} label="批次概览" />
+            <NavButton to="/tasks" icon={<LayoutDashboard className="h-4 w-4" />} label="主看板" />
+            <NavButton to="/analyzer" icon={<Logs className="h-4 w-4" />} label="日志分析" />
+            <div className="flex items-center ml-2 pl-4 border-l border-slate-300">
+              <button 
+                onClick={() => {
+                  const current = localStorage.getItem("dashboard_db_client") || "sqlite";
+                  localStorage.setItem("dashboard_db_client", current === "sqlite" ? "pg" : "sqlite");
+                  window.location.reload();
+                }}
+                className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 transition"
+                title="切换数据源"
+              >
+                {localStorage.getItem("dashboard_db_client") === "pg" ? (
+                  <><Server className="w-3.5 h-3.5 text-indigo-600"/> PG库 (真实)</>
+                ) : (
+                  <><Database className="w-3.5 h-3.5 text-orange-500"/> SQLite (Mock)</>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       </header>
-
-      {page.kind === "dashboard" ? (
-        <DashboardHome onOpenLogs={(taskId) => setPage({ kind: "log", taskId })} />
-      ) : (
-        <LegacyLogAnalyzerPage />
-      )}
+      <main className="mx-auto max-w-[1480px] p-4 sm:p-6 lg:p-8">
+        <Outlet />
+      </main>
     </div>
   );
 }
 
-function NavButton({
-  active,
-  icon,
-  label,
-  onClick,
-}: {
-  active: boolean;
-  icon: ReactNode;
-  label: string;
-  onClick: () => void;
-}) {
+function NavButton({ to, icon, label }: { to: string; icon: ReactNode; label: string }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition ${
-        active
-          ? "bg-slate-950 text-white shadow-[0_12px_26px_rgba(15,23,42,0.16)]"
-          : "border border-slate-300 bg-white/88 text-slate-700 hover:-translate-y-0.5 hover:bg-white"
-      }`}
+    <NavLink
+      to={to}
+      className={({ isActive }) =>
+        `inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition ${
+          isActive
+            ? "bg-slate-950 text-white shadow-[0_12px_26px_rgba(15,23,42,0.16)]"
+            : "border border-slate-300 bg-white/88 text-slate-700 hover:-translate-y-0.5 hover:bg-white"
+        }`
+      }
     >
       {icon}
       {label}
-    </button>
+    </NavLink>
   );
 }

@@ -1,4 +1,4 @@
-﻿export type AnalysisPhase = "verify" | "qc";
+export type AnalysisPhase = "verify" | "qc";
 
 export interface SampleSeedRecord {
   record_no?: number;
@@ -95,6 +95,7 @@ export interface DashboardFilters {
   alertTags: string[];
   manualOnly: boolean;
   anomalyOnly: boolean;
+  batch?: string;
 }
 
 export interface ImportSnapshot {
@@ -103,4 +104,19 @@ export interface ImportSnapshot {
   verifyTaskCount: number;
   qcTaskCount: number;
   totalTaskRuns: number;
+}
+
+export interface BatchOverviewItem {
+  batchId: string;
+  taskCount: number;
+  manualTaskCount: number;
+  anomalyCount: number;
+  qcRejectedCount: number;
+  totalDurationMs: number;
+  automationRate: number;
+  qcPassRate: number;
+  createdAt: string | null;
+  completedAt: string | null;
+  totalTokens: number;
+  status: "pending" | "running" | "completed";
 }

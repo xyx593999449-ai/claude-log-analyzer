@@ -5,15 +5,33 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import multer from "multer";
 import { AnalysisService } from "./analysisService";
-import { createRepository } from "./repositoryFactory";
+import { DashboardRepository } from "./repository";
+import { PgDashboardRepository } from "./repository.pg";
+import { loadPgConfig } from "./pgConfig";
+import type { DashboardRepositoryPort } from "./repository";
 import type { AnalysisPhase } from "./types";
 import type { DashboardFilters } from "./types";
 
 const app = express();
 app.use(express.json({ limit: "100mb" }));
 
-const repository = createRepository();
-const analysisService = new AnalysisService(repository);
+const sqliteRepo = new DashboardRepository();
+let pgRepo: DashboardRepositoryPort | null = null;
+try {
+  pgRepo = new PgDashboardRepository(loadPgConfig());
+} catch (error) {
+  console.error("PG initialization skipped or failed during startup:", error);
+}
+
+function getRepo(req: express.Request): DashboardRepositoryPort {
+  const client = String(req.headers["x-db-client"] || process.env.DB_CLIENT || "sqlite").toLowerCase();
+  if ((client === "pg" || client === "postgres") && pgRepo) {
+    return pgRepo;
+  }
+  return sqliteRepo;
+}
+
+const analysisService = new AnalysisService(sqliteRepo);
 const uploadDir = path.resolve(process.cwd(), "tmp", "uploads");
 if (!fsSync.existsSync(uploadDir)) {
   fsSync.mkdirSync(uploadDir, { recursive: true });
@@ -68,6 +86,7 @@ function parseFilters(query: Record<string, unknown>): DashboardFilters {
     alertTags,
     manualOnly: parseBoolean(query.manualOnly),
     anomalyOnly: parseBoolean(query.anomalyOnly),
+    batch: String(query.batch ?? ""),
   };
 }
 
@@ -79,17 +98,17 @@ app.get("/api/health", (_req, res) => {
   });
 });
 
-app.get("/api/dashboard/overview", async (_req, res, next) => {
+app.get("/api/dashboard/overview", async (req, res, next) => {
   try {
-    res.json(await repository.getOverview());
+    res.json(await getRepo(req).getOverview());
   } catch (error) {
     next(error);
   }
 });
 
-app.get("/api/dashboard/filter-options", async (_req, res, next) => {
+app.get("/api/dashboard/filter-options", async (req, res, next) => {
   try {
-    res.json(await repository.getFilterOptions());
+    res.json(await getRepo(req).getFilterOptions());
   } catch (error) {
     next(error);
   }
@@ -98,7 +117,15 @@ app.get("/api/dashboard/filter-options", async (_req, res, next) => {
 app.get("/api/dashboard/tasks", async (req, res, next) => {
   try {
     const filters = parseFilters(req.query as Record<string, unknown>);
-    res.json(await repository.getTaskList(filters));
+    res.json(await getRepo(req).getTaskList(filters));
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get("/api/dashboard/batches", async (req, res, next) => {
+  try {
+    res.json(await getRepo(req).getBatches());
   } catch (error) {
     next(error);
   }
@@ -106,7 +133,7 @@ app.get("/api/dashboard/tasks", async (req, res, next) => {
 
 app.get("/api/dashboard/tasks/:taskId/logs", async (req, res, next) => {
   try {
-    res.json(await repository.getTaskLogDetail(req.params.taskId));
+    res.json(await getRepo(req).getTaskLogDetail(req.params.taskId));
   } catch (error) {
     next(error);
   }

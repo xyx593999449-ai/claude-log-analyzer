@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { ChevronDown, ChevronUp, Database, Search, Sparkles, UploadCloud } from "lucide-react";
 import { clearCache, fetchFilterOptions, fetchOverview, fetchTaskList, importLogsByFiles } from "../../lib/dashboardApi";
 import type { DashboardOverview, FilterOptions, TaskListResult } from "../../lib/dashboardTypes";
@@ -15,9 +16,7 @@ import {
 } from "./dashboardModel";
 import { ExecutionCard, SectionIntro, SpotlightCard, StatusPill, UploadZone } from "./dashboardWidgets";
 
-interface DashboardHomeProps {
-  onOpenLogs: (taskId: string) => void;
-}
+
 
 interface QueryState {
   page: number;
@@ -28,6 +27,7 @@ interface QueryState {
   alertTags: string[];
   manualOnly: boolean;
   anomalyOnly: boolean;
+  batch: string;
 }
 
 interface StageDistributionItem {
@@ -64,7 +64,40 @@ const ALERT_FILTER_TAGS: Array<{ label: string; tone: AlertTone }> = [
   { label: "质检状态不一致", tone: "warning" },
 ];
 
-export function DashboardHome({ onOpenLogs }: DashboardHomeProps) {
+export function DashboardHome() {
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const query = useMemo<QueryState>(() => {
+    const alertTagsStr = searchParams.get("alertTags");
+    return {
+      page: parseInt(searchParams.get("page") || "1", 10) || 1,
+      pageSize: parseInt(searchParams.get("pageSize") || "20", 10) || 20,
+      search: searchParams.get("search") || "",
+      verifyStatus: searchParams.get("verifyStatus") || "",
+      qcStatus: searchParams.get("qcStatus") || "",
+      alertTags: alertTagsStr ? alertTagsStr.split(",") : [],
+      manualOnly: searchParams.get("manualOnly") === "true",
+      anomalyOnly: searchParams.get("anomalyOnly") === "true",
+      batch: searchParams.get("batch") || "",
+    };
+  }, [searchParams]);
+
+  const updateQuery = (updates: Partial<QueryState>) => {
+    const newQuery = { ...query, ...updates };
+    const params = new URLSearchParams();
+    if (newQuery.page > 1) params.set("page", String(newQuery.page));
+    if (newQuery.pageSize !== 20) params.set("pageSize", String(newQuery.pageSize));
+    if (newQuery.search) params.set("search", newQuery.search);
+    if (newQuery.verifyStatus) params.set("verifyStatus", newQuery.verifyStatus);
+    if (newQuery.qcStatus) params.set("qcStatus", newQuery.qcStatus);
+    if (newQuery.alertTags.length > 0) params.set("alertTags", newQuery.alertTags.join(","));
+    if (newQuery.manualOnly) params.set("manualOnly", "true");
+    if (newQuery.anomalyOnly) params.set("anomalyOnly", "true");
+    if (newQuery.batch) params.set("batch", newQuery.batch);
+    setSearchParams(params, { replace: true });
+  };
+
   const [overview, setOverview] = useState<DashboardOverview | null>(null);
   const [taskList, setTaskList] = useState<TaskListResult | null>(null);
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({ verifyStatuses: [], qcStatuses: [] });
@@ -72,16 +105,6 @@ export function DashboardHome({ onOpenLogs }: DashboardHomeProps) {
   const [error, setError] = useState("");
   const [importing, setImporting] = useState(false);
   const [uploadExpanded, setUploadExpanded] = useState(false);
-  const [query, setQuery] = useState<QueryState>({
-    page: 1,
-    pageSize: 20,
-    search: "",
-    verifyStatus: "",
-    qcStatus: "",
-    alertTags: [],
-    manualOnly: false,
-    anomalyOnly: false,
-  });
   const [verifyUploads, setVerifyUploads] = useState<UploadItem[]>([]);
   const [qcUploads, setQcUploads] = useState<UploadItem[]>([]);
 
@@ -137,7 +160,7 @@ export function DashboardHome({ onOpenLogs }: DashboardHomeProps) {
       }
 
       await loadOverviewAndTasks({ ...query, page: 1 });
-      setQuery((prev) => ({ ...prev, page: 1 }));
+      updateQuery({ page: 1 });
       setUploadExpanded(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "日志导入失败");
@@ -154,7 +177,7 @@ export function DashboardHome({ onOpenLogs }: DashboardHomeProps) {
       setVerifyUploads([]);
       setQcUploads([]);
       await loadOverviewAndTasks({ ...query, page: 1 });
-      setQuery((prev) => ({ ...prev, page: 1 }));
+      updateQuery({ page: 1 });
     } catch (err) {
       setError(err instanceof Error ? err.message : "清除缓存失败");
     } finally {
@@ -163,13 +186,12 @@ export function DashboardHome({ onOpenLogs }: DashboardHomeProps) {
   }
 
   function toggleAlertTag(label: string): void {
-    setQuery((prev) => ({
-      ...prev,
+    updateQuery({
       page: 1,
-      alertTags: prev.alertTags.includes(label)
-        ? prev.alertTags.filter((item) => item !== label)
-        : [...prev.alertTags, label],
-    }));
+      alertTags: query.alertTags.includes(label)
+        ? query.alertTags.filter((item) => item !== label)
+        : [...query.alertTags, label],
+    });
   }
 
   const totalTasks = overview?.totalTasks ?? 0;
@@ -369,13 +391,13 @@ export function DashboardHome({ onOpenLogs }: DashboardHomeProps) {
                 className="w-full rounded-2xl border border-slate-200 bg-slate-50/80 py-3 pl-10 pr-4 text-sm text-slate-700 outline-none transition focus:border-teal-300 focus:bg-white"
                 placeholder="搜索 task_id / poi_id / 名称 / 地址"
                 value={query.search}
-                onChange={(e) => setQuery((prev) => ({ ...prev, page: 1, search: e.target.value }))}
+                onChange={(e) => updateQuery({ page: 1, search: e.target.value })}
               />
             </label>
             <select
               className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-teal-300 focus:bg-white"
               value={query.verifyStatus}
-              onChange={(e) => setQuery((prev) => ({ ...prev, page: 1, verifyStatus: e.target.value }))}
+              onChange={(e) => updateQuery({ page: 1, verifyStatus: e.target.value })}
             >
               <option value="">全部核实状态</option>
               {filterOptions.verifyStatuses.map((status) => (
@@ -387,7 +409,7 @@ export function DashboardHome({ onOpenLogs }: DashboardHomeProps) {
             <select
               className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-teal-300 focus:bg-white"
               value={query.qcStatus}
-              onChange={(e) => setQuery((prev) => ({ ...prev, page: 1, qcStatus: e.target.value }))}
+              onChange={(e) => updateQuery({ page: 1, qcStatus: e.target.value })}
             >
               <option value="">全部质检状态</option>
               {filterOptions.qcStatuses.map((status) => (
@@ -402,7 +424,7 @@ export function DashboardHome({ onOpenLogs }: DashboardHomeProps) {
                   type="checkbox"
                   className="accent-teal-700"
                   checked={query.manualOnly}
-                  onChange={(e) => setQuery((prev) => ({ ...prev, page: 1, manualOnly: e.target.checked }))}
+                  onChange={(e) => updateQuery({ page: 1, manualOnly: e.target.checked })}
                 />
                 仅人工任务
               </label>
@@ -411,7 +433,7 @@ export function DashboardHome({ onOpenLogs }: DashboardHomeProps) {
                   type="checkbox"
                   className="accent-rose-700"
                   checked={query.anomalyOnly}
-                  onChange={(e) => setQuery((prev) => ({ ...prev, page: 1, anomalyOnly: e.target.checked }))}
+                  onChange={(e) => updateQuery({ page: 1, anomalyOnly: e.target.checked })}
                 />
                 仅异常任务
               </label>
@@ -428,7 +450,7 @@ export function DashboardHome({ onOpenLogs }: DashboardHomeProps) {
                 <button
                   type="button"
                   className="rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-100"
-                  onClick={() => setQuery((prev) => ({ ...prev, page: 1, alertTags: [] }))}
+                  onClick={() => updateQuery({ page: 1, alertTags: [] })}
                 >
                   清空异常标签
                 </button>
@@ -457,9 +479,21 @@ export function DashboardHome({ onOpenLogs }: DashboardHomeProps) {
           </div>
 
           <div className="mt-6 space-y-4">
+            {query.batch ? (
+              <div className="flex items-center justify-between rounded-xl bg-teal-50 px-4 py-3 text-teal-800">
+                <span>当前正在看批次：<strong>{query.batch}</strong></span>
+                <button
+                  type="button"
+                  onClick={() => updateQuery({ batch: "", page: 1 })}
+                  className="text-sm underline hover:text-teal-600"
+                >
+                  清除批次过滤
+                </button>
+              </div>
+            ) : null}
             {loading ? <div className="rounded-3xl border border-slate-200 bg-slate-50/70 px-4 py-10 text-center text-sm text-slate-500">正在刷新列表...</div> : null}
             {!loading && (taskList?.items.length ?? 0) === 0 ? <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50/70 px-4 py-12 text-center text-sm text-slate-500">暂无匹配数据</div> : null}
-            {!loading ? (taskList?.items ?? []).map((item, index) => <TaskFlowCard key={item.taskId} item={item} index={index} onOpenLogs={onOpenLogs} />) : null}
+            {!loading ? (taskList?.items ?? []).map((item, index) => <TaskFlowCard key={item.taskId} item={item} index={index} onOpenLogs={(id) => navigate(`/logs/${id}`)} />) : null}
           </div>
 
           <div className="mt-6 flex flex-col gap-4 rounded-3xl border border-slate-200 bg-slate-50/80 px-4 py-4 text-sm text-slate-600 md:flex-row md:items-center md:justify-between">
@@ -468,7 +502,7 @@ export function DashboardHome({ onOpenLogs }: DashboardHomeProps) {
               <select
                 className="rounded-xl border border-slate-300 bg-white px-3 py-2"
                 value={query.pageSize}
-                onChange={(e) => setQuery((prev) => ({ ...prev, page: 1, pageSize: Number(e.target.value) }))}
+                onChange={(e) => updateQuery({ page: 1, pageSize: Number(e.target.value) })}
               >
                 {[20, 50, 100].map((size) => (
                   <option key={size} value={size}>
@@ -482,7 +516,7 @@ export function DashboardHome({ onOpenLogs }: DashboardHomeProps) {
               <button
                 className="rounded-xl border border-slate-300 bg-white px-4 py-2 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={query.page <= 1}
-                onClick={() => setQuery((prev) => ({ ...prev, page: prev.page - 1 }))}
+                onClick={() => updateQuery({ page: query.page - 1 })}
               >
                 上一页
               </button>
@@ -492,7 +526,7 @@ export function DashboardHome({ onOpenLogs }: DashboardHomeProps) {
               <button
                 className="rounded-xl border border-slate-300 bg-white px-4 py-2 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={query.page >= totalPages}
-                onClick={() => setQuery((prev) => ({ ...prev, page: prev.page + 1 }))}
+                onClick={() => updateQuery({ page: query.page + 1 })}
               >
                 下一页
               </button>
