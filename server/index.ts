@@ -112,6 +112,7 @@ app.get("/api/dashboard/tasks/:taskId/logs", async (req, res, next) => {
   }
 });
 
+/* 注释涉及本地手动大文件导入和状态清空的路由
 app.post("/api/dashboard/import", async (req, res, next) => {
   try {
     const body = req.body as Record<string, unknown>;
@@ -172,6 +173,7 @@ app.post("/api/dashboard/clear-cache", async (_req, res, next) => {
     next(error);
   }
 });
+*/
 
 app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   const message = error instanceof Error ? error.message : "Unknown error";

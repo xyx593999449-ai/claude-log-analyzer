@@ -405,6 +405,7 @@ async function buildImportPayloadFromFiles(payload: ImportFilesPayload): Promise
 export class AnalysisService {
   constructor(private readonly repository: DashboardRepositoryPort) {}
 
+  /* 注释掉旧有的基于大对象解析与聚合入库的处理方法，解决 TS 中接口已废弃的编译报错
   async importLogs(payload: ImportPayload): Promise<ImportResult> {
     const verifyRows = parsePhase(payload, "verify");
     const qcRows = parsePhase(payload, "qc");
@@ -456,4 +457,5 @@ export class AnalysisService {
       totalTaskRuns: allRows.length,
     };
   }
+  */
 }

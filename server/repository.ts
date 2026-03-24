@@ -117,9 +117,12 @@ export interface ImportPayload {
 }
 
 export interface DashboardRepositoryPort {
+  /*
+  注释废除的写入及清理方法
   clearAnalysisCache(): Promise<{ deletedRows: number; deletedImports: number }>;
   insertImport(payload: ImportPayload, batchId: string, verifyCount: number, qcCount: number, totalRuns: number): Promise<void>;
   insertAggregatedRuns(batchId: string, rows: AggregatedTaskRun[]): Promise<void>;
+  */
   nextImportBatchId(): string;
   getFilterOptions(): Promise<DashboardFilterOptions>;
   getOverview(): Promise<DashboardOverview>;

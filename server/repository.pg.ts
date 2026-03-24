@@ -255,7 +255,7 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
 
   private async ensureSchema(): Promise<void> {
     await this.pool.query(`
-      CREATE TABLE IF NOT EXISTS temp_task_analysis (
+      CREATE TABLE IF NOT EXISTS poi_task_analysis (
         id BIGSERIAL PRIMARY KEY,
         import_batch_id TEXT NOT NULL,
         phase TEXT NOT NULL,
@@ -283,8 +283,8 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
         created_at TEXT NOT NULL
       );
 
-      CREATE INDEX IF NOT EXISTS idx_temp_task_task_phase ON temp_task_analysis(task_id, phase);
-      CREATE INDEX IF NOT EXISTS idx_temp_task_batch ON temp_task_analysis(import_batch_id);
+      CREATE INDEX IF NOT EXISTS idx_temp_task_task_phase ON poi_task_analysis(task_id, phase);
+      CREATE INDEX IF NOT EXISTS idx_temp_task_batch ON poi_task_analysis(import_batch_id);
 
       CREATE TABLE IF NOT EXISTS analysis_imports (
         import_batch_id TEXT PRIMARY KEY,
@@ -298,12 +298,22 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
         total_task_runs INTEGER DEFAULT 0,
         created_at TEXT NOT NULL
       );
+
+      CREATE TABLE IF NOT EXISTS public.poi_claude_log (
+        task_id varchar NOT NULL,
+        session_id varchar NOT NULL,
+        log_detail jsonb NULL,
+        updatetime timestamp NULL,
+        CONSTRAINT poi_claude_log_pk PRIMARY KEY (task_id, session_id)
+      );
     `);
   }
 
+  /*
+  注释废弃的写入逻辑，转为纯读取展示
   async clearAnalysisCache(): Promise<{ deletedRows: number; deletedImports: number }> {
     await this.ready();
-    const deletedRows = await this.pool.query("DELETE FROM temp_task_analysis");
+    const deletedRows = await this.pool.query("DELETE FROM poi_task_analysis");
     const deletedImports = await this.pool.query("DELETE FROM analysis_imports");
     return { deletedRows: deletedRows.rowCount ?? 0, deletedImports: deletedImports.rowCount ?? 0 };
   }
@@ -341,7 +351,7 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
       for (const row of rows) {
         await client.query(
           `
-          INSERT INTO temp_task_analysis (
+          INSERT INTO poi_task_analysis (
             import_batch_id,phase,task_id,row_number,worker_id,batch_id,status,started_at,ended_at,duration_ms,
             attempt_count,retry_count,session_count,session_ids_json,total_input_tokens,total_output_tokens,total_cache_tokens,
             total_cost_usd,total_model_duration_ms,total_tool_calls,total_tool_errors,error_summary,raw_details_json,created_at
@@ -381,6 +391,7 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
       }
     });
   }
+  */
 
   nextImportBatchId(): string {
     return `IMPORT_${Date.now()}_${Math.random().toString(16).slice(2, 10)}`;
@@ -442,8 +453,8 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
     const flowStageCountsRes = await this.pool.query(`
       WITH latest AS (
         SELECT *
-        FROM temp_task_analysis
-        WHERE id IN (SELECT MAX(id) FROM temp_task_analysis GROUP BY task_id, phase)
+        FROM poi_task_analysis
+        WHERE id IN (SELECT MAX(id) FROM poi_task_analysis GROUP BY task_id, phase)
       ),
       verify_runs AS (SELECT * FROM latest WHERE phase = 'verify'),
       qc_runs AS (SELECT * FROM latest WHERE phase = 'qc')
@@ -480,8 +491,8 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
     const metricsRowsRes = await this.pool.query(`
       WITH latest AS (
         SELECT *
-        FROM temp_task_analysis
-        WHERE id IN (SELECT MAX(id) FROM temp_task_analysis GROUP BY task_id, phase)
+        FROM poi_task_analysis
+        WHERE id IN (SELECT MAX(id) FROM poi_task_analysis GROUP BY task_id, phase)
       )
       SELECT phase,
              COUNT(*)::bigint as task_count,
@@ -585,8 +596,8 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
     const anomalyCountRes = await this.pool.query(`
       WITH latest AS (
         SELECT *
-        FROM temp_task_analysis
-        WHERE id IN (SELECT MAX(id) FROM temp_task_analysis GROUP BY task_id, phase)
+        FROM poi_task_analysis
+        WHERE id IN (SELECT MAX(id) FROM poi_task_analysis GROUP BY task_id, phase)
       ),
       verify_runs AS (SELECT * FROM latest WHERE phase = 'verify'),
       qc_runs AS (SELECT * FROM latest WHERE phase = 'qc')
@@ -641,8 +652,8 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
     const baseSql = `
       WITH latest AS (
         SELECT *
-        FROM temp_task_analysis
-        WHERE id IN (SELECT MAX(id) FROM temp_task_analysis GROUP BY task_id, phase)
+        FROM poi_task_analysis
+        WHERE id IN (SELECT MAX(id) FROM poi_task_analysis GROUP BY task_id, phase)
       ),
       verify_runs AS (SELECT * FROM latest WHERE phase = 'verify'),
       qc_runs AS (SELECT * FROM latest WHERE phase = 'qc'),
@@ -765,11 +776,11 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
     const runRowsRes = await this.pool.query(
       `
       SELECT phase, session_ids_json, import_batch_id
-      FROM temp_task_analysis
+      FROM poi_task_analysis
       WHERE task_id = $1
         AND id IN (
           SELECT MAX(id)
-          FROM temp_task_analysis
+          FROM poi_task_analysis
           WHERE task_id = $1
           GROUP BY task_id, phase
         )
@@ -778,6 +789,13 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
     );
 
     const runRows = runRowsRes.rows as Array<Record<string, unknown>>;
+    const verifySessionIds =
+      safeJsonParse<string[]>(String(runRows.find((row) => row.phase === "verify")?.session_ids_json ?? "[]")) ?? [];
+    const qcSessionIds =
+      safeJsonParse<string[]>(String(runRows.find((row) => row.phase === "qc")?.session_ids_json ?? "[]")) ?? [];
+
+    /* 
+    注释旧的基于 analysis_imports 的本地日志过滤读取逻辑
     const verifyImportBatchId = String(runRows.find((row) => row.phase === "verify")?.import_batch_id ?? "") || null;
     const qcImportBatchId = String(runRows.find((row) => row.phase === "qc")?.import_batch_id ?? "") || null;
     const verifyImportRes = verifyImportBatchId
@@ -788,10 +806,6 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
       : { rows: [] as Array<Record<string, unknown>> };
     const verifyImportRow = verifyImportRes.rows[0] as Record<string, unknown> | undefined;
     const qcImportRow = qcImportRes.rows[0] as Record<string, unknown> | undefined;
-    const verifySessionIds =
-      safeJsonParse<string[]>(String(runRows.find((row) => row.phase === "verify")?.session_ids_json ?? "[]")) ?? [];
-    const qcSessionIds =
-      safeJsonParse<string[]>(String(runRows.find((row) => row.phase === "qc")?.session_ids_json ?? "[]")) ?? [];
 
     const filterBySessions = (rawLog: string, sessionIds: string[]): string => {
       if (!rawLog) return "";
@@ -810,11 +824,29 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
         .join("\n");
       return filtered.trim() ? filtered : rawLog;
     };
+    */
+
+    // 新的原生流式日志检索
+    const rawLogsRes = await this.pool.query(
+      "SELECT session_id, log_detail FROM poi_claude_log WHERE task_id = $1",
+      [taskId]
+    );
+
+    const sessionLogsMap = new Map<string, string>();
+    for (const row of rawLogsRes.rows) {
+      const sessionId = String(row.session_id);
+      const detail = row.log_detail ? (typeof row.log_detail === "string" ? row.log_detail : JSON.stringify(row.log_detail)) : "";
+      sessionLogsMap.set(sessionId, detail);
+    }
+
+    const buildLogText = (sessionIds: string[]) => {
+      return sessionIds.map(id => sessionLogsMap.get(id) || "").filter(Boolean).join("\n");
+    };
 
     return {
       taskId,
-      verifyRawLog: filterBySessions(String(verifyImportRow?.verify_claude_log ?? ""), verifySessionIds),
-      qcRawLog: filterBySessions(String(qcImportRow?.qc_claude_log ?? ""), qcSessionIds),
+      verifyRawLog: buildLogText(verifySessionIds),
+      qcRawLog: buildLogText(qcSessionIds),
       verifySessionIds,
       qcSessionIds,
     };
