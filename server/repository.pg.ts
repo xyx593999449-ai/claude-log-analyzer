@@ -47,6 +47,7 @@ interface RunView {
 
 const VERIFY_DONE = "已核实";
 const VERIFY_MANUAL = "需人工核实";
+const VERIFY_BATCH_CREATED = "生成批次";
 const GLM_INPUT_PRICE_PER_MILLION = 4;
 const GLM_OUTPUT_PRICE_PER_MILLION = 18;
 
@@ -243,6 +244,10 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
     if (this.initError) {
       throw new Error(`PostgreSQL 初始化失败: ${this.initError.message}`);
     }
+  }
+
+  hasInitError(): boolean {
+    return this.initError !== null;
   }
 
   private async withTx<T>(fn: (client: PoolClient) => Promise<T>): Promise<T> {
@@ -515,7 +520,7 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
       WITH latest AS (
         SELECT *
         FROM poi_task_analysis
-        WHERE id IN (SELECT MAX(id) FROM poi_task_analysis GROUP BY task_id, phase)
+        WHERE id IN (SELECT MAX(id) FROM poi_task_analysis ${buildWhere().sql} GROUP BY task_id, phase)
       )
       SELECT phase,
              COUNT(*)::bigint as task_count,
@@ -623,7 +628,7 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
       WITH latest AS (
         SELECT *
         FROM poi_task_analysis
-        WHERE id IN (SELECT MAX(id) FROM poi_task_analysis GROUP BY task_id, phase)
+        WHERE id IN (SELECT MAX(id) FROM poi_task_analysis ${buildWhere().sql} GROUP BY task_id, phase)
       ),
       verify_runs AS (SELECT * FROM latest WHERE phase = 'verify'),
       qc_runs AS (SELECT * FROM latest WHERE phase = 'qc')
@@ -638,8 +643,8 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
           vr.task_id IS NOT NULL
           AND v.verify_status IS NOT NULL
           AND (
-            (vr.status = 'success' AND v.verify_status NOT IN ('${VERIFY_DONE}','${VERIFY_MANUAL}'))
-            OR (vr.status <> 'success' AND v.verify_status IN ('${VERIFY_DONE}','${VERIFY_MANUAL}'))
+            (vr.status = 'success' AND v.verify_status NOT IN ('${VERIFY_DONE}','${VERIFY_MANUAL}','${VERIFY_BATCH_CREATED}'))
+            OR (vr.status <> 'success' AND v.verify_status IN ('${VERIFY_DONE}','${VERIFY_MANUAL}','${VERIFY_BATCH_CREATED}'))
           )
         )
         OR (
@@ -745,8 +750,8 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
             WHEN vr.task_id IS NOT NULL
               AND v.verify_status IS NOT NULL
               AND (
-                (vr.status = 'success' AND v.verify_status NOT IN ('${VERIFY_DONE}','${VERIFY_MANUAL}'))
-                OR (vr.status <> 'success' AND v.verify_status IN ('${VERIFY_DONE}','${VERIFY_MANUAL}'))
+                (vr.status = 'success' AND v.verify_status NOT IN ('${VERIFY_DONE}','${VERIFY_MANUAL}','${VERIFY_BATCH_CREATED}'))
+                OR (vr.status <> 'success' AND v.verify_status IN ('${VERIFY_DONE}','${VERIFY_MANUAL}','${VERIFY_BATCH_CREATED}'))
               )
             THEN ('日志状态(' || COALESCE(vr.status,'unknown') || ') 与数据库核实状态(' || COALESCE(v.verify_status,'') || ') 不一致')
             ELSE NULL
@@ -763,8 +768,8 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
           CASE
             WHEN (
               (vr.task_id IS NOT NULL AND v.verify_status IS NOT NULL AND (
-                (vr.status = 'success' AND v.verify_status NOT IN ('${VERIFY_DONE}','${VERIFY_MANUAL}'))
-                OR (vr.status <> 'success' AND v.verify_status IN ('${VERIFY_DONE}','${VERIFY_MANUAL}'))
+                (vr.status = 'success' AND v.verify_status NOT IN ('${VERIFY_DONE}','${VERIFY_MANUAL}','${VERIFY_BATCH_CREATED}'))
+                OR (vr.status <> 'success' AND v.verify_status IN ('${VERIFY_DONE}','${VERIFY_MANUAL}','${VERIFY_BATCH_CREATED}'))
               ))
               OR (qr.task_id IS NOT NULL AND q.qc_status IS NOT NULL AND qr.status <> 'success')
             ) THEN 1
@@ -863,8 +868,27 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
     const sessionLogsMap = new Map<string, string>();
     for (const row of rawLogsRes.rows) {
       const sessionId = String(row.session_id);
-      const detail = row.log_detail ? (typeof row.log_detail === "string" ? row.log_detail : JSON.stringify(row.log_detail)) : "";
-      sessionLogsMap.set(sessionId, detail);
+      let detailLines = "";
+      if (row.log_detail) {
+        if (Array.isArray(row.log_detail)) {
+          detailLines = row.log_detail.map(obj => JSON.stringify(obj)).join("\n");
+        } else if (typeof row.log_detail === "string") {
+          // 如果已经是字符串，尝试看是否是 JSON 数组字符串
+          try {
+            const parsed = JSON.parse(row.log_detail);
+            if (Array.isArray(parsed)) {
+              detailLines = parsed.map(obj => JSON.stringify(obj)).join("\n");
+            } else {
+              detailLines = row.log_detail;
+            }
+          } catch {
+            detailLines = row.log_detail;
+          }
+        } else {
+          detailLines = JSON.stringify(row.log_detail);
+        }
+      }
+      sessionLogsMap.set(sessionId, detailLines);
     }
 
     const buildLogText = (sessionIds: string[]) => {
@@ -901,8 +925,8 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
           CASE
             WHEN (
               (vr.task_id IS NOT NULL AND v.verify_status IS NOT NULL AND (
-                (vr.status = 'success' AND v.verify_status NOT IN ('${VERIFY_DONE}','${VERIFY_MANUAL}'))
-                OR (vr.status <> 'success' AND v.verify_status IN ('${VERIFY_DONE}','${VERIFY_MANUAL}'))
+                (vr.status = 'success' AND v.verify_status NOT IN ('${VERIFY_DONE}','${VERIFY_MANUAL}','${VERIFY_BATCH_CREATED}'))
+                OR (vr.status <> 'success' AND v.verify_status IN ('${VERIFY_DONE}','${VERIFY_MANUAL}','${VERIFY_BATCH_CREATED}'))
               ))
               OR (qr.task_id IS NOT NULL AND q.qc_status IS NOT NULL AND qr.status <> 'success')
             ) THEN 1

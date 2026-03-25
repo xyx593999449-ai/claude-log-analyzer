@@ -24,10 +24,14 @@ try {
 }
 
 function getRepo(req: express.Request): DashboardRepositoryPort {
-  const client = String(req.headers["x-db-client"] || process.env.DB_CLIENT || "sqlite").toLowerCase();
-  if ((client === "pg" || client === "postgres") && pgRepo) {
+  const client = String(req.headers["x-db-client"] || process.env.DB_CLIENT || "pg").toLowerCase();
+  
+  // 如果请求 pg 且 pgRepo 存在且没有初始化错误，则使用 pg
+  if ((client === "pg" || client === "postgres") && pgRepo && !pgRepo.hasInitError()) {
     return pgRepo;
   }
+  
+  // 否则回退到 SQLite
   return sqliteRepo;
 }
 

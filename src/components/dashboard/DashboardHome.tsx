@@ -112,7 +112,10 @@ export function DashboardHome() {
     setLoading(true);
     setError("");
     try {
-      const [overviewRes, tasksRes] = await Promise.all([fetchOverview(), fetchTaskList(currentQuery)]);
+      const [overviewRes, tasksRes] = await Promise.all([
+        fetchOverview(currentQuery.batches),
+        fetchTaskList(currentQuery)
+      ]);
       setOverview(overviewRes);
       setTaskList(tasksRes);
     } catch (err) {

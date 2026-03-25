@@ -129,6 +129,7 @@ export interface DashboardRepositoryPort {
   getTaskList(filters: DashboardFilters): Promise<TaskListResult>;
   getTaskLogDetail(taskId: string): Promise<TaskLogDetail>;
   getBatches(): Promise<BatchOverviewItem[]>;
+  hasInitError(): boolean;
 }
 
 const DB_DIR = path.resolve(process.cwd(), "tmp");
@@ -136,6 +137,7 @@ const DB_PATH = path.join(DB_DIR, "big-poi-dashboard.sqlite");
 
 const VERIFY_DONE = "已核实";
 const VERIFY_MANUAL = "需人工核实";
+const VERIFY_BATCH_CREATED = "生成批次";
 const GLM_INPUT_PRICE_PER_MILLION = 4;
 const GLM_OUTPUT_PRICE_PER_MILLION = 18;
 
@@ -664,7 +666,7 @@ export class DashboardRepository implements DashboardRepositoryPort {
           WITH latest AS (
             SELECT *
             FROM temp_task_analysis
-            WHERE id IN (SELECT MAX(id) FROM temp_task_analysis GROUP BY task_id, phase)
+            WHERE id IN (SELECT MAX(id) FROM temp_task_analysis ${buildWhere().sql} GROUP BY task_id, phase)
           ),
           verify_runs AS (SELECT * FROM latest WHERE phase = 'verify'),
           qc_runs AS (SELECT * FROM latest WHERE phase = 'qc')
@@ -691,9 +693,10 @@ export class DashboardRepository implements DashboardRepositoryPort {
           LEFT JOIN poi_qc q ON q.task_id = i.task_id
           LEFT JOIN verify_runs vr ON vr.task_id = i.task_id
           LEFT JOIN qc_runs qr ON qr.task_id = i.task_id
+          ${buildWhere("i.").sql}
           GROUP BY stage
         `)
-        .all() as Array<{ stage: string; count: number }>
+        .all(buildWhere("i.").params) as Array<{ stage: string; count: number }>
     ).map((item) => ({ stage: item.stage, count: Number(item.count) }));
 
     const metricsRows = this.db
@@ -701,7 +704,7 @@ export class DashboardRepository implements DashboardRepositoryPort {
         WITH latest AS (
           SELECT *
           FROM temp_task_analysis
-          WHERE id IN (SELECT MAX(id) FROM temp_task_analysis GROUP BY task_id, phase)
+          WHERE id IN (SELECT MAX(id) FROM temp_task_analysis ${buildWhere().sql} GROUP BY task_id, phase)
         )
         SELECT phase,
                COUNT(*) as task_count,
@@ -724,7 +727,7 @@ export class DashboardRepository implements DashboardRepositoryPort {
         FROM latest
         GROUP BY phase
       `)
-      .all() as Array<Record<string, unknown>>;
+      .all(buildWhere().params) as Array<Record<string, unknown>>;
 
     const empty: Metrics = {
       taskCount: 0,
@@ -773,9 +776,10 @@ export class DashboardRepository implements DashboardRepositoryPort {
         SELECT
           SUM(CASE WHEN COALESCE(verify_result, '') = '需人工核实' THEN 1 ELSE 0 END) AS manual_count,
           SUM(CASE WHEN COALESCE(verify_result, '') != '' THEN 1 ELSE 0 END) AS verified_total
-        FROM poi_verified
+        FROM poi_verified v
+        ${buildWhere("v.").sql}
       `)
-      .get() as { manual_count: number | null; verified_total: number | null };
+      .get(buildWhere("v.").params) as { manual_count: number | null; verified_total: number | null };
     const verifiedTotal = Number(verifyRateRow.verified_total ?? 0);
     const manualCount = Number(verifyRateRow.manual_count ?? 0);
     verifyMetrics.automationRate = verifiedTotal > 0 ? Math.max(0, 1 - manualCount / verifiedTotal) : 0;
@@ -799,8 +803,9 @@ export class DashboardRepository implements DashboardRepositoryPort {
           SUM(CASE WHEN q.is_qualified IS NOT NULL THEN 1 ELSE 0 END) AS qc_total
         FROM poi_qc q
         LEFT JOIN poi_verified v ON v.task_id = q.task_id
+        ${buildWhere("q.").sql}
       `)
-      .get() as { matched_count: number | null; qc_total: number | null };
+      .get(buildWhere("q.").params) as { matched_count: number | null; qc_total: number | null };
     const qualityMatched = Number(qualityRow.matched_count ?? 0);
     const qcTotal = Number(qualityRow.qc_total ?? 0);
     qcMetrics.verificationQualityRate = qcTotal > 0 ? qualityMatched / qcTotal : 0;
@@ -813,10 +818,11 @@ export class DashboardRepository implements DashboardRepositoryPort {
             FROM poi_init i
             LEFT JOIN poi_verified v ON v.task_id = i.task_id
             LEFT JOIN poi_qc q ON q.task_id = i.task_id
-            WHERE COALESCE(v.verify_result, '') = '${VERIFY_MANUAL}'
-               OR COALESCE(q.is_qualified, 0) <> 1
+            WHERE (COALESCE(v.verify_result, '') = '${VERIFY_MANUAL}'
+               OR COALESCE(q.is_qualified, 0) <> 1)
+               ${buildAnd("i.").sql}
           `)
-          .get() as { count: number }
+          .get(buildAnd("i.").params) as { count: number }
       ).count,
     );
 
@@ -827,7 +833,7 @@ export class DashboardRepository implements DashboardRepositoryPort {
             WITH latest AS (
               SELECT *
               FROM temp_task_analysis
-              WHERE id IN (SELECT MAX(id) FROM temp_task_analysis GROUP BY task_id, phase)
+              WHERE id IN (SELECT MAX(id) FROM temp_task_analysis ${buildWhere().sql} GROUP BY task_id, phase)
             ),
             verify_runs AS (SELECT * FROM latest WHERE phase = 'verify'),
             qc_runs AS (SELECT * FROM latest WHERE phase = 'qc')
@@ -838,20 +844,22 @@ export class DashboardRepository implements DashboardRepositoryPort {
             LEFT JOIN verify_runs vr ON vr.task_id = i.task_id
             LEFT JOIN qc_runs qr ON qr.task_id = i.task_id
             WHERE (
-              vr.task_id IS NOT NULL
-              AND v.verify_status IS NOT NULL
-              AND (
-                (vr.status = 'success' AND v.verify_status NOT IN ('${VERIFY_DONE}','${VERIFY_MANUAL}'))
-                OR (vr.status <> 'success' AND v.verify_status IN ('${VERIFY_DONE}','${VERIFY_MANUAL}'))
+              (
+                vr.task_id IS NOT NULL
+                AND v.verify_status IS NOT NULL
+                AND (
+                  (vr.status = 'success' AND v.verify_status NOT IN ('${VERIFY_DONE}','${VERIFY_MANUAL}','${VERIFY_BATCH_CREATED}'))
+                  OR (vr.status <> 'success' AND v.verify_status IN ('${VERIFY_DONE}','${VERIFY_MANUAL}','${VERIFY_BATCH_CREATED}'))
+                )
               )
-            )
-            OR (
-              qr.task_id IS NOT NULL
-              AND q.qc_status IS NOT NULL
-              AND qr.status <> 'success'
-            )
+              OR (
+                qr.task_id IS NOT NULL
+                AND q.qc_status IS NOT NULL
+                AND qr.status <> 'success'
+              )
+            ) ${buildAnd("i.").sql}
           `)
-          .get() as { count: number }
+          .get({ ...buildWhere().params, ...buildAnd("i.").params }) as { count: number }
       ).count,
     );
 
@@ -860,10 +868,10 @@ export class DashboardRepository implements DashboardRepositoryPort {
         this.db
           .prepare(`
             SELECT COUNT(*) as count
-            FROM poi_qc
-            WHERE is_qualified = 0
+            FROM poi_qc q
+            WHERE is_qualified = 0 ${buildAnd("q.").sql}
           `)
-          .get() as { count: number }
+          .get(buildAnd("q.").params) as { count: number }
       ).count,
     );
 
@@ -953,8 +961,8 @@ export class DashboardRepository implements DashboardRepositoryPort {
             WHEN vr.task_id IS NOT NULL
               AND v.verify_status IS NOT NULL
               AND (
-                (vr.status = 'success' AND v.verify_status NOT IN ('${VERIFY_DONE}','${VERIFY_MANUAL}'))
-                OR (vr.status <> 'success' AND v.verify_status IN ('${VERIFY_DONE}','${VERIFY_MANUAL}'))
+                (vr.status = 'success' AND v.verify_status NOT IN ('${VERIFY_DONE}','${VERIFY_MANUAL}','${VERIFY_BATCH_CREATED}'))
+                OR (vr.status <> 'success' AND v.verify_status IN ('${VERIFY_DONE}','${VERIFY_MANUAL}','${VERIFY_BATCH_CREATED}'))
               )
             THEN ('日志状态(' || COALESCE(vr.status,'unknown') || ') 与数据库核实状态(' || COALESCE(v.verify_status,'') || ') 不一致')
             ELSE NULL
@@ -971,8 +979,8 @@ export class DashboardRepository implements DashboardRepositoryPort {
           CASE
             WHEN (
               (vr.task_id IS NOT NULL AND v.verify_status IS NOT NULL AND (
-                (vr.status = 'success' AND v.verify_status NOT IN ('${VERIFY_DONE}','${VERIFY_MANUAL}'))
-                OR (vr.status <> 'success' AND v.verify_status IN ('${VERIFY_DONE}','${VERIFY_MANUAL}'))
+                (vr.status = 'success' AND v.verify_status NOT IN ('${VERIFY_DONE}','${VERIFY_MANUAL}','${VERIFY_BATCH_CREATED}'))
+                OR (vr.status <> 'success' AND v.verify_status IN ('${VERIFY_DONE}','${VERIFY_MANUAL}','${VERIFY_BATCH_CREATED}'))
               ))
               OR (qr.task_id IS NOT NULL AND q.qc_status IS NOT NULL AND qr.status <> 'success')
             ) THEN 1
@@ -1075,8 +1083,8 @@ export class DashboardRepository implements DashboardRepositoryPort {
           CASE
             WHEN (
               (vr.task_id IS NOT NULL AND v.verify_status IS NOT NULL AND (
-                (vr.status = 'success' AND v.verify_status NOT IN ('${VERIFY_DONE}','${VERIFY_MANUAL}'))
-                OR (vr.status <> 'success' AND v.verify_status IN ('${VERIFY_DONE}','${VERIFY_MANUAL}'))
+                (vr.status = 'success' AND v.verify_status NOT IN ('${VERIFY_DONE}','${VERIFY_MANUAL}','${VERIFY_BATCH_CREATED}'))
+                OR (vr.status <> 'success' AND v.verify_status IN ('${VERIFY_DONE}','${VERIFY_MANUAL}','${VERIFY_BATCH_CREATED}'))
               ))
               OR (qr.task_id IS NOT NULL AND q.qc_status IS NOT NULL AND qr.status <> 'success')
             ) THEN 1
@@ -1148,7 +1156,7 @@ export class DashboardRepository implements DashboardRepositoryPort {
 
       item.taskCount++;
 
-      const isManual = (row.verify_result === "${VERIFY_MANUAL}") || (row.is_qualified != null ? !boolish(row.is_qualified) : false);
+      const isManual = (row.verify_result === VERIFY_MANUAL) || (row.is_qualified != null ? !boolish(row.is_qualified) : false);
       if (isManual) item.manualTaskCount++;
       if (row.has_anomaly === 1) item.anomalyCount++;
       if (row.is_qualified != null) {
@@ -1217,5 +1225,9 @@ export class DashboardRepository implements DashboardRepositoryPort {
     });
 
     return result.sort((a, b) => b.batchId.localeCompare(a.batchId));
+  }
+
+  hasInitError(): boolean {
+    return false;
   }
 }
