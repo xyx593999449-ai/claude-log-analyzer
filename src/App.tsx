@@ -42,17 +42,17 @@ function Layout() {
             <div className="flex items-center ml-2 pl-4 border-l border-slate-300">
               <button 
                 onClick={() => {
-                  const current = localStorage.getItem("dashboard_db_client") || "sqlite";
-                  localStorage.setItem("dashboard_db_client", current === "sqlite" ? "pg" : "sqlite");
+                  const current = localStorage.getItem("dashboard_db_client") || "pg";
+                  localStorage.setItem("dashboard_db_client", current === "pg" ? "sqlite" : "pg");
                   window.location.reload();
                 }}
                 className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 transition"
                 title="切换数据源"
               >
-                {localStorage.getItem("dashboard_db_client") === "pg" ? (
-                  <><Server className="w-3.5 h-3.5 text-indigo-600"/> PG库 (真实)</>
-                ) : (
+                {(localStorage.getItem("dashboard_db_client") || "pg") === "sqlite" ? (
                   <><Database className="w-3.5 h-3.5 text-orange-500"/> SQLite (Mock)</>
+                ) : (
+                  <><Server className="w-3.5 h-3.5 text-indigo-600"/> PG库 (真实)</>
                 )}
               </button>
             </div>

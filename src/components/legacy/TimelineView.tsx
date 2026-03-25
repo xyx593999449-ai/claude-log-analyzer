@@ -25,41 +25,69 @@ function cardStyle(event: ParsedEvent): string {
 }
 
 function markerStyle(event: ParsedEvent): string {
-  if (event.type === "tool_result" && event.isError) return "bg-rose-500";
-  if (event.type === "assistant") return "bg-violet-500";
-  if (event.type === "tool_use") return "bg-amber-500";
-  if (event.type === "tool_result") return "bg-sky-500";
-  if (event.type === "user") return "bg-emerald-500";
-  return "bg-slate-400";
+  if (event.type === "tool_result" && event.isError) return "bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.6)] z-10 scale-125";
+  if (event.type === "assistant") return "bg-violet-400/60";
+  if (event.type === "tool_use") return "bg-amber-400/60";
+  if (event.type === "tool_result") return "bg-sky-400/60";
+  if (event.type === "user") return "bg-emerald-400/60";
+  return "bg-slate-300";
+}
+
+function scrollToEvent(id: string) {
+  const el = document.getElementById(`log-event-${id}`);
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // Add brief highlight flash
+    el.classList.add('ring-2', 'ring-indigo-400', 'ring-offset-2');
+    setTimeout(() => el.classList.remove('ring-2', 'ring-indigo-400', 'ring-offset-2'), 1500);
+  }
 }
 
 export function TimelineView({ timeline }: { timeline: ParsedEvent[] }) {
   return (
-    <div className="grid gap-4 lg:grid-cols-[1fr_34px]">
-      <div className="ide-scrollbar max-h-[62vh] space-y-3 overflow-auto rounded-xl border border-slate-200 bg-slate-50 p-3">
+    <div className="grid gap-4 lg:grid-cols-[1fr_48px]">
+      <div className="ide-scrollbar max-h-[62vh] space-y-4 overflow-auto rounded-xl border border-slate-200 bg-slate-50/50 p-4 relative" id="timeline-container">
         {timeline.length === 0 ? <div className="text-xs text-slate-400">暂无时间线</div> : null}
-        {timeline.map((event) => (
-          <div key={event.id} className="grid grid-cols-[14px_1fr] gap-2">
-            <div className="mt-2 h-3 w-3 rounded-full border border-white shadow-sm" style={{ background: "white" }}>
-              <div className={`h-3 w-3 rounded-full ${markerStyle(event)}`} />
+        {timeline.map((event) => {
+          const isError = event.type === "tool_result" && event.isError;
+          return (
+            <div key={event.id} id={`log-event-${event.id}`} className="grid grid-cols-[16px_1fr] gap-3 transition-all duration-500 rounded-xl">
+              <div className="mt-2.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-white shadow-sm border border-slate-200">
+                <div className={`h-2.5 w-2.5 rounded-full ${isError ? 'bg-rose-500 animate-pulse' : markerStyle(event).split(' ')[0]}`} />
+              </div>
+              <details className={`rounded-xl border px-4 py-3 text-xs shadow-sm transition-shadow hover:shadow-md ${isError ? 'border-l-4 border-l-rose-500 border-y-rose-200 border-r-rose-200 bg-rose-50' : cardStyle(event)}`} open={isError}>
+                <summary className="cursor-pointer list-none flex items-start gap-2">
+                  <span className={`font-bold uppercase tracking-wider shrink-0 mt-0.5 ${isError ? 'text-rose-700' : 'text-slate-800'}`}>{event.type}</span>
+                  <span className={`leading-relaxed ${isError ? 'text-rose-900 font-medium' : 'text-slate-600'}`}>{eventSummary(event)}</span>
+                </summary>
+                <div className="mt-3 pl-1">
+                  <pre className="ide-scrollbar max-h-64 overflow-auto rounded-lg border border-slate-200 shadow-inner bg-slate-900 p-3 text-[11px] text-slate-100 font-mono tracking-tight">
+                    {formatJson(event.raw)}
+                  </pre>
+                </div>
+              </details>
             </div>
-            <details className={`rounded-xl border px-3 py-2 text-xs text-slate-700 shadow-sm ${cardStyle(event)}`}>
-              <summary className="cursor-pointer">
-                <span className="font-semibold uppercase tracking-wide">{event.type}</span>
-                <span className="ml-2 text-slate-600">{eventSummary(event).slice(0, 120)}</span>
-              </summary>
-              <pre className="ide-scrollbar mt-2 max-h-48 overflow-auto rounded-lg border border-slate-200 bg-white p-2 text-[11px] text-slate-700">
-                {formatJson(event.raw)}
-              </pre>
-            </details>
-          </div>
-        ))}
+          );
+        })}
       </div>
-      <div className="hidden max-h-[62vh] overflow-hidden rounded-xl border border-slate-200 bg-white p-1 lg:block">
-        <div className="h-full space-y-[3px] overflow-hidden">
-          {timeline.slice(0, 180).map((event) => (
-            <div key={`mini_${event.id}`} className={`h-[3px] rounded ${markerStyle(event)}`} />
-          ))}
+      <div className="hidden max-h-[62vh] overflow-hidden rounded-xl border border-slate-200 bg-slate-100 p-1 lg:block relative shadow-inner">
+        <div className="absolute top-0 w-full text-center text-[9px] font-bold text-slate-400 mt-2 uppercase tracking-widest">Map</div>
+        <div className="h-full flex flex-col gap-[2px] pt-8 pb-2">
+          {timeline.slice(0, 300).map((event) => {
+            const isError = event.type === "tool_result" && event.isError;
+            return (
+              <button
+                key={`mini_${event.id}`}
+                onClick={() => scrollToEvent(event.id)}
+                title={isError ? "跳至异常点" : undefined}
+                className={`w-full rounded-sm transition-all hover:scale-x-150 relative ${
+                  isError 
+                    ? "h-[6px] bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.8)] z-10 cursor-pointer hover:bg-rose-600" 
+                    : `h-[2px] opacity-40 hover:opacity-100 ${markerStyle(event).split(' ')[0]}`
+                }`}
+              />
+            );
+          })}
         </div>
       </div>
     </div>

@@ -27,7 +27,7 @@ interface QueryState {
   alertTags: string[];
   manualOnly: boolean;
   anomalyOnly: boolean;
-  batch: string;
+  batches: string[];
 }
 
 interface StageDistributionItem {
@@ -79,7 +79,7 @@ export function DashboardHome() {
       alertTags: alertTagsStr ? alertTagsStr.split(",") : [],
       manualOnly: searchParams.get("manualOnly") === "true",
       anomalyOnly: searchParams.get("anomalyOnly") === "true",
-      batch: searchParams.get("batch") || "",
+      batches: (searchParams.get("batch") || "").split(",").filter(Boolean),
     };
   }, [searchParams]);
 
@@ -94,7 +94,7 @@ export function DashboardHome() {
     if (newQuery.alertTags.length > 0) params.set("alertTags", newQuery.alertTags.join(","));
     if (newQuery.manualOnly) params.set("manualOnly", "true");
     if (newQuery.anomalyOnly) params.set("anomalyOnly", "true");
-    if (newQuery.batch) params.set("batch", newQuery.batch);
+    if (newQuery.batches.length > 0) params.set("batch", newQuery.batches.join(","));
     setSearchParams(params, { replace: true });
   };
 
@@ -479,12 +479,12 @@ export function DashboardHome() {
           </div>
 
           <div className="mt-6 space-y-4">
-            {query.batch ? (
+            {query.batches.length > 0 ? (
               <div className="flex items-center justify-between rounded-xl bg-teal-50 px-4 py-3 text-teal-800">
-                <span>当前正在看批次：<strong>{query.batch}</strong></span>
+                <span>当前正在看批次：<strong>{query.batches.join(", ")}</strong></span>
                 <button
                   type="button"
-                  onClick={() => updateQuery({ batch: "", page: 1 })}
+                  onClick={() => updateQuery({ batches: [], page: 1 })}
                   className="text-sm underline hover:text-teal-600"
                 >
                   清除批次过滤
@@ -573,20 +573,20 @@ function MetroFlowOverview({
                       {index + 1}
                     </span>
                   </div>
-                  <article className={`mt-4 min-h-[196px] rounded-[24px] border p-4 shadow-[0_14px_30px_rgba(15,23,42,0.05)] ${theme.cardClass}`}>
+                  <article className={`mt-4 min-h-[196px] rounded-[24px] border border-slate-200/60 p-4 shadow-sm transition hover:-translate-y-1 hover:shadow-md ${theme.cardClass}`}>
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <div className="text-[11px] uppercase tracking-[0.22em] text-inherit/60">阶段 {index + 1}</div>
-                        <div className="mt-2 text-xl font-semibold">{stage.shortLabel}</div>
+                        <div className="text-[11px] uppercase tracking-[0.22em] text-slate-400">阶段 {index + 1}</div>
+                        <div className="mt-2 text-xl font-bold text-slate-800">{stage.shortLabel}</div>
                       </div>
-                      <span className="rounded-full border border-white/60 bg-white/70 px-2.5 py-1 text-[11px] font-medium text-inherit/80">
+                      <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600">
                         {total > 0 ? formatPercent(stage.value / total) : "0.00%"}
                       </span>
                     </div>
-                    <p className="mt-4 text-sm leading-6 text-inherit/80">{stage.description}</p>
+                    <p className="mt-4 text-sm leading-6 text-slate-500">{stage.description}</p>
                     <div className="mt-6">
-                      <div className="text-[11px] uppercase tracking-[0.22em] text-inherit/60">任务量</div>
-                      <div className="mt-2 text-3xl font-semibold">{formatNumber(stage.value)}</div>
+                      <div className="text-[11px] uppercase tracking-[0.22em] text-slate-400 font-bold">任务量</div>
+                      <div className="mt-2 font-mono text-3xl font-bold tracking-tight text-slate-900">{formatNumber(stage.value)}</div>
                     </div>
                   </article>
                 </div>
@@ -599,20 +599,20 @@ function MetroFlowOverview({
           {stages.map((stage, index) => {
             const theme = getMetroStageTheme(stage.key);
             return (
-              <article key={stage.key} className={`rounded-[24px] border p-4 ${theme.cardClass}`}>
+              <article key={stage.key} className={`rounded-[24px] border border-slate-200/60 p-4 shadow-sm bg-white ${theme.cardClass}`}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3">
                     <span className={`inline-flex h-9 w-9 items-center justify-center rounded-full border text-sm font-semibold ${theme.badgeClass}`}>
                       {index + 1}
                     </span>
                     <div>
-                      <div className="text-sm font-semibold">{stage.shortLabel}</div>
-                      <div className="mt-1 text-xs text-inherit/70">{stage.description}</div>
+                      <div className="text-sm font-bold text-slate-800">{stage.shortLabel}</div>
+                      <div className="mt-1 text-xs text-slate-500">{stage.description}</div>
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="text-xl font-semibold">{formatNumber(stage.value)}</div>
-                    <div className="text-[11px] text-inherit/70">{total > 0 ? formatPercent(stage.value / total) : "0.00%"}</div>
+                    <div className="font-mono text-xl font-bold tracking-tight text-slate-900">{formatNumber(stage.value)}</div>
+                    <div className="text-[11px] text-slate-400">{total > 0 ? formatPercent(stage.value / total) : "0.00%"}</div>
                   </div>
                 </div>
               </article>
@@ -644,18 +644,18 @@ function MetroFlowOverview({
 
 function getMetroStageTheme(stage: ProcessStageKey): { cardClass: string; badgeClass: string } {
   if (stage === "pending_verify") {
-    return { cardClass: "border-slate-200 bg-white text-slate-700", badgeClass: "border-slate-300 bg-slate-100 text-slate-700" };
+    return { cardClass: "bg-white border-t-4 border-t-slate-300", badgeClass: "border-slate-300 bg-slate-100 text-slate-700" };
   }
   if (stage === "verifying") {
-    return { cardClass: "border-teal-200 bg-teal-50 text-teal-900", badgeClass: "border-teal-300 bg-teal-600 text-white" };
+    return { cardClass: "bg-white border-t-4 border-t-teal-400", badgeClass: "border-teal-300 bg-teal-600 text-white" };
   }
   if (stage === "verified_waiting_qc") {
-    return { cardClass: "border-emerald-200 bg-emerald-50 text-emerald-900", badgeClass: "border-emerald-300 bg-emerald-600 text-white" };
+    return { cardClass: "bg-white border-t-4 border-t-emerald-400", badgeClass: "border-emerald-300 bg-emerald-600 text-white" };
   }
   if (stage === "qc_running") {
-    return { cardClass: "border-indigo-300 bg-indigo-950 text-white", badgeClass: "border-indigo-200 bg-indigo-100 text-indigo-700" };
+    return { cardClass: "bg-white border-t-4 border-t-indigo-500", badgeClass: "border-indigo-200 bg-indigo-100 text-indigo-700" };
   }
-  return { cardClass: "border-sky-200 bg-sky-50 text-sky-900", badgeClass: "border-sky-300 bg-white text-sky-700" };
+  return { cardClass: "bg-white border-t-4 border-t-sky-400", badgeClass: "border-sky-300 bg-white text-sky-700" };
 }
 
 function getActiveTagClasses(tone: AlertTone): string {

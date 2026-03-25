@@ -16,6 +16,7 @@ interface TaskQuery {
   alertTags: string[];
   manualOnly: boolean;
   anomalyOnly: boolean;
+  batches?: string[];
 }
 
 interface ImportPayload {
@@ -37,7 +38,7 @@ export interface UploadLogFile {
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const isFormData = init?.body instanceof FormData;
-  const dbClient = localStorage.getItem("dashboard_db_client") || "sqlite";
+  const dbClient = localStorage.getItem("dashboard_db_client") || "pg";
   const requestInit: RequestInit = {
     headers: {
       ...(isFormData ? {} : { "Content-Type": "application/json" }),
@@ -69,8 +70,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (await res.json()) as T;
 }
 
-export function fetchOverview(): Promise<DashboardOverview> {
-  return request<DashboardOverview>("/api/dashboard/overview");
+export function fetchOverview(batches?: string[]): Promise<DashboardOverview> {
+  const params = new URLSearchParams();
+  if (batches && batches.length > 0) {
+    params.set("batch", batches.join(","));
+  }
+  const qStr = params.toString();
+  const url = qStr ? `/api/dashboard/overview?${qStr}` : `/api/dashboard/overview`;
+  return request<DashboardOverview>(url);
 }
 
 export function fetchFilterOptions(): Promise<FilterOptions> {
@@ -93,6 +100,9 @@ export function fetchTaskList(query: TaskQuery): Promise<TaskListResult> {
     manualOnly: String(query.manualOnly),
     anomalyOnly: String(query.anomalyOnly),
   });
+  if (query.batches && query.batches.length > 0) {
+    params.set("batch", query.batches.join(","));
+  }
   return request<TaskListResult>(`/api/dashboard/tasks?${params.toString()}`);
 }
 

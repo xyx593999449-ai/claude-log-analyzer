@@ -137,11 +137,11 @@ export function getStageTone(stage: ProcessStageKey): AlertTone {
 }
 
 export function getStatusClasses(tone: AlertTone): string {
-  if (tone === "success") return "border-emerald-200 bg-emerald-50 text-emerald-700";
-  if (tone === "info") return "border-sky-200 bg-sky-50 text-sky-700";
-  if (tone === "warning") return "border-amber-200 bg-amber-50 text-amber-800";
-  if (tone === "danger") return "border-rose-200 bg-rose-50 text-rose-700";
-  return "border-slate-200 bg-slate-100 text-slate-600";
+  if (tone === "success") return "border-transparent bg-emerald-100/90 text-emerald-800";
+  if (tone === "info") return "border-transparent bg-sky-100/90 text-sky-800";
+  if (tone === "warning") return "border-transparent bg-amber-100/90 text-amber-800";
+  if (tone === "danger") return "border-transparent bg-rose-100/90 text-rose-800";
+  return "border-transparent bg-slate-100 text-slate-700";
 }
 
 export function isBlockingRunIssue(run: RunView | null | undefined): boolean {

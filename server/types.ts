@@ -95,7 +95,7 @@ export interface DashboardFilters {
   alertTags: string[];
   manualOnly: boolean;
   anomalyOnly: boolean;
-  batch?: string;
+  batches?: string[];
 }
 
 export interface ImportSnapshot {

@@ -125,7 +125,7 @@ export interface DashboardRepositoryPort {
   */
   nextImportBatchId(): string;
   getFilterOptions(): Promise<DashboardFilterOptions>;
-  getOverview(): Promise<DashboardOverview>;
+  getOverview(batches?: string[]): Promise<DashboardOverview>;
   getTaskList(filters: DashboardFilters): Promise<TaskListResult>;
   getTaskLogDetail(taskId: string): Promise<TaskLogDetail>;
   getBatches(): Promise<BatchOverviewItem[]>;
@@ -426,9 +426,12 @@ function buildTaskFilterSql(filters: DashboardFilters): { whereSql: string; para
     clauses.push(`(${alertClauses.join(" OR ")})`);
   }
 
-  if (filters.batch) {
-    clauses.push("task_id LIKE @batch_like");
-    params.batch_like = `%_${filters.batch}`;
+  if (filters.batches && filters.batches.length > 0) {
+    const likeClauses = filters.batches.map((b, i) => `task_id LIKE @batch_like_${i}`);
+    clauses.push(`(${likeClauses.join(" OR ")})`);
+    filters.batches.forEach((b, i) => {
+      params[`batch_like_${i}`] = `%_${b}`;
+    });
   }
 
   return {
@@ -630,13 +633,29 @@ export class DashboardRepository implements DashboardRepositoryPort {
     return { verifyStatuses, qcStatuses };
   }
 
-  async getOverview(): Promise<DashboardOverview> {
-    const totalTasks = Number((this.db.prepare("SELECT COUNT(*) as count FROM poi_init").get() as { count: number }).count);
+  async getOverview(batches?: string[]): Promise<DashboardOverview> {
+    const buildWhere = (prefix = "") => {
+      if (!batches || batches.length === 0) return { sql: "", params: {} as Record<string, unknown> };
+      const likeClauses = batches.map((b, i) => `${prefix}task_id LIKE @batch_${i}`);
+      const bindParams = batches.reduce((acc, b, i) => ({ ...acc, [`batch_${i}`]: `%_${b}` }), {});
+      return { sql: `WHERE (${likeClauses.join(" OR ")})`, params: bindParams };
+    };
+    
+    const buildAnd = (prefix = "") => {
+      if (!batches || batches.length === 0) return { sql: "", params: {} as Record<string, unknown> };
+      const likeClauses = batches.map((b, i) => `${prefix}task_id LIKE @batch_${i}`);
+      const bindParams = batches.reduce((acc, b, i) => ({ ...acc, [`batch_${i}`]: `%_${b}` }), {});
+      return { sql: `AND (${likeClauses.join(" OR ")})`, params: bindParams };
+    };
 
+    const wf = buildWhere("i.");
+    const totalTasks = Number((this.db.prepare(`SELECT COUNT(*) as count FROM poi_init i ${wf.sql}`).get(wf.params) as { count: number }).count);
+
+    const w = buildWhere("i.");
     const verifyStatusCounts = (
       this.db
-        .prepare("SELECT COALESCE(verify_status,'未知状态') as status, COUNT(*) as count FROM poi_init GROUP BY verify_status ORDER BY count DESC")
-        .all() as Array<{ status: string; count: number }>
+        .prepare(`SELECT COALESCE(verify_status,'未知状态') as status, COUNT(*) as count FROM poi_init i ${w.sql} GROUP BY verify_status ORDER BY count DESC`)
+        .all(w.params) as Array<{ status: string; count: number }>
     ).map((item) => ({ status: item.status, count: Number(item.count) }));
 
     const flowStageCounts = (

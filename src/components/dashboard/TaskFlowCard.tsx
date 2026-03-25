@@ -87,7 +87,7 @@ export function TaskFlowCard({
 
   return (
     <article
-      className={`reveal-card relative overflow-visible rounded-[30px] border p-5 shadow-[0_18px_50px_rgba(15,23,42,0.05)] ${
+      className={`reveal-card relative z-10 hover:z-[200] focus-within:z-[200] overflow-visible rounded-[30px] border p-5 shadow-[0_18px_50px_rgba(15,23,42,0.05)] transition-shadow duration-300 hover:shadow-[0_25px_60px_rgba(15,23,42,0.08)] ${
         hasCritical ? "border-rose-200 bg-rose-50/30" : "border-slate-200 bg-white/88"
       }`}
       style={{ animationDelay: `${Math.min(index, 5) * 70}ms` }}

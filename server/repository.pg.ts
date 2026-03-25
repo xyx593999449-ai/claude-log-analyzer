@@ -205,10 +205,11 @@ function buildTaskFilterSqlPg(filters: DashboardFilters): { whereSql: string; pa
     clauses.push(`(${alertClauses.join(" OR ")})`);
   }
 
-  if (filters.batch) {
-    clauses.push(`task_id LIKE $${idx}`);
-    params.push(`%\\_${filters.batch}`);
-    idx += 1;
+  if (filters.batches && filters.batches.length > 0) {
+    const likeClauses = filters.batches.map((b, i) => `task_id LIKE $${idx + i}`);
+    clauses.push(`(${likeClauses.join(" OR ")})`);
+    params.push(...filters.batches.map((b) => `%\\_${b}`));
+    idx += filters.batches.length;
   }
 
   return {
@@ -443,24 +444,39 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
     };
   }
 
-  async getOverview(): Promise<DashboardOverview> {
+  async getOverview(batches?: string[]): Promise<DashboardOverview> {
     await this.ready();
-    const totalTasksRes = await this.pool.query("SELECT COUNT(*)::bigint as count FROM poi_init");
+    const buildWhere = (prefix = "") => {
+      if (!batches || batches.length === 0) return { sql: "", params: [] };
+      const likeClauses = batches.map((b, i) => `${prefix}task_id LIKE $${i + 1}`);
+      return { sql: `WHERE (${likeClauses.join(" OR ")})`, params: batches.map(b => `%\\_${b}`) };
+    };
+    
+    const buildAnd = (prefix = "") => {
+      if (!batches || batches.length === 0) return { sql: "", params: [] };
+      const likeClauses = batches.map((b, i) => `${prefix}task_id LIKE $${i + 1}`);
+      return { sql: `AND (${likeClauses.join(" OR ")})`, params: batches.map(b => `%\\_${b}`) };
+    };
+
+    const wInit = buildWhere("i.");
+    const totalTasksRes = await this.pool.query(`SELECT COUNT(*)::bigint as count FROM poi_init i ${wInit.sql}`, wInit.params);
     const totalTasks = Number(totalTasksRes.rows[0]?.count ?? 0);
 
     const verifyStatusCountsRes = await this.pool.query(
-      "SELECT COALESCE(verify_status,'未知状态') as status, COUNT(*)::bigint as count FROM poi_init GROUP BY verify_status ORDER BY count DESC",
+      `SELECT COALESCE(verify_status,'未知状态') as status, COUNT(*)::bigint as count FROM poi_init i ${wInit.sql} GROUP BY verify_status ORDER BY count DESC`,
+      wInit.params
     );
     const verifyStatusCounts = verifyStatusCountsRes.rows.map((item) => ({
       status: String(item.status),
       count: Number(item.count ?? 0),
     }));
 
+    const wStage = buildWhere("i.");
     const flowStageCountsRes = await this.pool.query(`
       WITH latest AS (
         SELECT *
         FROM poi_task_analysis
-        WHERE id IN (SELECT MAX(id) FROM poi_task_analysis GROUP BY task_id, phase)
+        WHERE id IN (SELECT MAX(id) FROM poi_task_analysis ${buildWhere().sql} GROUP BY task_id, phase)
       ),
       verify_runs AS (SELECT * FROM latest WHERE phase = 'verify'),
       qc_runs AS (SELECT * FROM latest WHERE phase = 'qc')
@@ -487,8 +503,9 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
       LEFT JOIN poi_qc q ON q.task_id = i.task_id
       LEFT JOIN verify_runs vr ON vr.task_id = i.task_id
       LEFT JOIN qc_runs qr ON qr.task_id = i.task_id
+      ${wStage.sql}
       GROUP BY stage
-    `);
+    `, wStage.params);
     const flowStageCounts = flowStageCountsRes.rows.map((item) => ({
       stage: String(item.stage),
       count: Number(item.count ?? 0),
@@ -520,7 +537,7 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
              ) as avg_cost_usd
       FROM latest
       GROUP BY phase
-    `);
+    `, buildWhere().params);
 
     const empty: Metrics = {
       taskCount: 0,
@@ -564,8 +581,9 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
       SELECT
         SUM(CASE WHEN COALESCE(verify_result, '') = '需人工核实' THEN 1 ELSE 0 END)::bigint AS manual_count,
         SUM(CASE WHEN COALESCE(verify_result, '') != '' THEN 1 ELSE 0 END)::bigint AS verified_total
-      FROM poi_verified
-    `);
+      FROM poi_verified v
+      ${buildWhere("v.").sql}
+    `, buildWhere("v.").params);
     const verifyRateRow = verifyRateRes.rows[0] as Record<string, unknown>;
     const verifiedTotal = Number(verifyRateRow?.verified_total ?? 0);
     const manualCount = Number(verifyRateRow?.manual_count ?? 0);
@@ -583,7 +601,8 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
         SUM(CASE WHEN q.is_qualified IS NOT NULL THEN 1 ELSE 0 END)::bigint AS qc_total
       FROM poi_qc q
       LEFT JOIN poi_verified v ON v.task_id = q.task_id
-    `);
+      ${buildWhere("q.").sql}
+    `, buildWhere("q.").params);
     const qualityRow = qualityRes.rows[0] as Record<string, unknown>;
     const qualityMatched = Number(qualityRow?.matched_count ?? 0);
     const qcTotal = Number(qualityRow?.qc_total ?? 0);
@@ -594,9 +613,10 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
       FROM poi_init i
       LEFT JOIN poi_verified v ON v.task_id = i.task_id
       LEFT JOIN poi_qc q ON q.task_id = i.task_id
-      WHERE COALESCE(v.verify_result, '') = '${VERIFY_MANUAL}'
-         OR COALESCE(q.is_qualified, 0) <> 1
-    `);
+      WHERE (COALESCE(v.verify_result, '') = '${VERIFY_MANUAL}'
+         OR COALESCE(q.is_qualified, 0) <> 1)
+         ${buildAnd("i.").sql}
+    `, buildAnd("i.").params);
     const manualTaskCount = Number(manualTaskCountRes.rows[0]?.count ?? 0);
 
     const anomalyCountRes = await this.pool.query(`
@@ -614,26 +634,28 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
       LEFT JOIN verify_runs vr ON vr.task_id = i.task_id
       LEFT JOIN qc_runs qr ON qr.task_id = i.task_id
       WHERE (
-        vr.task_id IS NOT NULL
-        AND v.verify_status IS NOT NULL
-        AND (
-          (vr.status = 'success' AND v.verify_status NOT IN ('${VERIFY_DONE}','${VERIFY_MANUAL}'))
-          OR (vr.status <> 'success' AND v.verify_status IN ('${VERIFY_DONE}','${VERIFY_MANUAL}'))
+        (
+          vr.task_id IS NOT NULL
+          AND v.verify_status IS NOT NULL
+          AND (
+            (vr.status = 'success' AND v.verify_status NOT IN ('${VERIFY_DONE}','${VERIFY_MANUAL}'))
+            OR (vr.status <> 'success' AND v.verify_status IN ('${VERIFY_DONE}','${VERIFY_MANUAL}'))
+          )
         )
-      )
-      OR (
-        qr.task_id IS NOT NULL
-        AND q.qc_status IS NOT NULL
-        AND qr.status <> 'success'
-      )
-    `);
+        OR (
+          qr.task_id IS NOT NULL
+          AND q.qc_status IS NOT NULL
+          AND qr.status <> 'success'
+        )
+      ) ${buildAnd("i.").sql}
+    `, buildAnd("i.").params);
     const anomalyCount = Number(anomalyCountRes.rows[0]?.count ?? 0);
 
     const qcRejectedCountRes = await this.pool.query(`
       SELECT COUNT(*)::bigint as count
-      FROM poi_qc
-      WHERE is_qualified = 0
-    `);
+      FROM poi_qc q
+      WHERE is_qualified = 0 ${buildAnd("q.").sql}
+    `, buildAnd("q.").params);
     const qcRejectedCount = Number(qcRejectedCountRes.rows[0]?.count ?? 0);
 
     return {
@@ -871,7 +893,10 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
       merged AS (
         SELECT
           i.task_id,
-          v.verify_result,
+          v.verify_status AS bus_vs,
+          v.verify_result AS bus_vr,
+          q.qc_status AS bus_qs,
+          q.quality_status as bus_qys,
           q.is_qualified,
           CASE
             WHEN (
@@ -963,35 +988,29 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
       item.totalTokens += (Number(row.vr_in_tok) || 0) + (Number(row.vr_out_tok) || 0) + (Number(row.vr_cache_tok) || 0) +
                           (Number(row.qr_in_tok) || 0) + (Number(row.qr_out_tok) || 0) + (Number(row.qr_cache_tok) || 0);
 
-      const vrStarted = row.vr_started as string | null;
-      const qrStarted = row.qr_started as string | null;
+      const isVerified = row.bus_vr != null || row.bus_vs != null;
+      const isQcDone = row.is_qualified != null || row.bus_qs != null || row.bus_qys != null;
+      const startedVrTime = row.vr_started as string | null;
+      const startedQrTime = row.qr_started as string | null;
+      
+      if (startedVrTime || startedQrTime || isVerified || isQcDone) {
+        item.anyTaskStarted = true;
+      }
+
+      if (startedVrTime && (!item.minStarted || (new Date(startedVrTime) < new Date(item.minStarted)))) item.minStarted = String(startedVrTime);
+      if (startedQrTime && (!item.minStarted || (new Date(startedQrTime) < new Date(item.minStarted)))) item.minStarted = String(startedQrTime);
+
       const vrEnded = row.vr_ended as string | null;
       const qrEnded = row.qr_ended as string | null;
+      if (vrEnded && (!item.maxEnded || (new Date(vrEnded) > new Date(item.maxEnded)))) item.maxEnded = String(vrEnded);
+      if (qrEnded && (!item.maxEnded || (new Date(qrEnded) > new Date(item.maxEnded)))) item.maxEnded = String(qrEnded);
 
-      if (vrStarted) {
-        item.anyTaskStarted = true;
-        if (!item.minStarted || (new Date(vrStarted) < new Date(item.minStarted))) item.minStarted = String(vrStarted);
-      }
-      if (qrStarted) {
-        item.anyTaskStarted = true;
-        if (!item.minStarted || (new Date(qrStarted) < new Date(item.minStarted))) item.minStarted = String(qrStarted);
-      }
-
-      if (vrEnded) {
-        if (!item.maxEnded || (new Date(vrEnded) > new Date(item.maxEnded))) item.maxEnded = String(vrEnded);
-      }
-      if (qrEnded) {
-        if (!item.maxEnded || (new Date(qrEnded) > new Date(item.maxEnded))) item.maxEnded = String(qrEnded);
-      }
-
-      if (!vrStarted && !qrStarted) {
+      const isTaskUnstarted = !startedVrTime && !startedQrTime && !isVerified && !isQcDone;
+      const isVrRunning = row.vr_status === 'running' || row.vr_status === 'pending';
+      const isQrRunning = row.qr_status === 'running' || row.qr_status === 'pending';
+      
+      if (isTaskUnstarted || isVrRunning || isQrRunning) {
         item.allTasksCompleted = false;
-      } else {
-        const isVrRunning = row.vr_status === 'running' || row.vr_status === 'pending';
-        const isQrRunning = row.qr_status === 'running' || row.qr_status === 'pending';
-        if (isVrRunning || isQrRunning) {
-          item.allTasksCompleted = false;
-        }
       }
     }
 

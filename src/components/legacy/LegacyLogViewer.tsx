@@ -116,10 +116,17 @@ export function LegacyLogViewer({
       </div>
 
       {hasExecutionError ? (
-        <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 shadow-[0_12px_30px_rgba(244,63,94,0.12)]">
-          <div className="font-semibold">执行异常</div>
-          <div className="mt-1">
-            识别到 <span className="font-semibold">{toolErrorCount}</span> 次工具或执行错误
+        <div className="mt-4 flex items-center justify-between rounded-2xl bg-rose-100/90 px-5 py-4 text-rose-800">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/60 shadow-sm">
+              <span className="text-lg font-bold text-rose-600">!</span>
+            </div>
+            <div>
+              <div className="font-bold">深度执行异常</div>
+              <div className="mt-0.5 text-sm font-medium text-rose-700/80">
+                系统在日志解析过程中捕获到了 <span className="font-bold underline decoration-rose-300 decoration-2 underline-offset-4">{toolErrorCount}</span> 处显著性错误，已为您高亮标记于下方。
+              </div>
+            </div>
           </div>
         </div>
       ) : null}
@@ -158,7 +165,7 @@ function MetricCard({
         {icon}
         {label}
       </div>
-      <div className="mt-2 text-base font-semibold text-slate-900">{value}</div>
+      <div className="mt-2 text-2xl font-mono font-bold tracking-tight text-slate-900">{value}</div>
     </div>
   );
 }

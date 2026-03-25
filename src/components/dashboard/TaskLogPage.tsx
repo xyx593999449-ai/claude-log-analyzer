@@ -57,17 +57,21 @@ export function TaskLogPage() {
 
   return (
     <AnalysisLayout
-      title="任务日志"
-      subtitle={`task_id: ${taskId}`}
-      actions={
-        <button
-          className="inline-flex items-center gap-2 rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm text-slate-700 transition hover:-translate-y-0.5 hover:bg-slate-50"
-          onClick={() => navigate(-1)}
-        >
-          <ArrowLeft className="h-4 w-4" />
-          返回首页
-        </button>
+      title={
+        <nav className="flex items-center gap-2 text-sm font-medium">
+          <button 
+            onClick={() => navigate('/tasks')} 
+            className="text-slate-500 hover:text-slate-800 transition-colors"
+          >
+            主看板
+          </button>
+          <span className="text-slate-300">/</span>
+          <span className="text-slate-900">日志详情</span>
+          <span className="text-slate-300">/</span>
+          <span className="text-slate-500 font-mono text-xs">{taskId.split('_')[0]}...</span>
+        </nav>
       }
+      subtitle=""
     >
       {loading ? (
         <div className="rounded-[28px] border border-slate-200 bg-white/84 p-5 text-sm text-slate-500 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
@@ -192,7 +196,7 @@ function SummaryCard({
   return (
     <article className={`rounded-3xl border p-4 ${classes}`}>
       <div className="text-xs uppercase tracking-[0.24em] text-slate-400">{title}</div>
-      <div className="mt-2 text-xl font-semibold text-slate-950">{value}</div>
+      <div className="mt-2 text-2xl font-mono font-bold tracking-tight text-slate-900">{value}</div>
       <p className="mt-2 text-sm leading-6 text-slate-600">{description}</p>
     </article>
   );
