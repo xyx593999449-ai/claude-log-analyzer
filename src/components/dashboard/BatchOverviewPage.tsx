@@ -70,7 +70,8 @@ export function BatchOverviewPage() {
   );
 }
 
-function formatDuration(ms: number) {
+function formatDuration(ms: number, isPending?: boolean) {
+  if (isPending) return "/";
   if (!ms) return "0s";
   const s = Math.floor(ms / 1000);
   if (s < 60) return `${s}s`;
@@ -80,19 +81,20 @@ function formatDuration(ms: number) {
   return `${h}h ${m % 60}m`;
 }
 
-function formatPercent(rate: number) {
+function formatPercent(rate: number, isPending?: boolean) {
+  if (isPending) return "/";
   return (rate * 100).toFixed(1) + '%';
 }
 
-function formatDateTime(val: string | null) {
-  if (!val) return "-";
+function formatDateTime(val: string | null, isPending?: boolean) {
+  if (isPending || !val) return "/";
   let normalizedVal = val;
   if (typeof val === 'string' && val.includes(',')) {
     normalizedVal = val.replace(',', '.');
   }
   const num = Number(normalizedVal);
   const d = new Date(isNaN(num) ? normalizedVal : num);
-  if (isNaN(d.getTime())) return "-";
+  if (isNaN(d.getTime())) return "/";
   return d.toLocaleString("zh-CN", {
     month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit"
   });
@@ -111,8 +113,14 @@ function StatBox({ icon, title, value, valueClass = "text-slate-800" }: { icon?:
 }
 
 const BatchCard: FC<{ batch: BatchOverviewItem }> = ({ batch }) => {
+  const isPending = batch.status === "pending";
   const anomalyRate = batch.taskCount > 0 ? batch.anomalyCount / batch.taskCount : 0;
   const showWarning = anomalyRate > 0.1 || batch.qcRejectedCount > 0;
+
+  // 用时超限逻辑：单条 5min * 任务数 * 2 (含一倍 buffer)
+  const durationThresholdMs = batch.taskCount * 5 * 60 * 1000 * 2;
+  const isOvertime = !isPending && (batch.totalDurationMs > durationThresholdMs);
+  const durationValueClass = isPending ? "text-slate-400" : (isOvertime ? "text-rose-600" : "text-emerald-600");
 
   // 根据生命周期 status 决定主色调
   let cardBorder = "border-white/70";
@@ -152,23 +160,23 @@ const BatchCard: FC<{ batch: BatchOverviewItem }> = ({ batch }) => {
       <div className="mt-6 flex-1">
         <div className="grid grid-cols-2 gap-3">
           <StatBox icon={<Database className="h-3 w-3" />} title="总任务量" value={formatNumber(batch.taskCount)} />
-          <StatBox title="总用时" value={formatDuration(batch.totalDurationMs)} />
-          <StatBox title="自动化率" value={formatPercent(batch.automationRate)} />
-          <StatBox title="质检合格率" value={formatPercent(batch.qcPassRate)} valueClass={batch.qcPassRate < 0.9 ? "text-rose-600" : "text-emerald-600"} />
+          <StatBox title="总用时" value={formatDuration(batch.totalDurationMs, isPending)} valueClass={durationValueClass} />
+          <StatBox title="自动化率" value={formatPercent(batch.automationRate, isPending)} />
+          <StatBox title="质检合格率" value={formatPercent(batch.qcPassRate, isPending)} valueClass={isPending ? "text-slate-400" : (batch.qcPassRate < 0.9 ? "text-rose-600" : "text-emerald-600")} />
         </div>
 
         <div className="mt-8 space-y-4 text-[13px] text-slate-500">
           <div className="flex justify-between border-b border-slate-100/60 pb-3">
             <span>总 Token 消耗</span>
-            <span className="font-mono text-sm font-semibold text-slate-700">{formatNumber(batch.totalTokens)}</span>
+            <span className="font-mono text-sm font-semibold text-slate-700">{isPending ? "/" : formatNumber(batch.totalTokens)}</span>
           </div>
           <div className="flex justify-between border-b border-slate-100/60 pb-3">
             <span>批次创建时间</span>
-            <span className="font-mono text-[13px] font-medium text-slate-600">{formatDateTime(batch.createdAt)}</span>
+            <span className="font-mono text-[13px] font-medium text-slate-600">{formatDateTime(batch.createdAt, isPending)}</span>
           </div>
           <div className="flex justify-between">
             <span>完成时间</span>
-            <span className="font-mono text-[13px] font-medium text-slate-600">{formatDateTime(batch.completedAt)}</span>
+            <span className="font-mono text-[13px] font-medium text-slate-600">{formatDateTime(batch.completedAt, isPending)}</span>
           </div>
         </div>
       </div>

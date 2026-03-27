@@ -150,7 +150,7 @@ export function ExecutionCard({
       : {
           ring: "border-sky-200 bg-sky-50/80",
           accent: "bg-sky-950 text-white",
-          label: "核实质量",
+          label: "质检合格率",
           value: formatPercent(metrics?.verificationQualityRate ?? 0),
         };
 

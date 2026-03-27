@@ -405,7 +405,7 @@ function buildTaskFilterSql(filters: DashboardFilters): { whereSql: string; para
   }
 
   if (filters.manualOnly) {
-    clauses.push(`(COALESCE(verify_result, '') = '${VERIFY_MANUAL}' OR COALESCE(is_qualified, 0) <> 1)`);
+    clauses.push(`(COALESCE(verify_result, '') = '${VERIFY_MANUAL}' OR is_qualified = 0)`);
   }
 
   if (filters.anomalyOnly) {
@@ -417,7 +417,7 @@ function buildTaskFilterSql(filters: DashboardFilters): { whereSql: string; para
     if (tag === "核实执行异常") alertClauses.push("(verify_task_id IS NOT NULL AND COALESCE(verify_status, '') <> 'success' AND COALESCE(verify_retry_count, 0) <= 5)");
     if (tag === "质检阻塞异常") alertClauses.push("COALESCE(qc_retry_count, 0) > 5");
     if (tag === "质检执行异常") alertClauses.push("(qc_task_id IS NOT NULL AND COALESCE(qc_status_run, '') <> 'success' AND COALESCE(qc_retry_count, 0) <= 5)");
-    if (tag === "需人工介入") alertClauses.push(`(COALESCE(verify_result, '') = '${VERIFY_MANUAL}' OR COALESCE(is_qualified, 0) <> 1)`);
+    if (tag === "需人工介入") alertClauses.push(`(COALESCE(verify_result, '') = '${VERIFY_MANUAL}' OR is_qualified = 0)`);
     if (tag === "质检不通过") alertClauses.push("is_qualified = 0");
     if (tag === "高风险任务") alertClauses.push("(COALESCE(has_risk, 0) = 1 OR COALESCE(qc_status, '') = 'risky')");
     if (tag === "核实状态不一致") alertClauses.push("COALESCE(verify_mismatch_reason, '') != ''");
@@ -793,13 +793,7 @@ export class DashboardRepository implements DashboardRepositoryPort {
     const qualityRow = this.db
       .prepare(`
         SELECT
-          SUM(
-            CASE
-              WHEN COALESCE(v.verify_result, '') = '核实通过' AND q.is_qualified = 1 THEN 1
-              WHEN COALESCE(v.verify_result, '') = '需人工核实' AND COALESCE(q.is_qualified, 0) != 1 THEN 1
-              ELSE 0
-            END
-          ) AS matched_count,
+          SUM(CASE WHEN q.is_qualified = 1 THEN 1 ELSE 0 END) AS matched_count,
           SUM(CASE WHEN q.is_qualified IS NOT NULL THEN 1 ELSE 0 END) AS qc_total
         FROM poi_qc q
         LEFT JOIN poi_verified v ON v.task_id = q.task_id
@@ -819,7 +813,7 @@ export class DashboardRepository implements DashboardRepositoryPort {
             LEFT JOIN poi_verified v ON v.task_id = i.task_id
             LEFT JOIN poi_qc q ON q.task_id = i.task_id
             WHERE (COALESCE(v.verify_result, '') = '${VERIFY_MANUAL}'
-               OR COALESCE(q.is_qualified, 0) <> 1)
+               OR COALESCE(q.is_qualified, 0) = 0)
                ${buildAnd("i.").sql}
           `)
           .get(buildAnd("i.").params) as { count: number }
@@ -909,6 +903,7 @@ export class DashboardRepository implements DashboardRepositoryPort {
           i.city,
           i.address,
           i.poi_type,
+          i.updatetime,
           i.verify_status AS init_verify_status,
           i.raw_json AS poi_init_raw,
 
@@ -998,8 +993,10 @@ export class DashboardRepository implements DashboardRepositoryPort {
 
     const total = Number((this.db.prepare(`SELECT COUNT(*) as count FROM (${baseSql}) t`).get(params) as { count: number }).count);
 
+    const sql = `${baseSql} ORDER BY (CASE WHEN updatetime IS NULL THEN 0 ELSE 1 END) DESC, updatetime DESC, task_id DESC LIMIT @limit OFFSET @offset`;
+    console.log("EXECUTING SQL:", sql);
     const rows = this.db
-      .prepare(`${baseSql} ORDER BY task_id LIMIT @limit OFFSET @offset`)
+      .prepare(sql)
       .all(params) as Array<Record<string, unknown>>;
 
     return {
@@ -1103,7 +1100,8 @@ export class DashboardRepository implements DashboardRepositoryPort {
           qr.started_at AS qr_started,
           qr.ended_at AS qr_ended,
           vr.status AS vr_status,
-          qr.status AS qr_status
+          qr.status AS qr_status,
+          v.task_id AS is_verified
         FROM poi_init i
         LEFT JOIN poi_verified v ON v.task_id = i.task_id
         LEFT JOIN poi_qc q ON q.task_id = i.task_id
@@ -1126,6 +1124,7 @@ export class DashboardRepository implements DashboardRepositoryPort {
       maxEnded: string | null;
       anyTaskStarted: boolean;
       allTasksCompleted: boolean;
+      verifiedTotal: number;
     }
     const batchMap = new Map<string, BatchInternalState>();
 
@@ -1149,7 +1148,7 @@ export class DashboardRepository implements DashboardRepositoryPort {
         item = { 
           batchId, taskCount: 0, manualTaskCount: 0, anomalyCount: 0, 
           qcTaskCount: 0, qcRejectedCount: 0, totalDurationMs: 0, totalTokens: 0,
-          minStarted: null, maxEnded: null, anyTaskStarted: false, allTasksCompleted: true
+          minStarted: null, maxEnded: null, anyTaskStarted: false, allTasksCompleted: true, verifiedTotal: 0
         };
         batchMap.set(batchId, item);
       }
@@ -1159,14 +1158,15 @@ export class DashboardRepository implements DashboardRepositoryPort {
       const isManual = (row.verify_result === VERIFY_MANUAL) || (row.is_qualified != null ? !boolish(row.is_qualified) : false);
       if (isManual) item.manualTaskCount++;
       if (row.has_anomaly === 1) item.anomalyCount++;
+      if (row.is_verified != null) item.verifiedTotal++;
       if (row.is_qualified != null) {
         item.qcTaskCount++;
         if (!boolish(row.is_qualified)) item.qcRejectedCount++;
       }
 
-      item.totalDurationMs += (Number(row.vr_duration) || 0) + (Number(row.qr_duration) || 0);
+      // item.totalDurationMs += (Number(row.vr_duration) || 0) + (Number(row.qr_duration) || 0);
       item.totalTokens += (Number(row.vr_in_tok) || 0) + (Number(row.vr_out_tok) || 0) + (Number(row.vr_cache_tok) || 0) +
-                          (Number(row.qr_in_tok) || 0) + (Number(row.qr_out_tok) || 0) + (Number(row.qr_cache_tok) || 0);
+                           (Number(row.qr_in_tok) || 0) + (Number(row.qr_out_tok) || 0) + (Number(row.qr_cache_tok) || 0);
 
       const vrStarted = row.vr_started as string | null;
       const qrStarted = row.qr_started as string | null;
@@ -1205,8 +1205,12 @@ export class DashboardRepository implements DashboardRepositoryPort {
       if (!b.anyTaskStarted) status = "pending";
       else if (b.allTasksCompleted) status = "completed";
       
-      const automationRate = b.taskCount > 0 ? (b.taskCount - b.manualTaskCount) / b.taskCount : 0;
+      const automationRate = b.verifiedTotal > 0 ? (b.verifiedTotal - b.manualTaskCount) / b.verifiedTotal : 0;
       const qcPassRate = b.qcTaskCount > 0 ? (b.qcTaskCount - b.qcRejectedCount) / b.qcTaskCount : 0;
+
+      const duration = (b.minStarted && b.maxEnded) 
+        ? (new Date(b.maxEnded).getTime() - new Date(b.minStarted).getTime())
+        : 0;
 
       return {
         batchId: b.batchId,
@@ -1214,7 +1218,7 @@ export class DashboardRepository implements DashboardRepositoryPort {
         manualTaskCount: b.manualTaskCount,
         anomalyCount: b.anomalyCount,
         qcRejectedCount: b.qcRejectedCount,
-        totalDurationMs: b.totalDurationMs,
+        totalDurationMs: duration,
         automationRate: Math.max(0, automationRate),
         qcPassRate: Math.max(0, qcPassRate),
         createdAt: b.minStarted,

@@ -183,7 +183,7 @@ function buildTaskFilterSqlPg(filters: DashboardFilters): { whereSql: string; pa
   }
 
   if (filters.manualOnly) {
-    clauses.push(`(COALESCE(verify_result, '') = '${VERIFY_MANUAL}' OR COALESCE(is_qualified, 0) <> 1)`);
+    clauses.push(`(COALESCE(verify_result, '') = '${VERIFY_MANUAL}' OR is_qualified = 0)`);
   }
 
   if (filters.anomalyOnly) {
@@ -195,7 +195,7 @@ function buildTaskFilterSqlPg(filters: DashboardFilters): { whereSql: string; pa
     if (tag === "核实执行异常") alertClauses.push("(verify_task_id IS NOT NULL AND COALESCE(verify_status, '') <> 'success' AND COALESCE(verify_retry_count, 0) <= 5)");
     if (tag === "质检阻塞异常") alertClauses.push("COALESCE(qc_retry_count, 0) > 5");
     if (tag === "质检执行异常") alertClauses.push("(qc_task_id IS NOT NULL AND COALESCE(qc_status_run, '') <> 'success' AND COALESCE(qc_retry_count, 0) <= 5)");
-    if (tag === "需人工介入") alertClauses.push(`(COALESCE(verify_result, '') = '${VERIFY_MANUAL}' OR COALESCE(is_qualified, 0) <> 1)`);
+    if (tag === "需人工介入") alertClauses.push(`(COALESCE(verify_result, '') = '${VERIFY_MANUAL}' OR is_qualified = 0)`);
     if (tag === "质检不通过") alertClauses.push("is_qualified = 0");
     if (tag === "高风险任务") alertClauses.push("(COALESCE(has_risk, 0) = 1 OR COALESCE(qc_status, '') = 'risky')");
     if (tag === "核实状态不一致") alertClauses.push("COALESCE(verify_mismatch_reason, '') <> ''");
@@ -596,13 +596,7 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
 
     const qualityRes = await this.pool.query(`
       SELECT
-        SUM(
-          CASE
-            WHEN COALESCE(v.verify_result, '') = '核实通过' AND q.is_qualified = 1 THEN 1
-            WHEN COALESCE(v.verify_result, '') = '需人工核实' AND COALESCE(q.is_qualified, 0) != 1 THEN 1
-            ELSE 0
-          END
-        )::bigint AS matched_count,
+        SUM(CASE WHEN q.is_qualified = 1 THEN 1 ELSE 0 END)::bigint AS matched_count,
         SUM(CASE WHEN q.is_qualified IS NOT NULL THEN 1 ELSE 0 END)::bigint AS qc_total
       FROM poi_qc q
       LEFT JOIN poi_verified v ON v.task_id = q.task_id
@@ -619,7 +613,7 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
       LEFT JOIN poi_verified v ON v.task_id = i.task_id
       LEFT JOIN poi_qc q ON q.task_id = i.task_id
       WHERE (COALESCE(v.verify_result, '') = '${VERIFY_MANUAL}'
-         OR COALESCE(q.is_qualified, 0) <> 1)
+         OR COALESCE(q.is_qualified, 0) = 0)
          ${buildAnd("i.").sql}
     `, buildAnd("i.").params);
     const manualTaskCount = Number(manualTaskCountRes.rows[0]?.count ?? 0);
@@ -699,6 +693,7 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
           i.address,
           i.poi_type,
           i.verify_status AS init_verify_status,
+          i.updatetime,
           to_jsonb(i)::text AS poi_init_raw,
 
           v.verify_status AS verified_status,
@@ -774,7 +769,8 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
               OR (qr.task_id IS NOT NULL AND q.qc_status IS NOT NULL AND qr.status <> 'success')
             ) THEN 1
             ELSE 0
-          END AS has_anomaly
+          END AS has_anomaly,
+          i.updatetime
         FROM poi_init i
         LEFT JOIN poi_verified v ON v.task_id = i.task_id
         LEFT JOIN poi_qc q ON q.task_id = i.task_id
@@ -792,7 +788,7 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
     const limitIndex = params.length + 1;
     const offsetIndex = params.length + 2;
     const rowsRes = await this.pool.query(
-      `${baseSql} ORDER BY task_id LIMIT $${limitIndex} OFFSET $${offsetIndex}`,
+      `${baseSql} ORDER BY updatetime DESC NULLS LAST, task_id DESC LIMIT $${limitIndex} OFFSET $${offsetIndex}`,
       pageParams,
     );
 
@@ -945,7 +941,8 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
           qr.started_at AS qr_started,
           qr.ended_at AS qr_ended,
           vr.status AS vr_status,
-          qr.status AS qr_status
+          qr.status AS qr_status,
+          v.task_id AS is_verified
         FROM poi_init i
         LEFT JOIN poi_verified v ON v.task_id = i.task_id
         LEFT JOIN poi_qc q ON q.task_id = i.task_id
@@ -970,6 +967,7 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
       maxEnded: string | null;
       anyTaskStarted: boolean;
       allTasksCompleted: boolean;
+      verifiedTotal: number;
     }
     const batchMap = new Map<string, BatchInternalState>();
 
@@ -993,24 +991,25 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
         item = { 
           batchId, taskCount: 0, manualTaskCount: 0, anomalyCount: 0, 
           qcTaskCount: 0, qcRejectedCount: 0, totalDurationMs: 0, totalTokens: 0,
-          minStarted: null, maxEnded: null, anyTaskStarted: false, allTasksCompleted: true
+          minStarted: null, maxEnded: null, anyTaskStarted: false, allTasksCompleted: true, verifiedTotal: 0
         };
         batchMap.set(batchId, item);
       }
 
       item.taskCount++;
 
-      const isManual = (row.verify_result === "${VERIFY_MANUAL}") || (row.is_qualified != null ? !boolish(row.is_qualified) : false);
+      const isManual = (row.bus_vr === VERIFY_MANUAL) || (row.is_qualified != null ? !boolish(row.is_qualified) : false);
       if (isManual) item.manualTaskCount++;
       if (row.has_anomaly === 1) item.anomalyCount++;
+      if (row.is_verified != null) item.verifiedTotal++;
       if (row.is_qualified != null) {
         item.qcTaskCount++;
         if (!boolish(row.is_qualified)) item.qcRejectedCount++;
       }
 
-      item.totalDurationMs += (Number(row.vr_duration) || 0) + (Number(row.qr_duration) || 0);
+      // item.totalDurationMs += (Number(row.vr_duration) || 0) + (Number(row.qr_duration) || 0);
       item.totalTokens += (Number(row.vr_in_tok) || 0) + (Number(row.vr_out_tok) || 0) + (Number(row.vr_cache_tok) || 0) +
-                          (Number(row.qr_in_tok) || 0) + (Number(row.qr_out_tok) || 0) + (Number(row.qr_cache_tok) || 0);
+                           (Number(row.qr_in_tok) || 0) + (Number(row.qr_out_tok) || 0) + (Number(row.qr_cache_tok) || 0);
 
       const isVerified = row.bus_vr != null || row.bus_vs != null;
       const isQcDone = row.is_qualified != null || row.bus_qs != null || row.bus_qys != null;
@@ -1043,8 +1042,12 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
       if (!b.anyTaskStarted) status = "pending";
       else if (b.allTasksCompleted) status = "completed";
       
-      const automationRate = b.taskCount > 0 ? (b.taskCount - b.manualTaskCount) / b.taskCount : 0;
+      const automationRate = b.verifiedTotal > 0 ? (b.verifiedTotal - b.manualTaskCount) / b.verifiedTotal : 0;
       const qcPassRate = b.qcTaskCount > 0 ? (b.qcTaskCount - b.qcRejectedCount) / b.qcTaskCount : 0;
+
+      const duration = (b.minStarted && b.maxEnded) 
+        ? (new Date(b.maxEnded).getTime() - new Date(b.minStarted).getTime())
+        : 0;
 
       return {
         batchId: b.batchId,
@@ -1052,7 +1055,7 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
         manualTaskCount: b.manualTaskCount,
         anomalyCount: b.anomalyCount,
         qcRejectedCount: b.qcRejectedCount,
-        totalDurationMs: b.totalDurationMs,
+        totalDurationMs: duration,
         automationRate: Math.max(0, automationRate),
         qcPassRate: Math.max(0, qcPassRate),
         createdAt: b.minStarted,

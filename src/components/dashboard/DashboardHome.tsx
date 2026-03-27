@@ -359,9 +359,9 @@ export function DashboardHome() {
                 tone="success"
               />
               <SpotlightCard
-                title="核实质量"
+                title="质检合格率"
                 value={formatPercent(overview?.qcMetrics.verificationQualityRate ?? 0)}
-                description="已质检样本口径"
+                description="已质检合格任务占比"
                 tone="info"
               />
               <SpotlightCard
