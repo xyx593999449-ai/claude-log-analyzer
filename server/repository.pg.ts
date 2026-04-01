@@ -847,7 +847,7 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
     const limitIndex = params.length + 1;
     const offsetIndex = params.length + 2;
     const rowsRes = await this.pool.query(
-      `${baseSql} ORDER BY (CASE WHEN (t.updatetime IS NULL OR t.updatetime = '') THEN 0 ELSE 1 END) DESC, t.updatetime DESC, t.task_id DESC LIMIT $${limitIndex} OFFSET $${offsetIndex}`,
+      `SELECT * FROM (${baseSql}) t ORDER BY (CASE WHEN (t.updatetime IS NULL OR t.updatetime = '') THEN 0 ELSE 1 END) DESC, t.updatetime DESC, t.task_id DESC LIMIT $${limitIndex} OFFSET $${offsetIndex}`,
       pageParams,
     );
 
