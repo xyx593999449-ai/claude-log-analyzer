@@ -453,14 +453,25 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
     await this.ready();
     const buildWhere = (prefix = "") => {
       if (!batches || batches.length === 0) return { sql: "", params: [] };
-      const likeClauses = batches.map((b, i) => `${prefix}task_id LIKE $${i + 1}`);
-      return { sql: `WHERE (${likeClauses.join(" OR ")})`, params: batches.map(b => `%\\_${b}`) };
+      // $1 = exact_0, $2 = like_0, $3 = exact_1, $4 = like_1...
+      const clauses = batches.map((b, i) => `(${prefix}task_id = $${i * 2 + 1} OR ${prefix}task_id LIKE $${i * 2 + 2})`);
+      const params: string[] = [];
+      batches.forEach(b => {
+        params.push(b);
+        params.push(`%\\_${b}`);
+      });
+      return { sql: `WHERE (${clauses.join(" OR ")})`, params };
     };
     
     const buildAnd = (prefix = "") => {
       if (!batches || batches.length === 0) return { sql: "", params: [] };
-      const likeClauses = batches.map((b, i) => `${prefix}task_id LIKE $${i + 1}`);
-      return { sql: `AND (${likeClauses.join(" OR ")})`, params: batches.map(b => `%\\_${b}`) };
+      const clauses = batches.map((b, i) => `(${prefix}task_id = $${i * 2 + 1} OR ${prefix}task_id LIKE $${i * 2 + 2})`);
+      const params: string[] = [];
+      batches.forEach(b => {
+        params.push(b);
+        params.push(`%\\_${b}`);
+      });
+      return { sql: `AND (${clauses.join(" OR ")})`, params };
     };
 
     const wInit = buildWhere("i.");
@@ -657,6 +668,54 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
     `, buildAnd("q.").params);
     const qcRejectedCount = Number(qcRejectedCountRes.rows[0]?.count ?? 0);
 
+    const timeSeriesRes = await this.pool.query(`
+      WITH latest AS (
+        SELECT task_id, phase, started_at
+        FROM poi_task_analysis
+        ${buildWhere().sql}
+      ),
+      latest_grouped AS (
+        SELECT task_id, phase, MAX(started_at) as started_at
+        FROM latest
+        GROUP BY task_id, phase
+      ),
+      base_times AS (
+        SELECT 'verify' as phase, COALESCE(vr.started_at, v.verify_time::text) as time_val
+        FROM poi_init i
+        LEFT JOIN poi_verified v ON i.task_id = v.task_id
+        LEFT JOIN (SELECT task_id, started_at FROM latest_grouped WHERE phase = 'verify') vr ON vr.task_id = i.task_id
+        WHERE COALESCE(vr.started_at, v.verify_time::text) IS NOT NULL
+        ${buildAnd('i.').sql}
+        
+        UNION ALL
+        
+        SELECT 'qc' as phase, COALESCE(qr.started_at, q.qc_time::text) as time_val
+        FROM poi_init i
+        LEFT JOIN poi_qc q ON i.task_id = q.task_id
+        LEFT JOIN (SELECT task_id, started_at FROM latest_grouped WHERE phase = 'qc') qr ON qr.task_id = i.task_id
+        WHERE COALESCE(qr.started_at, q.qc_time::text) IS NOT NULL
+        ${buildAnd('i.').sql}
+      ),
+      blocks AS (
+        SELECT 
+          phase,
+          SUBSTRING(time_val FROM 1 FOR 13) || ':00' as time_block
+        FROM base_times
+      )
+      SELECT time_block,
+             SUM(CASE WHEN phase = 'verify' THEN 1 ELSE 0 END)::bigint as verify_count,
+             SUM(CASE WHEN phase = 'qc' THEN 1 ELSE 0 END)::bigint as qc_count
+      FROM blocks
+      GROUP BY time_block
+      ORDER BY time_block ASC
+    `, buildWhere().params);
+
+    const timeSeries = (timeSeriesRes.rows as Array<Record<string, unknown>>).map((r) => ({
+      timeBlock: String(r.time_block),
+      verifyCount: Number(r.verify_count ?? 0),
+      qcCount: Number(r.qc_count ?? 0)
+    }));
+
     return {
       totalTasks,
       verifyStatusCounts,
@@ -669,6 +728,7 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
         qcRejectedCount,
         latestImport: await this.latestImport(),
       },
+      timeSeries,
     };
   }
 

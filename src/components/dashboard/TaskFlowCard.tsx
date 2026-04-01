@@ -306,6 +306,8 @@ function EvidenceSummaryRow({ summary }: { summary: EvidenceSummary }) {
 }
 
 function EvidenceSummaryHoverRow({ summary }: { summary: EvidenceSummary }) {
+  const [activeSource, setActiveSource] = useState<string | null>(null);
+
   return (
     <div className="flex flex-wrap items-center gap-2">
       <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-medium text-sky-700">
@@ -313,12 +315,20 @@ function EvidenceSummaryHoverRow({ summary }: { summary: EvidenceSummary }) {
       </span>
       {summary.sources.map((source) => {
         const details = source.details ?? [];
+        const isActive = activeSource === source.sourceName;
         return (
-          <div key={source.sourceName} className="group relative z-0 hover:z-[160]">
-            <span className="inline-flex rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600">
+          <div key={source.sourceName} className={`relative ${isActive ? "z-[160]" : "z-0"}`}>
+            <button
+              onClick={() => setActiveSource(isActive ? null : source.sourceName)}
+              className={`inline-flex rounded-full border px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-slate-500/30 transition-colors ${
+                isActive 
+                  ? "bg-slate-800 text-white border-slate-800 shadow-md" 
+                  : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:shadow-sm"
+              }`}
+            >
               {source.sourceName} {source.count}
-            </span>
-            <div className="pointer-events-none absolute left-0 top-full z-[180] mt-2 hidden w-[440px] max-w-[calc(100vw-2rem)] rounded-2xl border border-slate-200 bg-white p-3 text-xs text-slate-700 shadow-[0_20px_50px_rgba(15,23,42,0.2)] group-hover:pointer-events-auto group-hover:block hover:pointer-events-auto hover:block">
+            </button>
+            <div className={`absolute left-0 top-full z-[180] mt-2 w-[440px] max-w-[calc(100vw-2rem)] rounded-2xl border border-slate-200 bg-white p-3 text-xs text-slate-700 shadow-[0_20px_50px_rgba(15,23,42,0.2)] ${isActive ? "block" : "hidden"}`}>
               <div className="mb-2 flex items-center justify-between text-[11px] text-slate-500">
                 <span>{source.sourceName}</span>
                 <span>{source.count} 条</span>

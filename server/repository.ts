@@ -15,6 +15,7 @@ export interface DashboardOverview {
     qcRejectedCount: number;
     latestImport: ImportSnapshot | null;
   };
+  timeSeries: Array<{ timeBlock: string; verifyCount: number; qcCount: number }>;
 }
 
 export interface DashboardFilterOptions {
@@ -638,16 +639,25 @@ export class DashboardRepository implements DashboardRepositoryPort {
   async getOverview(batches?: string[]): Promise<DashboardOverview> {
     const buildWhere = (prefix = "") => {
       if (!batches || batches.length === 0) return { sql: "", params: {} as Record<string, unknown> };
-      const likeClauses = batches.map((b, i) => `${prefix}task_id LIKE @batch_${i}`);
-      const bindParams = batches.reduce((acc, b, i) => ({ ...acc, [`batch_${i}`]: `%_${b}` }), {});
-      return { sql: `WHERE (${likeClauses.join(" OR ")})`, params: bindParams };
+      // Try exact match first, then fallback to suffix LIKE for backward compatibility
+      const clauses = batches.map((b, i) => `(${prefix}task_id = @b_exact_${i} OR ${prefix}task_id LIKE @b_like_${i})`);
+      const bindParams = batches.reduce((acc, b, i) => ({ 
+        ...acc, 
+        [`b_exact_${i}`]: b,
+        [`b_like_${i}`]: `%_${b}` 
+      }), {});
+      return { sql: `WHERE (${clauses.join(" OR ")})`, params: bindParams };
     };
     
     const buildAnd = (prefix = "") => {
       if (!batches || batches.length === 0) return { sql: "", params: {} as Record<string, unknown> };
-      const likeClauses = batches.map((b, i) => `${prefix}task_id LIKE @batch_${i}`);
-      const bindParams = batches.reduce((acc, b, i) => ({ ...acc, [`batch_${i}`]: `%_${b}` }), {});
-      return { sql: `AND (${likeClauses.join(" OR ")})`, params: bindParams };
+      const clauses = batches.map((b, i) => `(${prefix}task_id = @b_exact_${i} OR ${prefix}task_id LIKE @b_like_${i})`);
+      const bindParams = batches.reduce((acc, b, i) => ({ 
+        ...acc, 
+        [`b_exact_${i}`]: b,
+        [`b_like_${i}`]: `%_${b}` 
+      }), {});
+      return { sql: `AND (${clauses.join(" OR ")})`, params: bindParams };
     };
 
     const wf = buildWhere("i.");
@@ -869,6 +879,54 @@ export class DashboardRepository implements DashboardRepositoryPort {
       ).count,
     );
 
+    const rows = (this.db.prepare(`
+      WITH latest AS (
+        SELECT task_id, phase, started_at
+        FROM temp_task_analysis
+        ${buildWhere().sql}
+      ),
+      latest_grouped AS (
+        SELECT task_id, phase, MAX(started_at) as started_at
+        FROM latest
+        GROUP BY task_id, phase
+      ),
+      base_times AS (
+        SELECT 'verify' as phase, COALESCE(vr.started_at, v.verify_time) as time_val
+        FROM poi_init i
+        LEFT JOIN poi_verified v ON i.task_id = v.task_id
+        LEFT JOIN (SELECT task_id, started_at FROM latest_grouped WHERE phase = 'verify') vr ON vr.task_id = i.task_id
+        WHERE COALESCE(vr.started_at, v.verify_time) IS NOT NULL
+        ${buildAnd('i.').sql}
+        
+        UNION ALL
+        
+        SELECT 'qc' as phase, COALESCE(qr.started_at, q.qc_time) as time_val
+        FROM poi_init i
+        LEFT JOIN poi_qc q ON i.task_id = q.task_id
+        LEFT JOIN (SELECT task_id, started_at FROM latest_grouped WHERE phase = 'qc') qr ON qr.task_id = i.task_id
+        WHERE COALESCE(qr.started_at, q.qc_time) IS NOT NULL
+        ${buildAnd('i.').sql}
+      ),
+      blocks AS (
+        SELECT 
+          phase,
+          substr(time_val, 1, 13) || ':00' as time_block
+        FROM base_times
+      )
+      SELECT time_block,
+             SUM(CASE WHEN phase = 'verify' THEN 1 ELSE 0 END) as verify_count,
+             SUM(CASE WHEN phase = 'qc' THEN 1 ELSE 0 END) as qc_count
+      FROM blocks
+      GROUP BY time_block
+      ORDER BY time_block ASC
+    `).all({ ...buildWhere().params, ...buildAnd('i.').params }) as Array<{ time_block: string; verify_count: number; qc_count: number }>);
+
+    const timeSeries = rows.map(r => ({
+      timeBlock: r.time_block,
+      verifyCount: Number(r.verify_count),
+      qcCount: Number(r.qc_count)
+    }));
+
     return {
       totalTasks,
       verifyStatusCounts,
@@ -881,6 +939,7 @@ export class DashboardRepository implements DashboardRepositoryPort {
         qcRejectedCount,
         latestImport: await this.latestImport(),
       },
+      timeSeries,
     };
   }
 

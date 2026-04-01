@@ -1,4 +1,4 @@
-﻿import { startTransition, useDeferredValue, useEffect, useState } from "react";
+import { startTransition, useDeferredValue, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { AlertCircle, Clock3, Coins, Database, FileSearch, Hammer, ListTree } from "lucide-react";
 import { parseNDJSON } from "../../lib/parser";
@@ -136,8 +136,27 @@ export function LogAnalysisPanel({ title, rawLog, sessionIds = [] }: LogAnalysis
           {timeline.length === 0 ? <div className="text-xs text-zinc-400">暂无可展示时间线</div> : null}
           {timeline.map((event) => (
             <details key={event.id} className="rounded border border-zinc-200 bg-white px-2 py-2 text-xs text-zinc-700">
-              <summary className="cursor-pointer">
-                <span className="font-medium">[{event.type}]</span> {renderEventText(event).slice(0, 110) || "(空内容)"}
+              <summary className="cursor-pointer flex flex-wrap items-center gap-2">
+                <div className="flex-1 min-w-0 truncate">
+                  <span className="font-medium mr-1.5">[{event.type}]</span>
+                  {renderEventText(event).slice(0, 110) || "(空内容)"}
+                </div>
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  {event.usage ? (
+                    <span className="flex items-center gap-1.5 rounded-md border border-zinc-200 bg-zinc-50 px-1.5 py-0.5 text-[10px] text-zinc-500 font-mono">
+                      <span title="输入 Tokens">↑ {(event.usage.input_tokens || 0) + (event.usage.cache_creation_input_tokens || 0) + (event.usage.cache_read_input_tokens || 0)}</span>
+                      <span className="text-zinc-300">|</span>
+                      <span title="输出 Tokens">↓ {event.usage.output_tokens || 0}</span>
+                      <span className="text-zinc-300">|</span>
+                      <span title="总 Tokens" className="font-medium text-zinc-700">∑ {(event.usage.input_tokens || 0) + (event.usage.cache_read_input_tokens || 0) + (event.usage.cache_creation_input_tokens || 0) + (event.usage.output_tokens || 0)}</span>
+                    </span>
+                  ) : null}
+                  {event.timestampStr ? (
+                    <span className="rounded-md bg-zinc-100 px-1.5 py-0.5 text-[10px] text-zinc-500 font-mono border border-zinc-200/50">
+                      {event.timestampStr}
+                    </span>
+                  ) : null}
+                </div>
               </summary>
               <pre className="mt-2 max-h-48 overflow-auto rounded bg-zinc-900 p-2 text-[11px] text-zinc-100">
                 {formatJson(event.raw)}

@@ -34,6 +34,7 @@ export interface DashboardOverview {
     qcRejectedCount: number;
     latestImport: ImportSnapshot | null;
   };
+  timeSeries: Array<{ timeBlock: string; verifyCount: number; qcCount: number }>;
 }
 
 export interface RunView {

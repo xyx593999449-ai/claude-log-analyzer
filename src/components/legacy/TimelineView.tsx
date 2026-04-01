@@ -58,7 +58,23 @@ export function TimelineView({ timeline }: { timeline: ParsedEvent[] }) {
               <details className={`rounded-xl border px-4 py-3 text-xs shadow-sm transition-shadow hover:shadow-md ${isError ? 'border-l-4 border-l-rose-500 border-y-rose-200 border-r-rose-200 bg-rose-50' : cardStyle(event)}`} open={isError}>
                 <summary className="cursor-pointer list-none flex items-start gap-2">
                   <span className={`font-bold uppercase tracking-wider shrink-0 mt-0.5 ${isError ? 'text-rose-700' : 'text-slate-800'}`}>{event.type}</span>
-                  <span className={`leading-relaxed ${isError ? 'text-rose-900 font-medium' : 'text-slate-600'}`}>{eventSummary(event)}</span>
+                  <span className={`leading-relaxed flex-1 ${isError ? 'text-rose-900 font-medium' : 'text-slate-600'}`}>{eventSummary(event)}</span>
+                  <div className="flex flex-wrap items-center gap-2 shrink-0 ml-auto">
+                    {event.usage ? (
+                      <span className="flex items-center gap-1.5 rounded-md border border-slate-200/60 bg-white/60 px-2 py-0.5 text-[10px] text-slate-500 font-mono shadow-sm">
+                        <span title="输入 Tokens">↑ {(event.usage.input_tokens || 0) + (event.usage.cache_creation_input_tokens || 0) + (event.usage.cache_read_input_tokens || 0)}</span>
+                        <span className="text-slate-300">|</span>
+                        <span title="输出 Tokens">↓ {event.usage.output_tokens || 0}</span>
+                        <span className="text-slate-300">|</span>
+                        <span title="总 Tokens" className="font-semibold text-slate-700">∑ {(event.usage.input_tokens || 0) + (event.usage.cache_read_input_tokens || 0) + (event.usage.cache_creation_input_tokens || 0) + (event.usage.output_tokens || 0)}</span>
+                      </span>
+                    ) : null}
+                    {event.timestampStr ? (
+                      <span className="rounded-md border border-slate-200/60 bg-white/60 px-2 py-0.5 text-[10px] text-slate-500 font-mono shadow-sm">
+                        {event.timestampStr}
+                      </span>
+                    ) : null}
+                  </div>
                 </summary>
                 <div className="mt-3 pl-1">
                   <pre className="ide-scrollbar max-h-64 overflow-auto rounded-lg border border-slate-200 shadow-inner bg-slate-900 p-3 text-[11px] text-slate-100 font-mono tracking-tight">

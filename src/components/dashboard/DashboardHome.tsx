@@ -15,6 +15,7 @@ import {
   type UploadItem,
 } from "./dashboardModel";
 import { ExecutionCard, SectionIntro, SpotlightCard, StatusPill, UploadZone } from "./dashboardWidgets";
+import { TimeseriesChart } from "./TimeseriesChart";
 
 
 
@@ -381,6 +382,12 @@ export function DashboardHome() {
             <ExecutionCard title="质检执行概览" metrics={overview?.qcMetrics} tone="qc" />
           </div>
         </section>
+
+        {overview?.timeSeries && overview.timeSeries.length > 0 ? (
+          <section className="reveal-card delay-2 relative overflow-visible">
+            <TimeseriesChart data={overview.timeSeries} />
+          </section>
+        ) : null}
 
         {error ? <div className="reveal-card delay-2 rounded-2xl border border-rose-200 bg-rose-50/90 px-4 py-3 text-sm text-rose-700">{error}</div> : null}
 
