@@ -828,9 +828,8 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
               ))
               OR (qr.task_id IS NOT NULL AND q.qc_status IS NOT NULL AND qr.status <> 'success')
             ) THEN 1
-            ELSE 0
-          END AS has_anomaly,
-          i.updatetime
+            ELSE NULL
+          END AS has_anomaly
         FROM poi_init i
         LEFT JOIN poi_verified v ON v.task_id = i.task_id
         LEFT JOIN poi_qc q ON q.task_id = i.task_id
@@ -848,7 +847,7 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
     const limitIndex = params.length + 1;
     const offsetIndex = params.length + 2;
     const rowsRes = await this.pool.query(
-      `${baseSql} ORDER BY updatetime DESC NULLS LAST, task_id DESC LIMIT $${limitIndex} OFFSET $${offsetIndex}`,
+      `${baseSql} ORDER BY (CASE WHEN (t.updatetime IS NULL OR t.updatetime = '') THEN 0 ELSE 1 END) DESC, t.updatetime DESC, t.task_id DESC LIMIT $${limitIndex} OFFSET $${offsetIndex}`,
       pageParams,
     );
 

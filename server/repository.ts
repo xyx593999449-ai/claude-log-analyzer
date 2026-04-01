@@ -224,7 +224,7 @@ function ensureSchema(db: Database.Database): void {
       raw_json TEXT
     );
 
-    CREATE TABLE IF NOT EXISTS temp_task_analysis (
+    CREATE TABLE IF NOT EXISTS poi_task_analysis (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       import_batch_id TEXT NOT NULL,
       phase TEXT NOT NULL,
@@ -252,8 +252,8 @@ function ensureSchema(db: Database.Database): void {
       created_at TEXT NOT NULL
     );
 
-    CREATE INDEX IF NOT EXISTS idx_temp_task_task_phase ON temp_task_analysis(task_id, phase);
-    CREATE INDEX IF NOT EXISTS idx_temp_task_batch ON temp_task_analysis(import_batch_id);
+    CREATE INDEX IF NOT EXISTS idx_temp_task_task_phase ON poi_task_analysis(task_id, phase);
+    CREATE INDEX IF NOT EXISTS idx_temp_task_batch ON poi_task_analysis(import_batch_id);
 
     CREATE TABLE IF NOT EXISTS analysis_imports (
       import_batch_id TEXT PRIMARY KEY,
@@ -507,7 +507,7 @@ export class DashboardRepository implements DashboardRepositoryPort {
   }
 
   async clearAnalysisCache(): Promise<{ deletedRows: number; deletedImports: number }> {
-    const deleteRuns = this.db.prepare("DELETE FROM temp_task_analysis").run();
+    const deleteRuns = this.db.prepare("DELETE FROM poi_task_analysis").run();
     const deleteImports = this.db.prepare("DELETE FROM analysis_imports").run();
     return { deletedRows: deleteRuns.changes, deletedImports: deleteImports.changes };
   }
@@ -539,7 +539,7 @@ export class DashboardRepository implements DashboardRepositoryPort {
 
   async insertAggregatedRuns(batchId: string, rows: AggregatedTaskRun[]): Promise<void> {
     const stmt = this.db.prepare(`
-      INSERT INTO temp_task_analysis (
+      INSERT INTO poi_task_analysis (
         import_batch_id,phase,task_id,row_number,worker_id,batch_id,status,started_at,ended_at,duration_ms,
         attempt_count,retry_count,session_count,session_ids_json,total_input_tokens,total_output_tokens,total_cache_tokens,
         total_cost_usd,total_model_duration_ms,total_tool_calls,total_tool_errors,error_summary,raw_details_json,created_at
@@ -675,8 +675,8 @@ export class DashboardRepository implements DashboardRepositoryPort {
         .prepare(`
           WITH latest AS (
             SELECT *
-            FROM temp_task_analysis
-            WHERE id IN (SELECT MAX(id) FROM temp_task_analysis ${buildWhere().sql} GROUP BY task_id, phase)
+            FROM poi_task_analysis
+            WHERE id IN (SELECT MAX(id) FROM poi_task_analysis ${buildWhere().sql} GROUP BY task_id, phase)
           ),
           verify_runs AS (SELECT * FROM latest WHERE phase = 'verify'),
           qc_runs AS (SELECT * FROM latest WHERE phase = 'qc')
@@ -713,8 +713,8 @@ export class DashboardRepository implements DashboardRepositoryPort {
       .prepare(`
         WITH latest AS (
           SELECT *
-          FROM temp_task_analysis
-          WHERE id IN (SELECT MAX(id) FROM temp_task_analysis ${buildWhere().sql} GROUP BY task_id, phase)
+          FROM poi_task_analysis
+          WHERE id IN (SELECT MAX(id) FROM poi_task_analysis ${buildWhere().sql} GROUP BY task_id, phase)
         )
         SELECT phase,
                COUNT(*) as task_count,
@@ -836,8 +836,8 @@ export class DashboardRepository implements DashboardRepositoryPort {
           .prepare(`
             WITH latest AS (
               SELECT *
-              FROM temp_task_analysis
-              WHERE id IN (SELECT MAX(id) FROM temp_task_analysis ${buildWhere().sql} GROUP BY task_id, phase)
+              FROM poi_task_analysis
+              WHERE id IN (SELECT MAX(id) FROM poi_task_analysis ${buildWhere().sql} GROUP BY task_id, phase)
             ),
             verify_runs AS (SELECT * FROM latest WHERE phase = 'verify'),
             qc_runs AS (SELECT * FROM latest WHERE phase = 'qc')
@@ -882,7 +882,7 @@ export class DashboardRepository implements DashboardRepositoryPort {
     const rows = (this.db.prepare(`
       WITH latest AS (
         SELECT task_id, phase, started_at
-        FROM temp_task_analysis
+        FROM poi_task_analysis
         ${buildWhere().sql}
       ),
       latest_grouped AS (
@@ -949,8 +949,8 @@ export class DashboardRepository implements DashboardRepositoryPort {
     const baseSql = `
       WITH latest AS (
         SELECT *
-        FROM temp_task_analysis
-        WHERE id IN (SELECT MAX(id) FROM temp_task_analysis GROUP BY task_id, phase)
+        FROM poi_task_analysis
+        WHERE id IN (SELECT MAX(id) FROM poi_task_analysis GROUP BY task_id, phase)
       ),
       verify_runs AS (SELECT * FROM latest WHERE phase = 'verify'),
       qc_runs AS (SELECT * FROM latest WHERE phase = 'qc'),
@@ -1052,7 +1052,7 @@ export class DashboardRepository implements DashboardRepositoryPort {
 
     const total = Number((this.db.prepare(`SELECT COUNT(*) as count FROM (${baseSql}) t`).get(params) as { count: number }).count);
 
-    const sql = `${baseSql} ORDER BY (CASE WHEN updatetime IS NULL THEN 0 ELSE 1 END) DESC, updatetime DESC, task_id DESC LIMIT @limit OFFSET @offset`;
+    const sql = `SELECT * FROM (${baseSql}) t ORDER BY (CASE WHEN (t.updatetime IS NULL OR t.updatetime = '') THEN 0 ELSE 1 END) DESC, t.updatetime DESC, t.task_id DESC LIMIT @limit OFFSET @offset`;
     console.log("EXECUTING SQL:", sql);
     const rows = this.db
       .prepare(sql)
@@ -1070,11 +1070,11 @@ export class DashboardRepository implements DashboardRepositoryPort {
     const runRows = this.db
       .prepare(`
         SELECT phase, session_ids_json, import_batch_id
-        FROM temp_task_analysis
+        FROM poi_task_analysis
         WHERE task_id = ?
           AND id IN (
             SELECT MAX(id)
-            FROM temp_task_analysis
+            FROM poi_task_analysis
             WHERE task_id = ?
             GROUP BY task_id, phase
           )
@@ -1126,8 +1126,8 @@ export class DashboardRepository implements DashboardRepositoryPort {
     const rows = this.db.prepare(`
       WITH latest AS (
         SELECT *
-        FROM temp_task_analysis
-        WHERE id IN (SELECT MAX(id) FROM temp_task_analysis GROUP BY task_id, phase)
+        FROM poi_task_analysis
+        WHERE id IN (SELECT MAX(id) FROM poi_task_analysis GROUP BY task_id, phase)
       ),
       verify_runs AS (SELECT * FROM latest WHERE phase = 'verify'),
       qc_runs AS (SELECT * FROM latest WHERE phase = 'qc'),
