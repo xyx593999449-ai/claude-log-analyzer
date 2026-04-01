@@ -171,13 +171,13 @@ function buildTaskFilterSqlPg(filters: DashboardFilters): { whereSql: string; pa
   }
 
   if (filters.verifyStatus) {
-    clauses.push(`COALESCE(verified_status, init_verify_status, '') = $${idx}`);
+    clauses.push(`COALESCE(verified_status::text, init_verify_status::text, '') = $${idx}`);
     params.push(filters.verifyStatus);
     idx += 1;
   }
 
   if (filters.qcStatus) {
-    clauses.push(`COALESCE(NULLIF(quality_status, ''), NULLIF(qc_status, ''), '') = $${idx}`);
+    clauses.push(`COALESCE(NULLIF(quality_status::text, ''), NULLIF(qc_status::text, ''), '') = $${idx}`);
     params.push(filters.qcStatus);
     idx += 1;
   }
@@ -192,14 +192,14 @@ function buildTaskFilterSqlPg(filters: DashboardFilters): { whereSql: string; pa
 
   for (const tag of filters.alertTags) {
     if (tag === "核实阻塞异常") alertClauses.push("COALESCE(verify_retry_count, 0) > 5");
-    if (tag === "核实执行异常") alertClauses.push("(verify_task_id IS NOT NULL AND COALESCE(verify_status, '') <> 'success' AND COALESCE(verify_retry_count, 0) <= 5)");
+    if (tag === "核实执行异常") alertClauses.push("(verify_task_id IS NOT NULL AND COALESCE(verify_status::text, '') <> 'success' AND COALESCE(verify_retry_count, 0) <= 5)");
     if (tag === "质检阻塞异常") alertClauses.push("COALESCE(qc_retry_count, 0) > 5");
-    if (tag === "质检执行异常") alertClauses.push("(qc_task_id IS NOT NULL AND COALESCE(qc_status_run, '') <> 'success' AND COALESCE(qc_retry_count, 0) <= 5)");
-    if (tag === "需人工介入") alertClauses.push(`(COALESCE(verify_result, '') = '${VERIFY_MANUAL}' OR is_qualified = 0)`);
-    if (tag === "质检不通过") alertClauses.push("is_qualified = 0");
-    if (tag === "高风险任务") alertClauses.push("(COALESCE(has_risk, 0) = 1 OR COALESCE(qc_status, '') = 'risky')");
-    if (tag === "核实状态不一致") alertClauses.push("COALESCE(verify_mismatch_reason, '') <> ''");
-    if (tag === "质检状态不一致") alertClauses.push("COALESCE(qc_mismatch_reason, '') <> ''");
+    if (tag === "质检执行异常") alertClauses.push("(qc_task_id IS NOT NULL AND COALESCE(qc_status_run::text, '') <> 'success' AND COALESCE(qc_retry_count, 0) <= 5)");
+    if (tag === "需人工介入") alertClauses.push(`(COALESCE(verify_result::text, '') = '${VERIFY_MANUAL}' OR COALESCE(is_qualified, 0) = 0)`);
+    if (tag === "质检不通过") alertClauses.push("COALESCE(is_qualified, 0) = 0");
+    if (tag === "高风险任务") alertClauses.push("(COALESCE(has_risk, 0) = 1 OR COALESCE(qc_status::text, '') = 'risky')");
+    if (tag === "核实状态不一致") alertClauses.push("COALESCE(verify_mismatch_reason::text, '') <> ''");
+    if (tag === "质检状态不一致") alertClauses.push("COALESCE(qc_mismatch_reason::text, '') <> ''");
   }
 
   if (alertClauses.length > 0) {
@@ -207,10 +207,13 @@ function buildTaskFilterSqlPg(filters: DashboardFilters): { whereSql: string; pa
   }
 
   if (filters.batches && filters.batches.length > 0) {
-    const likeClauses = filters.batches.map((b, i) => `task_id LIKE $${idx + i}`);
-    clauses.push(`(${likeClauses.join(" OR ")})`);
-    params.push(...filters.batches.map((b) => `%\\_${b}`));
-    idx += filters.batches.length;
+    const batchClauses = filters.batches.map((b, i) => `(task_id = $${idx + i * 2} OR task_id LIKE $${idx + i * 2 + 1})`);
+    clauses.push(`(${batchClauses.join(" OR ")})`);
+    filters.batches.forEach(b => {
+      params.push(b);
+      params.push(`%\\_${b}`);
+    });
+    idx += filters.batches.length * 2;
   }
 
   return {
@@ -428,18 +431,18 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
     await this.ready();
     const verifyStatusesRes = await this.pool.query(
       `
-        SELECT DISTINCT COALESCE(v.verify_status, i.verify_status, '') as status
+        SELECT DISTINCT COALESCE(v.verify_status::text, i.verify_status::text, '') as status
         FROM poi_init i
         LEFT JOIN poi_verified v ON v.task_id = i.task_id
-        WHERE COALESCE(v.verify_status, i.verify_status, '') != ''
+        WHERE COALESCE(v.verify_status::text, i.verify_status::text, '') != ''
         ORDER BY status
       `,
     );
     const qcStatusesRes = await this.pool.query(
       `
-        SELECT DISTINCT COALESCE(NULLIF(quality_status, ''), NULLIF(qc_status, ''), '') as status
+        SELECT DISTINCT COALESCE(NULLIF(quality_status::text, ''), NULLIF(qc_status::text, ''), '') as status
         FROM poi_qc
-        WHERE COALESCE(NULLIF(quality_status, ''), NULLIF(qc_status, ''), '') != ''
+        WHERE COALESCE(NULLIF(quality_status::text, ''), NULLIF(qc_status::text, ''), '') != ''
         ORDER BY status
       `,
     );
@@ -479,7 +482,7 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
     const totalTasks = Number(totalTasksRes.rows[0]?.count ?? 0);
 
     const verifyStatusCountsRes = await this.pool.query(
-      `SELECT COALESCE(verify_status,'未知状态') as status, COUNT(*)::bigint as count FROM poi_init i ${wInit.sql} GROUP BY verify_status ORDER BY count DESC`,
+      `SELECT COALESCE(verify_status::text,'未知状态') as status, COUNT(*)::bigint as count FROM poi_init i ${wInit.sql} GROUP BY verify_status ORDER BY count DESC`,
       wInit.params
     );
     const verifyStatusCounts = verifyStatusCountsRes.rows.map((item) => ({
@@ -499,15 +502,15 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
       SELECT
         CASE
           WHEN q.is_qualified IS NOT NULL
-            OR COALESCE(q.quality_status, '') = '已质检'
-            OR COALESCE(q.qc_status, '') != ''
+            OR COALESCE(q.quality_status::text, '') = '已质检'
+            OR COALESCE(q.qc_status::text, '') != ''
           THEN 'qc_done'
           WHEN qr.task_id IS NOT NULL
-            OR COALESCE(q.quality_status, '') = '质检中'
+            OR COALESCE(q.quality_status::text, '') = '质检中'
           THEN 'qc_running'
           WHEN vr.status = 'success'
-            OR COALESCE(v.verify_status, '') != ''
-            OR COALESCE(v.verify_result, '') != ''
+            OR COALESCE(v.verify_status::text, '') != ''
+            OR COALESCE(v.verify_result::text, '') != ''
           THEN 'verified_waiting_qc'
           WHEN vr.task_id IS NOT NULL
           THEN 'verifying'
@@ -623,7 +626,7 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
       FROM poi_init i
       LEFT JOIN poi_verified v ON v.task_id = i.task_id
       LEFT JOIN poi_qc q ON q.task_id = i.task_id
-      WHERE (COALESCE(v.verify_result, '') = '${VERIFY_MANUAL}'
+      WHERE (COALESCE(v.verify_result::text, '') = '${VERIFY_MANUAL}'
          OR COALESCE(q.is_qualified, 0) = 0)
          ${buildAnd("i.").sql}
     `, buildAnd("i.").params);
@@ -648,8 +651,8 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
           vr.task_id IS NOT NULL
           AND v.verify_status IS NOT NULL
           AND (
-            (vr.status = 'success' AND v.verify_status NOT IN ('${VERIFY_DONE}','${VERIFY_MANUAL}','${VERIFY_BATCH_CREATED}'))
-            OR (vr.status <> 'success' AND v.verify_status IN ('${VERIFY_DONE}','${VERIFY_MANUAL}','${VERIFY_BATCH_CREATED}'))
+            (vr.status = 'success' AND v.verify_status::text NOT IN ('${VERIFY_DONE}','${VERIFY_MANUAL}','${VERIFY_BATCH_CREATED}'))
+            OR (vr.status <> 'success' AND v.verify_status::text IN ('${VERIFY_DONE}','${VERIFY_MANUAL}','${VERIFY_BATCH_CREATED}'))
           )
         )
         OR (
@@ -805,10 +808,10 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
             WHEN vr.task_id IS NOT NULL
               AND v.verify_status IS NOT NULL
               AND (
-                (vr.status = 'success' AND v.verify_status NOT IN ('${VERIFY_DONE}','${VERIFY_MANUAL}','${VERIFY_BATCH_CREATED}'))
-                OR (vr.status <> 'success' AND v.verify_status IN ('${VERIFY_DONE}','${VERIFY_MANUAL}','${VERIFY_BATCH_CREATED}'))
+                (vr.status = 'success' AND v.verify_status::text NOT IN ('${VERIFY_DONE}','${VERIFY_MANUAL}','${VERIFY_BATCH_CREATED}'))
+                OR (vr.status <> 'success' AND v.verify_status::text IN ('${VERIFY_DONE}','${VERIFY_MANUAL}','${VERIFY_BATCH_CREATED}'))
               )
-            THEN ('日志状态(' || COALESCE(vr.status,'unknown') || ') 与数据库核实状态(' || COALESCE(v.verify_status,'') || ') 不一致')
+            THEN ('日志状态(' || COALESCE(vr.status::text,'unknown') || ') 与数据库核实状态(' || COALESCE(v.verify_status::text,'') || ') 不一致')
             ELSE NULL
           END AS verify_mismatch_reason,
 
@@ -816,15 +819,15 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
             WHEN qr.task_id IS NOT NULL
               AND q.qc_status IS NOT NULL
               AND qr.status <> 'success'
-            THEN ('日志状态(' || COALESCE(qr.status,'unknown') || ') 与数据库质检状态(' || COALESCE(q.qc_status,'') || ') 不一致')
+            THEN ('日志状态(' || COALESCE(qr.status::text,'unknown') || ') 与数据库质检状态(' || COALESCE(q.qc_status::text,'') || ') 不一致')
             ELSE NULL
           END AS qc_mismatch_reason,
 
           CASE
             WHEN (
               (vr.task_id IS NOT NULL AND v.verify_status IS NOT NULL AND (
-                (vr.status = 'success' AND v.verify_status NOT IN ('${VERIFY_DONE}','${VERIFY_MANUAL}','${VERIFY_BATCH_CREATED}'))
-                OR (vr.status <> 'success' AND v.verify_status IN ('${VERIFY_DONE}','${VERIFY_MANUAL}','${VERIFY_BATCH_CREATED}'))
+                (vr.status = 'success' AND v.verify_status::text NOT IN ('${VERIFY_DONE}','${VERIFY_MANUAL}','${VERIFY_BATCH_CREATED}'))
+                OR (vr.status <> 'success' AND v.verify_status::text IN ('${VERIFY_DONE}','${VERIFY_MANUAL}','${VERIFY_BATCH_CREATED}'))
               ))
               OR (qr.task_id IS NOT NULL AND q.qc_status IS NOT NULL AND qr.status <> 'success')
             ) THEN 1
@@ -847,7 +850,7 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
     const limitIndex = params.length + 1;
     const offsetIndex = params.length + 2;
     const rowsRes = await this.pool.query(
-      `SELECT * FROM (${baseSql}) t ORDER BY (CASE WHEN (t.updatetime IS NULL OR t.updatetime = '') THEN 0 ELSE 1 END) DESC, t.updatetime DESC, t.task_id DESC LIMIT $${limitIndex} OFFSET $${offsetIndex}`,
+      `SELECT * FROM (${baseSql}) t ORDER BY t.updatetime DESC NULLS LAST, t.task_id DESC LIMIT $${limitIndex} OFFSET $${offsetIndex}`,
       pageParams,
     );
 
@@ -980,8 +983,8 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
           CASE
             WHEN (
               (vr.task_id IS NOT NULL AND v.verify_status IS NOT NULL AND (
-                (vr.status = 'success' AND v.verify_status NOT IN ('${VERIFY_DONE}','${VERIFY_MANUAL}','${VERIFY_BATCH_CREATED}'))
-                OR (vr.status <> 'success' AND v.verify_status IN ('${VERIFY_DONE}','${VERIFY_MANUAL}','${VERIFY_BATCH_CREATED}'))
+                (vr.status = 'success' AND v.verify_status::text NOT IN ('${VERIFY_DONE}','${VERIFY_MANUAL}','${VERIFY_BATCH_CREATED}'))
+                OR (vr.status <> 'success' AND v.verify_status::text IN ('${VERIFY_DONE}','${VERIFY_MANUAL}','${VERIFY_BATCH_CREATED}'))
               ))
               OR (qr.task_id IS NOT NULL AND q.qc_status IS NOT NULL AND qr.status <> 'success')
             ) THEN 1
