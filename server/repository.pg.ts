@@ -156,7 +156,7 @@ function normalizeTask(row: Record<string, unknown>): DashboardTaskItem {
   return item;
 }
 
-function buildTaskFilterSqlPg(filters: DashboardFilters): { whereSql: string; params: unknown[] } {
+function buildTaskFilterSqlPg(filters: DashboardFilters, prefix: string = ""): { whereSql: string; params: unknown[] } {
   const clauses: string[] = [];
   const alertClauses: string[] = [];
   const params: unknown[] = [];
@@ -164,7 +164,7 @@ function buildTaskFilterSqlPg(filters: DashboardFilters): { whereSql: string; pa
 
   if (filters.search) {
     clauses.push(
-      `(task_id ILIKE $${idx} OR poi_id ILIKE $${idx} OR name ILIKE $${idx} OR address ILIKE $${idx} OR city ILIKE $${idx})`,
+      `(${prefix}task_id ILIKE $${idx} OR poi_id ILIKE $${idx} OR name ILIKE $${idx} OR address ILIKE $${idx} OR city ILIKE $${idx})`,
     );
     params.push(`%${filters.search}%`);
     idx += 1;
@@ -207,7 +207,7 @@ function buildTaskFilterSqlPg(filters: DashboardFilters): { whereSql: string; pa
   }
 
   if (filters.batches && filters.batches.length > 0) {
-    const batchClauses = filters.batches.map((b, i) => `(task_id = $${idx + i * 2} OR task_id LIKE $${idx + i * 2 + 1})`);
+    const batchClauses = filters.batches.map((b, i) => `(${prefix}task_id = $${idx + i * 2} OR ${prefix}task_id LIKE $${idx + i * 2 + 1})`);
     clauses.push(`(${batchClauses.join(" OR ")})`);
     filters.batches.forEach(b => {
       params.push(b);
@@ -769,7 +769,7 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
 
   async getTaskList(filters: DashboardFilters): Promise<TaskListResult> {
     await this.ready();
-    const { whereSql, params } = buildTaskFilterSqlPg(filters);
+    const { whereSql, params: filterParams } = buildTaskFilterSqlPg(filters, "i.");
 
     const baseSql = `
       WITH latest AS (
@@ -874,7 +874,7 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
       SELECT * FROM merged
       ${whereSql}
       ORDER BY COALESCE(qc_time, verify_time, updatetime::text) DESC NULLS LAST
-      LIMIT $${params.length + 1} OFFSET $${params.length + 2}
+      LIMIT $${filterParams.length + 1} OFFSET $${filterParams.length + 2}
     `;
     const countSql = `
       WITH latest AS (
@@ -895,10 +895,10 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
       SELECT COUNT(*) as count FROM merged
     `;
 
-    const totalRes = await this.pool.query(countSql, params);
+    const totalRes = await this.pool.query(countSql, filterParams);
     const total = Number(totalRes.rows[0]?.count ?? 0);
 
-    const pageParams = [...params, filters.pageSize, (filters.page - 1) * filters.pageSize];
+    const pageParams = [...filterParams, filters.pageSize, (filters.page - 1) * filters.pageSize];
     const rowsRes = await this.pool.query(baseSql, pageParams);
 
     return {

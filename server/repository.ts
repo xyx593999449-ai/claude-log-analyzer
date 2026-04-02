@@ -382,7 +382,7 @@ function mapRun(row: Record<string, unknown>, phase: AnalysisPhase): RunView | n
   };
 }
 
-function buildTaskFilterSql(filters: DashboardFilters): { whereSql: string; params: Record<string, unknown> } {
+function buildTaskFilterSql(filters: DashboardFilters, prefix: string = ""): { whereSql: string; params: Record<string, unknown> } {
   const clauses: string[] = [];
   const params: Record<string, unknown> = {
     limit: filters.pageSize,
@@ -391,7 +391,9 @@ function buildTaskFilterSql(filters: DashboardFilters): { whereSql: string; para
   const alertClauses: string[] = [];
 
   if (filters.search) {
-    clauses.push("(task_id LIKE @search OR poi_id LIKE @search OR name LIKE @search OR address LIKE @search OR city LIKE @search)");
+    clauses.push(
+      `(${prefix}task_id LIKE @search OR poi_id LIKE @search OR name LIKE @search OR address LIKE @search OR city LIKE @search)`,
+    );
     params.search = `%${filters.search}%`;
   }
 
@@ -646,17 +648,16 @@ export class DashboardRepository implements DashboardRepositoryPort {
   async getOverview(filters: DashboardFilters): Promise<DashboardOverview> {
     const batches = filters.batches;
     const buildWhere = (prefix = "") => {
-      const { whereSql, params } = buildTaskFilterSql(filters);
-      // buildTaskFilterSql uses @param names. We need to adapt it slightly for overview if prefix is needed.
-      // But for simplicity, let's just use the same logic here or refactor.
-      // Given the complexity of different prefixes (i., v., q.), let's stick to the current manually built clauses for now but add time range.
+      const { whereSql, params: filterParams } = buildTaskFilterSql(filters, prefix);
       
       const clauses: string[] = [];
-      const bindParams: Record<string, unknown> = {};
+      const bindParams: Record<string, unknown> = { ...filterParams };
 
-      if (batches && batches.length > 0) {
-        const bClauses = batches.map((b, i) => `(${prefix}task_id = @b_exact_${i} OR ${prefix}task_id LIKE @b_like_${i})`);
-        clauses.push(`(${bClauses.join(" OR ")})`);
+      if (filters.batches && filters.batches.length > 0) {
+        const batchClauses = filters.batches.map(
+          (_, i) => `(${prefix}task_id = @b_exact_${i} OR ${prefix}task_id LIKE @b_like_${i})`,
+        );
+        clauses.push(`(${batchClauses.join(" OR ")})`);
         batches.forEach((b, i) => {
           bindParams[`b_exact_${i}`] = b;
           bindParams[`b_like_${i}`] = `%_${b}`;
@@ -991,7 +992,7 @@ export class DashboardRepository implements DashboardRepositoryPort {
   }
 
   async getTaskList(filters: DashboardFilters): Promise<TaskListResult> {
-    const { whereSql, params } = buildTaskFilterSql(filters);
+    const { whereSql, params } = buildTaskFilterSql(filters, "i.");
 
     const baseSql = `
       WITH latest AS (
