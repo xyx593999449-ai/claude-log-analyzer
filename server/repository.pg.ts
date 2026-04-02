@@ -156,7 +156,7 @@ function normalizeTask(row: Record<string, unknown>): DashboardTaskItem {
   return item;
 }
 
-function buildTaskFilterSqlPg(filters: DashboardFilters, prefix: string = ""): { whereSql: string; params: unknown[] } {
+function buildTaskFilterSqlPg(filters: DashboardFilters): { whereSql: string; params: unknown[] } {
   const clauses: string[] = [];
   const alertClauses: string[] = [];
   const params: unknown[] = [];
@@ -164,7 +164,7 @@ function buildTaskFilterSqlPg(filters: DashboardFilters, prefix: string = ""): {
 
   if (filters.search) {
     clauses.push(
-      `(${prefix}task_id ILIKE $${idx} OR poi_id ILIKE $${idx} OR name ILIKE $${idx} OR address ILIKE $${idx} OR city ILIKE $${idx})`,
+      `(task_id ILIKE $${idx} OR poi_id ILIKE $${idx} OR name ILIKE $${idx} OR address ILIKE $${idx} OR city ILIKE $${idx})`,
     );
     params.push(`%${filters.search}%`);
     idx += 1;
@@ -207,7 +207,7 @@ function buildTaskFilterSqlPg(filters: DashboardFilters, prefix: string = ""): {
   }
 
   if (filters.batches && filters.batches.length > 0) {
-    const batchClauses = filters.batches.map((b, i) => `(${prefix}task_id = $${idx + i * 2} OR ${prefix}task_id LIKE $${idx + i * 2 + 1})`);
+    const batchClauses = filters.batches.map((b, i) => `(task_id = $${idx + i * 2} OR task_id LIKE $${idx + i * 2 + 1})`);
     clauses.push(`(${batchClauses.join(" OR ")})`);
     filters.batches.forEach(b => {
       params.push(b);
@@ -216,15 +216,16 @@ function buildTaskFilterSqlPg(filters: DashboardFilters, prefix: string = ""): {
     idx += filters.batches.length * 2;
   }
 
-  if (filters.startDate) {
-    clauses.push(`COALESCE(q.qc_time::text, v.verify_time::text, i.updatetime::text) >= $${idx}`);
-    params.push(filters.startDate);
+  // 时间段筛选：基于业务最新动作时间（质检时间 > 核实时间 > 初始更新时间）
+  // 注意：此处引用的字段来自 merged CTE 中的列名，需确保 qc_time / verify_time / updatetime 在外层可访问
+  if (filters.startTime) {
+    clauses.push(`COALESCE(qc_time, verify_time, updatetime::text) >= $${idx}`);
+    params.push(filters.startTime);
     idx += 1;
   }
-
-  if (filters.endDate) {
-    clauses.push(`COALESCE(q.qc_time::text, v.verify_time::text, i.updatetime::text) <= $${idx}`);
-    params.push(filters.endDate);
+  if (filters.endTime) {
+    clauses.push(`COALESCE(qc_time, verify_time, updatetime::text) <= $${idx}`);
+    params.push(filters.endTime);
     idx += 1;
   }
 
@@ -464,25 +465,19 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
     };
   }
 
-  async getOverview(filters: DashboardFilters): Promise<DashboardOverview> {
+  async getOverview(batches?: string[], startTime?: string, endTime?: string): Promise<DashboardOverview> {
     await this.ready();
-    const batches = filters.batches;
-    
-    const getBusinessTimeSql = (p: string) => {
-      if (p === 'i.') return "COALESCE(q.qc_time::text, v.verify_time::text, i.updatetime::text)";
-      if (p === 'v.') return "v.verify_time::text";
-      if (p === 'q.') return "q.qc_time::text";
-      return "COALESCE(q.qc_time::text, v.verify_time::text, i.updatetime::text)";
-    };
 
-    const buildOverviewWhere = (prefix = "") => {
+    // 构建 WHERE 子句辅助函数，同时包含批次过滤和时间段过滤
+    // prefix: 表别名前缀（如 "i."），timePrefix: 用于时间过滤的表别名前缀组合
+    const buildWhere = (prefix = "", opts?: { timePrefix?: string; timeField?: string }) => {
       const clauses: string[] = [];
       const params: unknown[] = [];
       let idx = 1;
 
       if (batches && batches.length > 0) {
-        const bClauses = batches.map((b, i) => `(${prefix}task_id = $${idx + i * 2} OR ${prefix}task_id LIKE $${idx + i * 2 + 1})`);
-        clauses.push(`(${bClauses.join(" OR ")})`);
+        const batchClauses = batches.map((b, i) => `(${prefix}task_id = $${idx + i * 2} OR ${prefix}task_id LIKE $${idx + i * 2 + 1})`);
+        clauses.push(`(${batchClauses.join(" OR ")})`);
         batches.forEach(b => {
           params.push(b);
           params.push(`%\\_${b}`);
@@ -490,42 +485,79 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
         idx += batches.length * 2;
       }
 
-      if (filters.startDate) {
-        clauses.push(`${getBusinessTimeSql(prefix)} >= $${idx}`);
-        params.push(filters.startDate);
+      // 时间段过滤：仅当有时间参数时才注入
+      const tf = opts?.timeField || "started_at";
+      const tp = opts?.timePrefix || "";
+      if (startTime) {
+        clauses.push(`${tp}${tf}::text >= $${idx}`);
+        params.push(startTime);
         idx += 1;
       }
-      if (filters.endDate) {
-        clauses.push(`${getBusinessTimeSql(prefix)} <= $${idx}`);
-        params.push(filters.endDate);
+      if (endTime) {
+        clauses.push(`${tp}${tf}::text <= $${idx}`);
+        params.push(endTime);
         idx += 1;
       }
-      return { sql: clauses.length ? `WHERE ${clauses.join(" AND ")}` : "", params };
+
+      if (clauses.length === 0) return { sql: "", params: [] as unknown[] };
+      return { sql: `WHERE ${clauses.join(" AND ")}`, params };
+    };
+    
+    const buildAnd = (prefix = "", opts?: { timePrefix?: string; timeField?: string }) => {
+      const clauses: string[] = [];
+      const params: unknown[] = [];
+      let idx = 1;
+
+      if (batches && batches.length > 0) {
+        const batchClauses = batches.map((b, i) => `(${prefix}task_id = $${idx + i * 2} OR ${prefix}task_id LIKE $${idx + i * 2 + 1})`);
+        clauses.push(`(${batchClauses.join(" OR ")})`);
+        batches.forEach(b => {
+          params.push(b);
+          params.push(`%\\_${b}`);
+        });
+        idx += batches.length * 2;
+      }
+
+      const tf = opts?.timeField || "started_at";
+      const tp = opts?.timePrefix || "";
+      if (startTime) {
+        clauses.push(`${tp}${tf}::text >= $${idx}`);
+        params.push(startTime);
+        idx += 1;
+      }
+      if (endTime) {
+        clauses.push(`${tp}${tf}::text <= $${idx}`);
+        params.push(endTime);
+        idx += 1;
+      }
+
+      if (clauses.length === 0) return { sql: "", params: [] as unknown[] };
+      return { sql: `AND ${clauses.join(" AND ")}`, params };
     };
 
-    const buildOverviewAnd = (prefix = "") => {
-      const { sql, params } = buildOverviewWhere(prefix);
-      return { sql: sql ? sql.replace("WHERE", "AND") : "", params };
-    };
-
-    const wInit = buildOverviewWhere("i.");
-    const totalTasksRes = await this.pool.query(`SELECT COUNT(*)::bigint as count FROM poi_init i ${wInit.sql}`, wInit.params);
+    // 总任务数（poi_init 不受时间段过滤影响，保持与原有逻辑一致）
+    const wInitNt = buildWhere("i.", { timeField: "updatetime", timePrefix: "i." });
+    const totalTasksRes = await this.pool.query(`SELECT COUNT(*)::bigint as count FROM poi_init i ${wInitNt.sql}`, wInitNt.params);
     const totalTasks = Number(totalTasksRes.rows[0]?.count ?? 0);
 
+    const wInitNt2 = buildWhere("i.", { timeField: "updatetime", timePrefix: "i." });
     const verifyStatusCountsRes = await this.pool.query(
-      `SELECT COALESCE(verify_status::text,'未知状态') as status, COUNT(*)::bigint as count FROM poi_init i ${wInit.sql} GROUP BY verify_status ORDER BY count DESC`,
-      wInit.params
+      `SELECT COALESCE(verify_status::text,'未知状态') as status, COUNT(*)::bigint as count FROM poi_init i ${wInitNt2.sql} GROUP BY verify_status ORDER BY count DESC`,
+      wInitNt2.params
     );
     const verifyStatusCounts = verifyStatusCountsRes.rows.map((item) => ({
       status: String(item.status),
       count: Number(item.count ?? 0),
     }));
 
+    // 流程阶段计数（涉及多表联查，时间过滤应用于日志表 started_at）
+    const wStage = buildWhere("i.");
+    const wStageInner = buildWhere("", { timeField: "started_at" });
     const flowStageCountsRes = await this.pool.query(`
       WITH latest AS (
         SELECT *
         FROM poi_task_analysis
-        WHERE id IN (SELECT MAX(id) FROM poi_task_analysis ${buildOverviewWhere().sql} GROUP BY task_id, phase)
+        WHERE id IN (SELECT MAX(id) FROM poi_task_analysis ${wStageInner.sql} GROUP BY task_id, phase)
       ),
       verify_runs AS (SELECT * FROM latest WHERE phase = 'verify'),
       qc_runs AS (SELECT * FROM latest WHERE phase = 'qc')
@@ -550,21 +582,23 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
       FROM poi_init i
       LEFT JOIN poi_verified v ON v.task_id = i.task_id
       LEFT JOIN poi_qc q ON q.task_id = i.task_id
-        LEFT JOIN verify_runs vr ON vr.task_id = i.task_id
-        LEFT JOIN qc_runs qr ON qr.task_id = i.task_id
-        ${wInit.sql}
-        GROUP BY stage
-      `, [...wInit.params, ...buildOverviewWhere().params]);
+      LEFT JOIN verify_runs vr ON vr.task_id = i.task_id
+      LEFT JOIN qc_runs qr ON qr.task_id = i.task_id
+      ${wStage.sql}
+      GROUP BY stage
+    `, wStage.params);
     const flowStageCounts = flowStageCountsRes.rows.map((item) => ({
       stage: String(item.stage),
       count: Number(item.count ?? 0),
     }));
 
+    // 执行指标（基于 poi_task_analysis，时间过滤通过 started_at）
+    const wMetrics = buildWhere("", { timeField: "started_at" });
     const metricsRowsRes = await this.pool.query(`
       WITH latest AS (
         SELECT *
         FROM poi_task_analysis
-        WHERE id IN (SELECT MAX(id) FROM poi_task_analysis ${buildOverviewWhere().sql} GROUP BY task_id, phase)
+        WHERE id IN (SELECT MAX(id) FROM poi_task_analysis ${wMetrics.sql} GROUP BY task_id, phase)
       )
       SELECT phase,
              COUNT(*)::bigint as task_count,
@@ -586,7 +620,7 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
              ) as avg_cost_usd
       FROM latest
       GROUP BY phase
-    `, buildOverviewWhere().params);
+    `, wMetrics.params);
 
     const empty: Metrics = {
       taskCount: 0,
@@ -626,31 +660,37 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
       if (row.phase === "qc") Object.assign(qcMetrics, metric);
     }
 
+    // 核实自动化率（基于 poi_verified，时间过滤通过 verify_time）
+    const wVerifyRate = buildWhere("v.", { timeField: "verify_time", timePrefix: "v." });
     const verifyRateRes = await this.pool.query(`
       SELECT
         SUM(CASE WHEN COALESCE(verify_result, '') = '需人工核实' THEN 1 ELSE 0 END)::bigint AS manual_count,
         SUM(CASE WHEN COALESCE(verify_result, '') != '' THEN 1 ELSE 0 END)::bigint AS verified_total
       FROM poi_verified v
-      ${buildOverviewWhere("v.").sql}
-    `, [...buildOverviewWhere("v.").params]);
+      ${wVerifyRate.sql}
+    `, wVerifyRate.params);
     const verifyRateRow = verifyRateRes.rows[0] as Record<string, unknown>;
     const verifiedTotal = Number(verifyRateRow?.verified_total ?? 0);
     const manualCount = Number(verifyRateRow?.manual_count ?? 0);
     verifyMetrics.automationRate = verifiedTotal > 0 ? Math.max(0, 1 - manualCount / verifiedTotal) : 0;
 
+    // 质检合格率（基于 poi_qc，时间过滤通过 qc_time）
+    const wQcQuality = buildWhere("q.", { timeField: "qc_time", timePrefix: "q." });
     const qualityRes = await this.pool.query(`
       SELECT
         SUM(CASE WHEN q.is_qualified = 1 THEN 1 ELSE 0 END)::bigint AS matched_count,
         SUM(CASE WHEN q.is_qualified IS NOT NULL THEN 1 ELSE 0 END)::bigint AS qc_total
       FROM poi_qc q
       LEFT JOIN poi_verified v ON v.task_id = q.task_id
-      ${buildOverviewWhere("q.").sql}
-    `, [...buildOverviewWhere("q.").params]);
+      ${wQcQuality.sql}
+    `, wQcQuality.params);
     const qualityRow = qualityRes.rows[0] as Record<string, unknown>;
     const qualityMatched = Number(qualityRow?.matched_count ?? 0);
     const qcTotal = Number(qualityRow?.qc_total ?? 0);
     qcMetrics.verificationQualityRate = qcTotal > 0 ? qualityMatched / qcTotal : 0;
 
+    // 人工介入任务数（多表联查，不加时间过滤以保持与总任务数口径一致）
+    const aManual = buildAnd("i.");
     const manualTaskCountRes = await this.pool.query(`
       SELECT COUNT(*)::bigint as count
       FROM poi_init i
@@ -658,15 +698,18 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
       LEFT JOIN poi_qc q ON q.task_id = i.task_id
       WHERE (COALESCE(v.verify_result::text, '') = '${VERIFY_MANUAL}'
          OR COALESCE(q.is_qualified, 0) = 0)
-         ${buildOverviewAnd("i.").sql}
-    `, [...buildOverviewAnd("i.").params]);
+         ${aManual.sql}
+    `, aManual.params);
     const manualTaskCount = Number(manualTaskCountRes.rows[0]?.count ?? 0);
 
+    // 异常任务数（多表联查，时间过滤通过日志表 started_at）
+    const wAnomaly = buildWhere("", { timeField: "started_at" });
+    const aAnomaly = buildAnd("i.");
     const anomalyCountRes = await this.pool.query(`
       WITH latest AS (
         SELECT *
         FROM poi_task_analysis
-        WHERE id IN (SELECT MAX(id) FROM poi_task_analysis ${buildOverviewWhere().sql} GROUP BY task_id, phase)
+        WHERE id IN (SELECT MAX(id) FROM poi_task_analysis ${wAnomaly.sql} GROUP BY task_id, phase)
       ),
       verify_runs AS (SELECT * FROM latest WHERE phase = 'verify'),
       qc_runs AS (SELECT * FROM latest WHERE phase = 'qc')
@@ -690,22 +733,28 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
           AND q.qc_status IS NOT NULL
           AND qr.status <> 'success'
         )
-      ) ${buildOverviewAnd("i.").sql}
-    `, [...buildOverviewWhere().params, ...buildOverviewAnd("i.").params]);
+      ) ${aAnomaly.sql}
+    `, aAnomaly.params);
     const anomalyCount = Number(anomalyCountRes.rows[0]?.count ?? 0);
 
+    // 质检不通过数
+    const aQcRej = buildAnd("q.", { timeField: "qc_time", timePrefix: "q." });
     const qcRejectedCountRes = await this.pool.query(`
       SELECT COUNT(*)::bigint as count
       FROM poi_qc q
-      WHERE is_qualified = 0 ${buildOverviewAnd("q.").sql}
-    `, [...buildOverviewAnd("q.").params]);
+      WHERE is_qualified = 0 ${aQcRej.sql}
+    `, aQcRej.params);
     const qcRejectedCount = Number(qcRejectedCountRes.rows[0]?.count ?? 0);
 
+    // 时间趋势图（过滤日志和业务时间）
+    const wTs = buildWhere("", { timeField: "started_at" });
+    const aTsVerify = buildAnd('i.');
+    const aTsQc = buildAnd('i.');
     const timeSeriesRes = await this.pool.query(`
       WITH latest AS (
         SELECT task_id, phase, started_at
         FROM poi_task_analysis
-        ${buildOverviewWhere().sql}
+        ${wTs.sql}
       ),
       latest_grouped AS (
         SELECT task_id, phase, MAX(started_at) as started_at
@@ -718,7 +767,7 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
         LEFT JOIN poi_verified v ON i.task_id = v.task_id
         LEFT JOIN (SELECT task_id, started_at FROM latest_grouped WHERE phase = 'verify') vr ON vr.task_id = i.task_id
         WHERE COALESCE(vr.started_at, v.verify_time::text) IS NOT NULL
-        ${buildOverviewAnd('i.').sql}
+        ${aTsVerify.sql}
         
         UNION ALL
         
@@ -727,14 +776,12 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
         LEFT JOIN poi_qc q ON i.task_id = q.task_id
         LEFT JOIN (SELECT task_id, started_at FROM latest_grouped WHERE phase = 'qc') qr ON qr.task_id = i.task_id
         WHERE COALESCE(qr.started_at, q.qc_time::text) IS NOT NULL
-        ${buildOverviewAnd('i.').sql}
+        ${aTsQc.sql}
       ),
       blocks AS (
         SELECT 
           phase,
-          ${filters.granularity === 'day' 
-            ? "substr(time_val, 1, 10)" 
-            : "substr(time_val, 1, 13) || ':00'"} as time_block
+          SUBSTRING(time_val FROM 1 FOR 13) || ':00' as time_block
         FROM base_times
       )
       SELECT time_block,
@@ -743,7 +790,7 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
       FROM blocks
       GROUP BY time_block
       ORDER BY time_block ASC
-    `, [...buildOverviewWhere().params, ...buildOverviewAnd('i.').params]);
+    `, wTs.params);
 
     const timeSeries = (timeSeriesRes.rows as Array<Record<string, unknown>>).map((r) => ({
       timeBlock: String(r.time_block),
@@ -769,7 +816,7 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
 
   async getTaskList(filters: DashboardFilters): Promise<TaskListResult> {
     await this.ready();
-    const { whereSql, params: filterParams } = buildTaskFilterSqlPg(filters, "i.");
+    const { whereSql, params } = buildTaskFilterSqlPg(filters);
 
     const baseSql = `
       WITH latest AS (
@@ -873,33 +920,19 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
       )
       SELECT * FROM merged
       ${whereSql}
-      ORDER BY COALESCE(qc_time, verify_time, updatetime::text) DESC NULLS LAST
-      LIMIT $${filterParams.length + 1} OFFSET $${filterParams.length + 2}
-    `;
-    const countSql = `
-      WITH latest AS (
-        SELECT *
-        FROM poi_task_analysis
-        WHERE id IN (SELECT MAX(id) FROM poi_task_analysis GROUP BY task_id, phase)
-      ),
-      verify_runs AS (SELECT * FROM latest WHERE phase = 'verify'),
-      qc_runs AS (SELECT * FROM latest WHERE phase = 'qc'),
-      merged AS (
-        SELECT i.task_id FROM poi_init i 
-        LEFT JOIN poi_verified v ON v.task_id = i.task_id
-        LEFT JOIN poi_qc q ON q.task_id = i.task_id
-        LEFT JOIN verify_runs vr ON vr.task_id = i.task_id
-        LEFT JOIN qc_runs qr ON qr.task_id = i.task_id
-        ${whereSql}
-      )
-      SELECT COUNT(*) as count FROM merged
     `;
 
-    const totalRes = await this.pool.query(countSql, filterParams);
+    const totalRes = await this.pool.query(`SELECT COUNT(*)::bigint as count FROM (${baseSql}) t`, params);
     const total = Number(totalRes.rows[0]?.count ?? 0);
 
-    const pageParams = [...filterParams, filters.pageSize, (filters.page - 1) * filters.pageSize];
-    const rowsRes = await this.pool.query(baseSql, pageParams);
+    const pageParams = [...params, filters.pageSize, (filters.page - 1) * filters.pageSize];
+    const limitIndex = params.length + 1;
+    const offsetIndex = params.length + 2;
+    // 排序优先级：质检时间 > 核实时间 > 初始更新时间，兼容 null / 空值
+    const rowsRes = await this.pool.query(
+      `SELECT * FROM (${baseSql}) t ORDER BY COALESCE(t.qc_time, t.verify_time, t.updatetime::text) DESC NULLS LAST, t.task_id DESC LIMIT $${limitIndex} OFFSET $${offsetIndex}`,
+      pageParams,
+    );
 
     return {
       total,

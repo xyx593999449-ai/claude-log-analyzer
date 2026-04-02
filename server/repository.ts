@@ -126,7 +126,7 @@ export interface DashboardRepositoryPort {
   */
   nextImportBatchId(): string;
   getFilterOptions(): Promise<DashboardFilterOptions>;
-  getOverview(filters: DashboardFilters): Promise<DashboardOverview>;
+  getOverview(batches?: string[], startTime?: string, endTime?: string): Promise<DashboardOverview>;
   getTaskList(filters: DashboardFilters): Promise<TaskListResult>;
   getTaskLogDetail(taskId: string): Promise<TaskLogDetail>;
   getBatches(): Promise<BatchOverviewItem[]>;
@@ -382,7 +382,7 @@ function mapRun(row: Record<string, unknown>, phase: AnalysisPhase): RunView | n
   };
 }
 
-function buildTaskFilterSql(filters: DashboardFilters, prefix: string = ""): { whereSql: string; params: Record<string, unknown> } {
+function buildTaskFilterSql(filters: DashboardFilters): { whereSql: string; params: Record<string, unknown> } {
   const clauses: string[] = [];
   const params: Record<string, unknown> = {
     limit: filters.pageSize,
@@ -391,9 +391,7 @@ function buildTaskFilterSql(filters: DashboardFilters, prefix: string = ""): { w
   const alertClauses: string[] = [];
 
   if (filters.search) {
-    clauses.push(
-      `(${prefix}task_id LIKE @search OR poi_id LIKE @search OR name LIKE @search OR address LIKE @search OR city LIKE @search)`,
-    );
+    clauses.push("(task_id LIKE @search OR poi_id LIKE @search OR name LIKE @search OR address LIKE @search OR city LIKE @search)");
     params.search = `%${filters.search}%`;
   }
 
@@ -432,18 +430,11 @@ function buildTaskFilterSql(filters: DashboardFilters, prefix: string = ""): { w
   }
 
   if (filters.batches && filters.batches.length > 0) {
+    const likeClauses = filters.batches.map((b, i) => `task_id LIKE @batch_like_${i}`);
+    clauses.push(`(${likeClauses.join(" OR ")})`);
     filters.batches.forEach((b, i) => {
       params[`batch_like_${i}`] = `%_${b}`;
     });
-  }
-
-  if (filters.startDate) {
-    clauses.push("COALESCE(qc_time, verify_time, updatetime) >= @startDate");
-    params.startDate = filters.startDate;
-  }
-  if (filters.endDate) {
-    clauses.push("COALESCE(qc_time, verify_time, updatetime) <= @endDate");
-    params.endDate = filters.endDate;
   }
 
   return {
@@ -645,79 +636,39 @@ export class DashboardRepository implements DashboardRepositoryPort {
     return { verifyStatuses, qcStatuses };
   }
 
-  async getOverview(filters: DashboardFilters): Promise<DashboardOverview> {
-    const batches = filters.batches;
+  // SQLite 实现暂不使用 startTime / endTime 参数，但签名需与接口保持一致
+  async getOverview(batches?: string[], _startTime?: string, _endTime?: string): Promise<DashboardOverview> {
     const buildWhere = (prefix = "") => {
-      const { whereSql, params: filterParams } = buildTaskFilterSql(filters, prefix);
-      
-      const clauses: string[] = [];
-      const bindParams: Record<string, unknown> = { ...filterParams };
-
-      if (filters.batches && filters.batches.length > 0) {
-        const batchClauses = filters.batches.map(
-          (_, i) => `(${prefix}task_id = @b_exact_${i} OR ${prefix}task_id LIKE @b_like_${i})`,
-        );
-        clauses.push(`(${batchClauses.join(" OR ")})`);
-        batches.forEach((b, i) => {
-          bindParams[`b_exact_${i}`] = b;
-          bindParams[`b_like_${i}`] = `%_${b}`;
-        });
-      }
-
-      if (filters.startDate) {
-        clauses.push(`COALESCE(${prefix === 'i.' ? 'q.qc_time, v.verify_time, i.updatetime' : prefix + 'qc_time, ' + prefix + 'verify_time, ' + prefix + 'updatetime'}) >= @startDate`);
-        bindParams.startDate = filters.startDate;
-      }
-      if (filters.endDate) {
-        clauses.push(`COALESCE(${prefix === 'i.' ? 'q.qc_time, v.verify_time, i.updatetime' : prefix + 'qc_time, ' + prefix + 'verify_time, ' + prefix + 'updatetime'}) <= @endDate`);
-        bindParams.endDate = filters.endDate;
-      }
-
-      return { sql: clauses.length ? `WHERE ${clauses.join(" AND ")}` : "", params: bindParams };
+      if (!batches || batches.length === 0) return { sql: "", params: {} as Record<string, unknown> };
+      // Try exact match first, then fallback to suffix LIKE for backward compatibility
+      const clauses = batches.map((b, i) => `(${prefix}task_id = @b_exact_${i} OR ${prefix}task_id LIKE @b_like_${i})`);
+      const bindParams = batches.reduce((acc, b, i) => ({ 
+        ...acc, 
+        [`b_exact_${i}`]: b,
+        [`b_like_${i}`]: `%_${b}` 
+      }), {});
+      return { sql: `WHERE (${clauses.join(" OR ")})`, params: bindParams };
     };
     
-    // Note: The prefix-aware COALESCE is tricky because overview joins multiple tables.
-    // Let's refine the buildWhere for overview to be more robust.
-    const getBusinessTimeSql = (p: string) => {
-      if (p === 'i.') return "COALESCE(q.qc_time, v.verify_time, i.updatetime)";
-      if (p === 'v.') return "v.verify_time";
-      if (p === 'q.') return "q.qc_time";
-      return "COALESCE(qc_time, verify_time, updatetime)";
+    const buildAnd = (prefix = "") => {
+      if (!batches || batches.length === 0) return { sql: "", params: {} as Record<string, unknown> };
+      const clauses = batches.map((b, i) => `(${prefix}task_id = @b_exact_${i} OR ${prefix}task_id LIKE @b_like_${i})`);
+      const bindParams = batches.reduce((acc, b, i) => ({ 
+        ...acc, 
+        [`b_exact_${i}`]: b,
+        [`b_like_${i}`]: `%_${b}` 
+      }), {});
+      return { sql: `AND (${clauses.join(" OR ")})`, params: bindParams };
     };
 
-    const buildOverviewWhere = (prefix = "") => {
-      const clauses: string[] = [];
-      const bindParams: Record<string, unknown> = {};
-      if (batches && batches.length > 0) {
-        clauses.push(`(${batches.map((_, i) => `${prefix}task_id = @b_e_${i} OR ${prefix}task_id LIKE @b_l_${i}`).join(" OR ")})`);
-        batches.forEach((b, i) => {
-          bindParams[`b_e_${i}`] = b;
-          bindParams[`b_l_${i}`] = `%_${b}`;
-        });
-      }
-      if (filters.startDate) {
-        clauses.push(`${getBusinessTimeSql(prefix)} >= @start`);
-        bindParams.start = filters.startDate;
-      }
-      if (filters.endDate) {
-        clauses.push(`${getBusinessTimeSql(prefix)} <= @end`);
-        bindParams.end = filters.endDate;
-      }
-      return { sql: clauses.length ? `WHERE ${clauses.join(" AND ")}` : "", params: bindParams };
-    };
+    const wf = buildWhere("i.");
+    const totalTasks = Number((this.db.prepare(`SELECT COUNT(*) as count FROM poi_init i ${wf.sql}`).get(wf.params) as { count: number }).count);
 
-    const buildOverviewAnd = (prefix = "") => {
-      const { sql, params } = buildOverviewWhere(prefix);
-      return { sql: sql ? sql.replace("WHERE", "AND") : "", params };
-    };
-
-    const wInit = buildOverviewWhere("i.");
-    const totalTasks = Number((this.db.prepare(`SELECT COUNT(*) as count FROM poi_init i ${wInit.sql}`).get(wInit.params) as { count: number }).count);
-
+    const w = buildWhere("i.");
     const verifyStatusCounts = (
       this.db
-        .prepare(`SELECT COALESCE(verify_status,'未知状态') as status, COUNT(*) as count FROM poi_init i ${wInit.sql} GROUP BY verify_status ORDER BY count DESC`)
-        .all(wInit.params) as Array<{ status: string; count: number }>
+        .prepare(`SELECT COALESCE(verify_status,'未知状态') as status, COUNT(*) as count FROM poi_init i ${w.sql} GROUP BY verify_status ORDER BY count DESC`)
+        .all(w.params) as Array<{ status: string; count: number }>
     ).map((item) => ({ status: item.status, count: Number(item.count) }));
 
     const flowStageCounts = (
@@ -726,7 +677,7 @@ export class DashboardRepository implements DashboardRepositoryPort {
           WITH latest AS (
             SELECT *
             FROM poi_task_analysis
-            WHERE id IN (SELECT MAX(id) FROM poi_task_analysis ${buildOverviewWhere().sql} GROUP BY task_id, phase)
+            WHERE id IN (SELECT MAX(id) FROM poi_task_analysis ${buildWhere().sql} GROUP BY task_id, phase)
           ),
           verify_runs AS (SELECT * FROM latest WHERE phase = 'verify'),
           qc_runs AS (SELECT * FROM latest WHERE phase = 'qc')
@@ -753,10 +704,10 @@ export class DashboardRepository implements DashboardRepositoryPort {
           LEFT JOIN poi_qc q ON q.task_id = i.task_id
           LEFT JOIN verify_runs vr ON vr.task_id = i.task_id
           LEFT JOIN qc_runs qr ON qr.task_id = i.task_id
-          ${wInit.sql}
+          ${buildWhere("i.").sql}
           GROUP BY stage
         `)
-        .all({ ...wInit.params, ...buildOverviewWhere().params }) as Array<{ stage: string; count: number }>
+        .all(buildWhere("i.").params) as Array<{ stage: string; count: number }>
     ).map((item) => ({ stage: item.stage, count: Number(item.count) }));
 
     const metricsRows = this.db
@@ -764,7 +715,7 @@ export class DashboardRepository implements DashboardRepositoryPort {
         WITH latest AS (
           SELECT *
           FROM poi_task_analysis
-          WHERE id IN (SELECT MAX(id) FROM poi_task_analysis ${buildOverviewWhere().sql} GROUP BY task_id, phase)
+          WHERE id IN (SELECT MAX(id) FROM poi_task_analysis ${buildWhere().sql} GROUP BY task_id, phase)
         )
         SELECT phase,
                COUNT(*) as task_count,
@@ -787,7 +738,7 @@ export class DashboardRepository implements DashboardRepositoryPort {
         FROM latest
         GROUP BY phase
       `)
-      .all(buildOverviewWhere().params) as Array<Record<string, unknown>>;
+      .all(buildWhere().params) as Array<Record<string, unknown>>;
 
     const empty: Metrics = {
       taskCount: 0,
@@ -829,21 +780,27 @@ export class DashboardRepository implements DashboardRepositoryPort {
       if (row.phase === "qc") Object.assign(qcMetrics, metric);
     }
 
-    const wV = buildOverviewWhere("v.");
+    // 自动化率 = 1 - (需人工核实 / 总核实数量)
+    // 口径：核实结果字段使用 poi_verified.verify_result
     const verifyRateRow = this.db
       .prepare(`
         SELECT
           SUM(CASE WHEN COALESCE(verify_result, '') = '需人工核实' THEN 1 ELSE 0 END) AS manual_count,
           SUM(CASE WHEN COALESCE(verify_result, '') != '' THEN 1 ELSE 0 END) AS verified_total
         FROM poi_verified v
-        ${wV.sql}
+        ${buildWhere("v.").sql}
       `)
-      .get(wV.params) as { manual_count: number | null; verified_total: number | null };
+      .get(buildWhere("v.").params) as { manual_count: number | null; verified_total: number | null };
     const verifiedTotal = Number(verifyRateRow.verified_total ?? 0);
     const manualCount = Number(verifyRateRow.manual_count ?? 0);
     verifyMetrics.automationRate = verifiedTotal > 0 ? Math.max(0, 1 - manualCount / verifiedTotal) : 0;
 
-    const wQ = buildOverviewWhere("q.");
+    // 核实质量 = (
+    //   (verify_result='核实通过' AND is_qualified=1)
+    //   +
+    //   (verify_result='需人工核实' AND is_qualified!=1)
+    // ) / 已质检总量
+    // 口径：只统计“核实且已质检”任务在分子中的命中；分母为已质检数量。
     const qualityRow = this.db
       .prepare(`
         SELECT
@@ -851,14 +808,13 @@ export class DashboardRepository implements DashboardRepositoryPort {
           SUM(CASE WHEN q.is_qualified IS NOT NULL THEN 1 ELSE 0 END) AS qc_total
         FROM poi_qc q
         LEFT JOIN poi_verified v ON v.task_id = q.task_id
-        ${wQ.sql}
+        ${buildWhere("q.").sql}
       `)
-      .get(wQ.params) as { matched_count: number | null; qc_total: number | null };
+      .get(buildWhere("q.").params) as { matched_count: number | null; qc_total: number | null };
     const qualityMatched = Number(qualityRow.matched_count ?? 0);
     const qcTotal = Number(qualityRow.qc_total ?? 0);
     qcMetrics.verificationQualityRate = qcTotal > 0 ? qualityMatched / qcTotal : 0;
 
-    const wAndI = buildOverviewAnd("i.");
     const manualTaskCount = Number(
       (
         this.db
@@ -869,9 +825,9 @@ export class DashboardRepository implements DashboardRepositoryPort {
             LEFT JOIN poi_qc q ON q.task_id = i.task_id
             WHERE (COALESCE(v.verify_result, '') = '${VERIFY_MANUAL}'
                OR COALESCE(q.is_qualified, 0) = 0)
-               ${wAndI.sql}
+               ${buildAnd("i.").sql}
           `)
-          .get(wAndI.params) as { count: number }
+          .get(buildAnd("i.").params) as { count: number }
       ).count,
     );
 
@@ -882,7 +838,7 @@ export class DashboardRepository implements DashboardRepositoryPort {
             WITH latest AS (
               SELECT *
               FROM poi_task_analysis
-              WHERE id IN (SELECT MAX(id) FROM poi_task_analysis ${buildOverviewWhere().sql} GROUP BY task_id, phase)
+              WHERE id IN (SELECT MAX(id) FROM poi_task_analysis ${buildWhere().sql} GROUP BY task_id, phase)
             ),
             verify_runs AS (SELECT * FROM latest WHERE phase = 'verify'),
             qc_runs AS (SELECT * FROM latest WHERE phase = 'qc')
@@ -906,22 +862,21 @@ export class DashboardRepository implements DashboardRepositoryPort {
                 AND q.qc_status IS NOT NULL
                 AND qr.status <> 'success'
               )
-            ) ${wAndI.sql}
+            ) ${buildAnd("i.").sql}
           `)
-          .get({ ...buildOverviewWhere().params, ...wAndI.params }) as { count: number }
+          .get({ ...buildWhere().params, ...buildAnd("i.").params }) as { count: number }
       ).count,
     );
 
-    const wAndQ = buildOverviewAnd("q.");
     const qcRejectedCount = Number(
       (
         this.db
           .prepare(`
             SELECT COUNT(*) as count
             FROM poi_qc q
-            WHERE is_qualified = 0 ${wAndQ.sql}
+            WHERE is_qualified = 0 ${buildAnd("q.").sql}
           `)
-          .get(wAndQ.params) as { count: number }
+          .get(buildAnd("q.").params) as { count: number }
       ).count,
     );
 
@@ -929,7 +884,7 @@ export class DashboardRepository implements DashboardRepositoryPort {
       WITH latest AS (
         SELECT task_id, phase, started_at
         FROM poi_task_analysis
-        ${buildOverviewWhere().sql}
+        ${buildWhere().sql}
       ),
       latest_grouped AS (
         SELECT task_id, phase, MAX(started_at) as started_at
@@ -942,7 +897,7 @@ export class DashboardRepository implements DashboardRepositoryPort {
         LEFT JOIN poi_verified v ON i.task_id = v.task_id
         LEFT JOIN (SELECT task_id, started_at FROM latest_grouped WHERE phase = 'verify') vr ON vr.task_id = i.task_id
         WHERE COALESCE(vr.started_at, v.verify_time) IS NOT NULL
-        ${wAndI.sql}
+        ${buildAnd('i.').sql}
         
         UNION ALL
         
@@ -951,14 +906,12 @@ export class DashboardRepository implements DashboardRepositoryPort {
         LEFT JOIN poi_qc q ON i.task_id = q.task_id
         LEFT JOIN (SELECT task_id, started_at FROM latest_grouped WHERE phase = 'qc') qr ON qr.task_id = i.task_id
         WHERE COALESCE(qr.started_at, q.qc_time) IS NOT NULL
-        ${wAndI.sql}
+        ${buildAnd('i.').sql}
       ),
       blocks AS (
         SELECT 
           phase,
-          ${filters.granularity === 'day' 
-            ? "substr(time_val, 1, 10)" 
-            : "substr(time_val, 1, 13) || ':00'"} as time_block
+          substr(time_val, 1, 13) || ':00' as time_block
         FROM base_times
       )
       SELECT time_block,
@@ -967,7 +920,7 @@ export class DashboardRepository implements DashboardRepositoryPort {
       FROM blocks
       GROUP BY time_block
       ORDER BY time_block ASC
-    `).all({ ...buildOverviewWhere().params, ...wAndI.params }) as Array<{ time_block: string; verify_count: number; qc_count: number }>);
+    `).all({ ...buildWhere().params, ...buildAnd('i.').params }) as Array<{ time_block: string; verify_count: number; qc_count: number }>);
 
     const timeSeries = rows.map(r => ({
       timeBlock: r.time_block,
@@ -992,7 +945,7 @@ export class DashboardRepository implements DashboardRepositoryPort {
   }
 
   async getTaskList(filters: DashboardFilters): Promise<TaskListResult> {
-    const { whereSql, params } = buildTaskFilterSql(filters, "i.");
+    const { whereSql, params } = buildTaskFilterSql(filters);
 
     const baseSql = `
       WITH latest AS (

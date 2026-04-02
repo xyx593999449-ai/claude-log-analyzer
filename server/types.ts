@@ -96,9 +96,10 @@ export interface DashboardFilters {
   manualOnly: boolean;
   anomalyOnly: boolean;
   batches?: string[];
-  startDate?: string;
-  endDate?: string;
-  granularity?: "day" | "hour";
+  /** 时间段筛选 - 开始时间（ISO 格式或 YYYY-MM-DD），用于按执行日志时间过滤 */
+  startTime?: string;
+  /** 时间段筛选 - 结束时间（ISO 格式或 YYYY-MM-DD），用于按执行日志时间过滤 */
+  endTime?: string;
 }
 
 export interface ImportSnapshot {

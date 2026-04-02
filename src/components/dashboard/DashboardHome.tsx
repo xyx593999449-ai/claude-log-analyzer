@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ChevronDown, ChevronUp, Database, Search, Sparkles, UploadCloud } from "lucide-react";
+import { ChevronDown, ChevronUp, Calendar, Database, Search, Sparkles, UploadCloud } from "lucide-react";
 import { clearCache, fetchFilterOptions, fetchOverview, fetchTaskList, importLogsByFiles } from "../../lib/dashboardApi";
 import type { DashboardOverview, FilterOptions, TaskListResult } from "../../lib/dashboardTypes";
 import { TaskFlowCard } from "./TaskFlowCard";
@@ -29,9 +29,8 @@ interface QueryState {
   manualOnly: boolean;
   anomalyOnly: boolean;
   batches: string[];
-  startDate: string;
-  endDate: string;
-  granularity: "day" | "hour";
+  startTime: string;
+  endTime: string;
 }
 
 interface StageDistributionItem {
@@ -84,9 +83,8 @@ export function DashboardHome() {
       manualOnly: searchParams.get("manualOnly") === "true",
       anomalyOnly: searchParams.get("anomalyOnly") === "true",
       batches: (searchParams.get("batch") || "").split(",").filter(Boolean),
-      startDate: searchParams.get("startDate") || "",
-      endDate: searchParams.get("endDate") || "",
-      granularity: (searchParams.get("granularity") as "day" | "hour") || "hour",
+      startTime: searchParams.get("startTime") || "",
+      endTime: searchParams.get("endTime") || "",
     };
   }, [searchParams]);
 
@@ -102,9 +100,8 @@ export function DashboardHome() {
     if (newQuery.manualOnly) params.set("manualOnly", "true");
     if (newQuery.anomalyOnly) params.set("anomalyOnly", "true");
     if (newQuery.batches.length > 0) params.set("batch", newQuery.batches.join(","));
-    if (newQuery.startDate) params.set("startDate", newQuery.startDate);
-    if (newQuery.endDate) params.set("endDate", newQuery.endDate);
-    if (newQuery.granularity) params.set("granularity", newQuery.granularity);
+    if (newQuery.startTime) params.set("startTime", newQuery.startTime);
+    if (newQuery.endTime) params.set("endTime", newQuery.endTime);
     setSearchParams(params, { replace: true });
   };
 
@@ -115,6 +112,7 @@ export function DashboardHome() {
   const [error, setError] = useState("");
   const [importing, setImporting] = useState(false);
   const [uploadExpanded, setUploadExpanded] = useState(false);
+  const [granularity, setGranularity] = useState<"day" | "hour">("hour");
   const [verifyUploads, setVerifyUploads] = useState<UploadItem[]>([]);
   const [qcUploads, setQcUploads] = useState<UploadItem[]>([]);
 
@@ -123,13 +121,16 @@ export function DashboardHome() {
     setError("");
     try {
       const [overviewRes, tasksRes] = await Promise.all([
-        fetchOverview({ 
-          batches: currentQuery.batches, 
-          startDate: currentQuery.startDate, 
-          endDate: currentQuery.endDate,
-          granularity: currentQuery.granularity
-        }),
-        fetchTaskList(currentQuery)
+        fetchOverview(
+          currentQuery.batches,
+          currentQuery.startTime || undefined,
+          currentQuery.endTime || undefined
+        ),
+        fetchTaskList({
+          ...currentQuery,
+          startTime: currentQuery.startTime || undefined,
+          endTime: currentQuery.endTime || undefined,
+        })
       ]);
       setOverview(overviewRes);
       setTaskList(tasksRes);
@@ -399,11 +400,7 @@ export function DashboardHome() {
 
         {overview?.timeSeries && overview.timeSeries.length > 0 ? (
           <section className="reveal-card delay-2 relative overflow-visible">
-            <TimeseriesChart 
-              data={overview.timeSeries} 
-              granularity={query.granularity}
-              onGranularityChange={(g) => updateQuery({ granularity: g })}
-            />
+            <TimeseriesChart data={overview.timeSeries} granularity={granularity} onGranularityChange={setGranularity} />
           </section>
         ) : null}
 
@@ -412,7 +409,39 @@ export function DashboardHome() {
         <section className="reveal-card delay-3 relative overflow-visible rounded-[28px] border border-white/70 bg-white/84 p-5 shadow-[0_25px_80px_rgba(15,23,42,0.06)] backdrop-blur">
           <SectionIntro eyebrow="Task Flowboard" title="任务详情列表" />
 
-          <div className="mt-5 grid gap-3 xl:grid-cols-[minmax(0,1fr)_190px_190px_190px]">
+          {/* 时间段筛选器 */}
+          <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50/60 px-4 py-3">
+            <div className="flex items-center gap-2 text-sm text-slate-600">
+              <Calendar className="h-4 w-4 text-slate-400" />
+              <span className="font-medium">执行时间</span>
+            </div>
+            <input
+              type="date"
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-teal-300"
+              value={query.startTime}
+              onChange={(e) => updateQuery({ page: 1, startTime: e.target.value })}
+              placeholder="开始日期"
+            />
+            <span className="text-sm text-slate-400">至</span>
+            <input
+              type="date"
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-teal-300"
+              value={query.endTime}
+              onChange={(e) => updateQuery({ page: 1, endTime: e.target.value })}
+              placeholder="结束日期"
+            />
+            {(query.startTime || query.endTime) ? (
+              <button
+                type="button"
+                className="rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-100"
+                onClick={() => updateQuery({ page: 1, startTime: "", endTime: "" })}
+              >
+                清除时间
+              </button>
+            ) : null}
+          </div>
+
+          <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1fr)_190px_190px_190px]">
             <label className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <input
@@ -465,37 +494,6 @@ export function DashboardHome() {
                 />
                 仅异常任务
               </label>
-            </div>
-          </div>
-
-          <div className="mt-4 flex flex-wrap items-center gap-4 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-            <div className="flex flex-1 items-center gap-3">
-              <span className="text-sm font-medium text-slate-700 whitespace-nowrap">时间范围:</span>
-              <input
-                type="date"
-                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-teal-300"
-                value={query.startDate}
-                onChange={(e) => updateQuery({ page: 1, startDate: e.target.value })}
-              />
-              <span className="text-slate-400">至</span>
-              <input
-                type="date"
-                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-teal-300"
-                value={query.endDate}
-                onChange={(e) => updateQuery({ page: 1, endDate: e.target.value })}
-              />
-              {(query.startDate || query.endDate) && (
-                <button
-                  type="button"
-                  className="ml-2 text-xs text-slate-400 hover:text-rose-500 underline"
-                  onClick={() => updateQuery({ page: 1, startDate: "", endDate: "" })}
-                >
-                  清除时间
-                </button>
-              )}
-            </div>
-            <div className="text-[11px] text-slate-400">
-              * 按业务时间筛选 (质检 &gt; 核实 &gt; 更新时间)
             </div>
           </div>
 

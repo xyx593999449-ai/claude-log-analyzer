@@ -17,9 +17,8 @@ interface TaskQuery {
   manualOnly: boolean;
   anomalyOnly: boolean;
   batches?: string[];
-  startDate?: string;
-  endDate?: string;
-  granularity?: "day" | "hour";
+  startTime?: string;
+  endTime?: string;
 }
 
 interface ImportPayload {
@@ -73,14 +72,17 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (await res.json()) as T;
 }
 
-export function fetchOverview(filters: { batches?: string[]; startDate?: string; endDate?: string; granularity?: "day" | "hour" }): Promise<DashboardOverview> {
+export function fetchOverview(batches?: string[], startTime?: string, endTime?: string): Promise<DashboardOverview> {
   const params = new URLSearchParams();
-  if (filters.batches && filters.batches.length > 0) {
-    params.set("batch", filters.batches.join(","));
+  if (batches && batches.length > 0) {
+    params.set("batch", batches.join(","));
   }
-  if (filters.startDate) params.set("startDate", filters.startDate);
-  if (filters.endDate) params.set("endDate", filters.endDate);
-  if (filters.granularity) params.set("granularity", filters.granularity);
+  if (startTime) {
+    params.set("startTime", startTime);
+  }
+  if (endTime) {
+    params.set("endTime", endTime);
+  }
   const qStr = params.toString();
   const url = qStr ? `/api/dashboard/overview?${qStr}` : `/api/dashboard/overview`;
   return request<DashboardOverview>(url);
@@ -103,14 +105,17 @@ export function fetchTaskList(query: TaskQuery): Promise<TaskListResult> {
     verifyStatus: query.verifyStatus,
     qcStatus: query.qcStatus,
     alertTags: query.alertTags.join(","),
-    manualOnly: String(query.manualOnly || false),
-    anomalyOnly: String(query.anomalyOnly || false),
+    manualOnly: String(query.manualOnly),
+    anomalyOnly: String(query.anomalyOnly),
   });
-  if (query.startDate) params.set("startDate", query.startDate);
-  if (query.endDate) params.set("endDate", query.endDate);
-  if (query.granularity) params.set("granularity", query.granularity);
   if (query.batches && query.batches.length > 0) {
     params.set("batch", query.batches.join(","));
+  }
+  if (query.startTime) {
+    params.set("startTime", query.startTime);
+  }
+  if (query.endTime) {
+    params.set("endTime", query.endTime);
   }
   return request<TaskListResult>(`/api/dashboard/tasks?${params.toString()}`);
 }

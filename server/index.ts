@@ -81,6 +81,10 @@ function parseFilters(query: Record<string, unknown>): DashboardFilters {
     .map((item) => item.trim())
     .filter(Boolean);
 
+  // 提取时间段筛选参数，空字符串视为未设置
+  const startTime = String(query.startTime ?? "").trim() || undefined;
+  const endTime = String(query.endTime ?? "").trim() || undefined;
+
   return {
     page,
     pageSize,
@@ -88,12 +92,11 @@ function parseFilters(query: Record<string, unknown>): DashboardFilters {
     verifyStatus: String(query.verifyStatus ?? "").trim(),
     qcStatus: String(query.qcStatus ?? "").trim(),
     alertTags,
-    manualOnly: query.manualOnly === "true",
-    anomalyOnly: query.anomalyOnly === "true",
-    batches: query.batch ? (query.batch as string).split(",") : [],
-    startDate: query.startDate as string,
-    endDate: query.endDate as string,
-    granularity: (query.granularity as "day" | "hour") || "hour",
+    manualOnly: parseBoolean(query.manualOnly),
+    anomalyOnly: parseBoolean(query.anomalyOnly),
+    batches: String(query.batch ?? "").split(",").filter(Boolean).map(s => s.trim()),
+    startTime,
+    endTime,
   };
 }
 
@@ -108,7 +111,7 @@ app.get("/api/health", (_req, res) => {
 app.get("/api/dashboard/overview", async (req, res, next) => {
   try {
     const filters = parseFilters(req.query as Record<string, unknown>);
-    res.json(await getRepo(req).getOverview(filters));
+    res.json(await getRepo(req).getOverview(filters.batches, filters.startTime, filters.endTime));
   } catch (error) {
     next(error);
   }
