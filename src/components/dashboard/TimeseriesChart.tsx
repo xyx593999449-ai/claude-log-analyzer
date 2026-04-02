@@ -4,82 +4,26 @@ import type { DashboardOverview } from "../../lib/dashboardTypes";
 
 interface TimeseriesChartProps {
   data: DashboardOverview["timeSeries"];
+  granularity: "day" | "hour";
+  onGranularityChange: (g: "day" | "hour") => void;
 }
 
-type GroupMode = "1h" | "5h" | "1d";
-
-function formatXAxis(tickItem: string, mode: GroupMode) {
+function formatXAxis(tickItem: string, granularity: "day" | "hour") {
   if (!tickItem) return "";
-  // Assuming tickItem is a valid timestamp or at least convertible to Date
-  const d = new Date(tickItem);
-  if (isNaN(d.getTime())) {
-    // try to fallback parsing 'YYYY-MM-DD HH:00:00' if not ISO
-    return tickItem.split(" ")[0] ?? tickItem;
-  }
-  if (mode === "1d") {
+  const d = new Date(tickItem.replace(" ", "T"));
+  if (isNaN(d.getTime())) return tickItem;
+  
+  if (granularity === "day") {
     return `${d.getMonth() + 1}-${d.getDate()}`;
   }
   return `${d.getMonth() + 1}-${d.getDate()} ${d.getHours()}:00`;
 }
 
-export function TimeseriesChart({ data }: TimeseriesChartProps) {
-  const [mode, setMode] = useState<GroupMode>("1h");
-
+export function TimeseriesChart({ data, granularity, onGranularityChange }: TimeseriesChartProps) {
   const chartData = useMemo(() => {
     if (!data || data.length === 0) return [];
-    
-    // Grouping
-    const grouped = new Map<string, { timeBlock: string; verifyCount: number; qcCount: number; ts: number }>();
-    
-    for (const item of data) {
-      if (!item.timeBlock) continue;
-      
-      let ts = new Date(item.timeBlock).getTime();
-      if (isNaN(ts)) {
-         // handle SQLite formats like '2024-05-18 10:00:00Z'
-         const mod = item.timeBlock.replace(" ", "T");
-         ts = new Date(mod).getTime();
-      }
-
-      const d = new Date(ts);
-      if (isNaN(d.getTime())) continue;
-
-      let key = item.timeBlock;
-      let displayTime = item.timeBlock;
-
-      if (mode === "1h") {
-        key = item.timeBlock;
-        displayTime = item.timeBlock;
-      } else if (mode === "5h") {
-        const hourStr = d.getHours().toString();
-        const hour = parseInt(hourStr, 10);
-        const chunk = Math.floor(hour / 5) * 5;
-        const chunkStr = chunk.toString().padStart(2, "0");
-        const datePart = `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, "0")}-${d.getDate().toString().padStart(2, "0")}`;
-        key = `${datePart}T${chunkStr}:00:00`;
-        displayTime = key;
-      } else if (mode === "1d") {
-        const datePart = `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, "0")}-${d.getDate().toString().padStart(2, "0")}`;
-        key = `${datePart}T00:00:00`;
-        displayTime = key;
-      }
-      
-      const existing = grouped.get(key);
-      if (existing) {
-        existing.verifyCount += item.verifyCount;
-        existing.qcCount += item.qcCount;
-      } else {
-        grouped.set(key, {
-          timeBlock: displayTime,
-          verifyCount: item.verifyCount,
-          qcCount: item.qcCount,
-          ts: d.getTime(), // we use d.getTime() for sorting
-        });
-      }
-    }
-    
-    return Array.from(grouped.values()).sort((a, b) => a.ts - b.ts);
-  }, [data, mode]);
+    return data.sort((a, b) => new Date(a.timeBlock.replace(" ", "T")).getTime() - new Date(b.timeBlock.replace(" ", "T")).getTime());
+  }, [data]);
 
   if (!data || data.length === 0) return null;
 
@@ -91,9 +35,8 @@ export function TimeseriesChart({ data }: TimeseriesChartProps) {
           <p className="mt-1 text-xs text-slate-500">核实与质检任务吞吐量时间推演</p>
         </div>
         <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50/50 p-1">
-          <ModeButton active={mode === "1h"} onClick={() => setMode("1h")} label="按小时" />
-          <ModeButton active={mode === "5h"} onClick={() => setMode("5h")} label="按5小时" />
-          <ModeButton active={mode === "1d"} onClick={() => setMode("1d")} label="按天" />
+          <ModeButton active={granularity === "hour"} onClick={() => onGranularityChange("hour")} label="按小时" />
+          <ModeButton active={granularity === "day"} onClick={() => onGranularityChange("day")} label="按天" />
         </div>
       </div>
       
@@ -113,7 +56,7 @@ export function TimeseriesChart({ data }: TimeseriesChartProps) {
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
             <XAxis 
               dataKey="timeBlock" 
-              tickFormatter={(val) => formatXAxis(val, mode)} 
+              tickFormatter={(val) => formatXAxis(val, granularity)} 
               tick={{ fontSize: 11, fill: '#64748b' }} 
               axisLine={false} 
               tickLine={false} 
@@ -126,7 +69,7 @@ export function TimeseriesChart({ data }: TimeseriesChartProps) {
             />
             <Tooltip 
               contentStyle={{ borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}
-              labelFormatter={(label) => formatXAxis(label as string, mode)}
+              labelFormatter={(label) => formatXAxis(label as string, granularity)}
             />
             <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
             <Area type="monotone" name="核实执行" dataKey="verifyCount" stroke="#0d9488" fillOpacity={1} fill="url(#colorVerify)" />

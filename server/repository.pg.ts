@@ -216,6 +216,18 @@ function buildTaskFilterSqlPg(filters: DashboardFilters): { whereSql: string; pa
     idx += filters.batches.length * 2;
   }
 
+  if (filters.startDate) {
+    clauses.push(`COALESCE(q.qc_time::text, v.verify_time::text, i.updatetime::text) >= $${idx}`);
+    params.push(filters.startDate);
+    idx += 1;
+  }
+
+  if (filters.endDate) {
+    clauses.push(`COALESCE(q.qc_time::text, v.verify_time::text, i.updatetime::text) <= $${idx}`);
+    params.push(filters.endDate);
+    idx += 1;
+  }
+
   return {
     whereSql: clauses.length ? `WHERE ${clauses.join(" AND ")}` : "",
     params,
@@ -452,32 +464,51 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
     };
   }
 
-  async getOverview(batches?: string[]): Promise<DashboardOverview> {
+  async getOverview(filters: DashboardFilters): Promise<DashboardOverview> {
     await this.ready();
-    const buildWhere = (prefix = "") => {
-      if (!batches || batches.length === 0) return { sql: "", params: [] };
-      // $1 = exact_0, $2 = like_0, $3 = exact_1, $4 = like_1...
-      const clauses = batches.map((b, i) => `(${prefix}task_id = $${i * 2 + 1} OR ${prefix}task_id LIKE $${i * 2 + 2})`);
-      const params: string[] = [];
-      batches.forEach(b => {
-        params.push(b);
-        params.push(`%\\_${b}`);
-      });
-      return { sql: `WHERE (${clauses.join(" OR ")})`, params };
-    };
+    const batches = filters.batches;
     
-    const buildAnd = (prefix = "") => {
-      if (!batches || batches.length === 0) return { sql: "", params: [] };
-      const clauses = batches.map((b, i) => `(${prefix}task_id = $${i * 2 + 1} OR ${prefix}task_id LIKE $${i * 2 + 2})`);
-      const params: string[] = [];
-      batches.forEach(b => {
-        params.push(b);
-        params.push(`%\\_${b}`);
-      });
-      return { sql: `AND (${clauses.join(" OR ")})`, params };
+    const getBusinessTimeSql = (p: string) => {
+      if (p === 'i.') return "COALESCE(q.qc_time::text, v.verify_time::text, i.updatetime::text)";
+      if (p === 'v.') return "v.verify_time::text";
+      if (p === 'q.') return "q.qc_time::text";
+      return "COALESCE(q.qc_time::text, v.verify_time::text, i.updatetime::text)";
     };
 
-    const wInit = buildWhere("i.");
+    const buildOverviewWhere = (prefix = "") => {
+      const clauses: string[] = [];
+      const params: unknown[] = [];
+      let idx = 1;
+
+      if (batches && batches.length > 0) {
+        const bClauses = batches.map((b, i) => `(${prefix}task_id = $${idx + i * 2} OR ${prefix}task_id LIKE $${idx + i * 2 + 1})`);
+        clauses.push(`(${bClauses.join(" OR ")})`);
+        batches.forEach(b => {
+          params.push(b);
+          params.push(`%\\_${b}`);
+        });
+        idx += batches.length * 2;
+      }
+
+      if (filters.startDate) {
+        clauses.push(`${getBusinessTimeSql(prefix)} >= $${idx}`);
+        params.push(filters.startDate);
+        idx += 1;
+      }
+      if (filters.endDate) {
+        clauses.push(`${getBusinessTimeSql(prefix)} <= $${idx}`);
+        params.push(filters.endDate);
+        idx += 1;
+      }
+      return { sql: clauses.length ? `WHERE ${clauses.join(" AND ")}` : "", params };
+    };
+
+    const buildOverviewAnd = (prefix = "") => {
+      const { sql, params } = buildOverviewWhere(prefix);
+      return { sql: sql ? sql.replace("WHERE", "AND") : "", params };
+    };
+
+    const wInit = buildOverviewWhere("i.");
     const totalTasksRes = await this.pool.query(`SELECT COUNT(*)::bigint as count FROM poi_init i ${wInit.sql}`, wInit.params);
     const totalTasks = Number(totalTasksRes.rows[0]?.count ?? 0);
 
@@ -490,12 +521,11 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
       count: Number(item.count ?? 0),
     }));
 
-    const wStage = buildWhere("i.");
     const flowStageCountsRes = await this.pool.query(`
       WITH latest AS (
         SELECT *
         FROM poi_task_analysis
-        WHERE id IN (SELECT MAX(id) FROM poi_task_analysis ${buildWhere().sql} GROUP BY task_id, phase)
+        WHERE id IN (SELECT MAX(id) FROM poi_task_analysis ${buildOverviewWhere().sql} GROUP BY task_id, phase)
       ),
       verify_runs AS (SELECT * FROM latest WHERE phase = 'verify'),
       qc_runs AS (SELECT * FROM latest WHERE phase = 'qc')
@@ -520,11 +550,11 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
       FROM poi_init i
       LEFT JOIN poi_verified v ON v.task_id = i.task_id
       LEFT JOIN poi_qc q ON q.task_id = i.task_id
-      LEFT JOIN verify_runs vr ON vr.task_id = i.task_id
-      LEFT JOIN qc_runs qr ON qr.task_id = i.task_id
-      ${wStage.sql}
-      GROUP BY stage
-    `, wStage.params);
+        LEFT JOIN verify_runs vr ON vr.task_id = i.task_id
+        LEFT JOIN qc_runs qr ON qr.task_id = i.task_id
+        ${wInit.sql}
+        GROUP BY stage
+      `, [...wInit.params, ...buildOverviewWhere().params]);
     const flowStageCounts = flowStageCountsRes.rows.map((item) => ({
       stage: String(item.stage),
       count: Number(item.count ?? 0),
@@ -534,7 +564,7 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
       WITH latest AS (
         SELECT *
         FROM poi_task_analysis
-        WHERE id IN (SELECT MAX(id) FROM poi_task_analysis ${buildWhere().sql} GROUP BY task_id, phase)
+        WHERE id IN (SELECT MAX(id) FROM poi_task_analysis ${buildOverviewWhere().sql} GROUP BY task_id, phase)
       )
       SELECT phase,
              COUNT(*)::bigint as task_count,
@@ -556,7 +586,7 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
              ) as avg_cost_usd
       FROM latest
       GROUP BY phase
-    `, buildWhere().params);
+    `, buildOverviewWhere().params);
 
     const empty: Metrics = {
       taskCount: 0,
@@ -601,8 +631,8 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
         SUM(CASE WHEN COALESCE(verify_result, '') = '需人工核实' THEN 1 ELSE 0 END)::bigint AS manual_count,
         SUM(CASE WHEN COALESCE(verify_result, '') != '' THEN 1 ELSE 0 END)::bigint AS verified_total
       FROM poi_verified v
-      ${buildWhere("v.").sql}
-    `, buildWhere("v.").params);
+      ${buildOverviewWhere("v.").sql}
+    `, [...buildOverviewWhere("v.").params]);
     const verifyRateRow = verifyRateRes.rows[0] as Record<string, unknown>;
     const verifiedTotal = Number(verifyRateRow?.verified_total ?? 0);
     const manualCount = Number(verifyRateRow?.manual_count ?? 0);
@@ -614,8 +644,8 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
         SUM(CASE WHEN q.is_qualified IS NOT NULL THEN 1 ELSE 0 END)::bigint AS qc_total
       FROM poi_qc q
       LEFT JOIN poi_verified v ON v.task_id = q.task_id
-      ${buildWhere("q.").sql}
-    `, buildWhere("q.").params);
+      ${buildOverviewWhere("q.").sql}
+    `, [...buildOverviewWhere("q.").params]);
     const qualityRow = qualityRes.rows[0] as Record<string, unknown>;
     const qualityMatched = Number(qualityRow?.matched_count ?? 0);
     const qcTotal = Number(qualityRow?.qc_total ?? 0);
@@ -628,15 +658,15 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
       LEFT JOIN poi_qc q ON q.task_id = i.task_id
       WHERE (COALESCE(v.verify_result::text, '') = '${VERIFY_MANUAL}'
          OR COALESCE(q.is_qualified, 0) = 0)
-         ${buildAnd("i.").sql}
-    `, buildAnd("i.").params);
+         ${buildOverviewAnd("i.").sql}
+    `, [...buildOverviewAnd("i.").params]);
     const manualTaskCount = Number(manualTaskCountRes.rows[0]?.count ?? 0);
 
     const anomalyCountRes = await this.pool.query(`
       WITH latest AS (
         SELECT *
         FROM poi_task_analysis
-        WHERE id IN (SELECT MAX(id) FROM poi_task_analysis ${buildWhere().sql} GROUP BY task_id, phase)
+        WHERE id IN (SELECT MAX(id) FROM poi_task_analysis ${buildOverviewWhere().sql} GROUP BY task_id, phase)
       ),
       verify_runs AS (SELECT * FROM latest WHERE phase = 'verify'),
       qc_runs AS (SELECT * FROM latest WHERE phase = 'qc')
@@ -660,22 +690,22 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
           AND q.qc_status IS NOT NULL
           AND qr.status <> 'success'
         )
-      ) ${buildAnd("i.").sql}
-    `, buildAnd("i.").params);
+      ) ${buildOverviewAnd("i.").sql}
+    `, [...buildOverviewWhere().params, ...buildOverviewAnd("i.").params]);
     const anomalyCount = Number(anomalyCountRes.rows[0]?.count ?? 0);
 
     const qcRejectedCountRes = await this.pool.query(`
       SELECT COUNT(*)::bigint as count
       FROM poi_qc q
-      WHERE is_qualified = 0 ${buildAnd("q.").sql}
-    `, buildAnd("q.").params);
+      WHERE is_qualified = 0 ${buildOverviewAnd("q.").sql}
+    `, [...buildOverviewAnd("q.").params]);
     const qcRejectedCount = Number(qcRejectedCountRes.rows[0]?.count ?? 0);
 
     const timeSeriesRes = await this.pool.query(`
       WITH latest AS (
         SELECT task_id, phase, started_at
         FROM poi_task_analysis
-        ${buildWhere().sql}
+        ${buildOverviewWhere().sql}
       ),
       latest_grouped AS (
         SELECT task_id, phase, MAX(started_at) as started_at
@@ -688,7 +718,7 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
         LEFT JOIN poi_verified v ON i.task_id = v.task_id
         LEFT JOIN (SELECT task_id, started_at FROM latest_grouped WHERE phase = 'verify') vr ON vr.task_id = i.task_id
         WHERE COALESCE(vr.started_at, v.verify_time::text) IS NOT NULL
-        ${buildAnd('i.').sql}
+        ${buildOverviewAnd('i.').sql}
         
         UNION ALL
         
@@ -697,12 +727,14 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
         LEFT JOIN poi_qc q ON i.task_id = q.task_id
         LEFT JOIN (SELECT task_id, started_at FROM latest_grouped WHERE phase = 'qc') qr ON qr.task_id = i.task_id
         WHERE COALESCE(qr.started_at, q.qc_time::text) IS NOT NULL
-        ${buildAnd('i.').sql}
+        ${buildOverviewAnd('i.').sql}
       ),
       blocks AS (
         SELECT 
           phase,
-          SUBSTRING(time_val FROM 1 FOR 13) || ':00' as time_block
+          ${filters.granularity === 'day' 
+            ? "substr(time_val, 1, 10)" 
+            : "substr(time_val, 1, 13) || ':00'"} as time_block
         FROM base_times
       )
       SELECT time_block,
@@ -711,7 +743,7 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
       FROM blocks
       GROUP BY time_block
       ORDER BY time_block ASC
-    `, buildWhere().params);
+    `, [...buildOverviewWhere().params, ...buildOverviewAnd('i.').params]);
 
     const timeSeries = (timeSeriesRes.rows as Array<Record<string, unknown>>).map((r) => ({
       timeBlock: String(r.time_block),
@@ -841,18 +873,33 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
       )
       SELECT * FROM merged
       ${whereSql}
+      ORDER BY COALESCE(qc_time, verify_time, updatetime::text) DESC NULLS LAST
+      LIMIT $${params.length + 1} OFFSET $${params.length + 2}
+    `;
+    const countSql = `
+      WITH latest AS (
+        SELECT *
+        FROM poi_task_analysis
+        WHERE id IN (SELECT MAX(id) FROM poi_task_analysis GROUP BY task_id, phase)
+      ),
+      verify_runs AS (SELECT * FROM latest WHERE phase = 'verify'),
+      qc_runs AS (SELECT * FROM latest WHERE phase = 'qc'),
+      merged AS (
+        SELECT i.task_id FROM poi_init i 
+        LEFT JOIN poi_verified v ON v.task_id = i.task_id
+        LEFT JOIN poi_qc q ON q.task_id = i.task_id
+        LEFT JOIN verify_runs vr ON vr.task_id = i.task_id
+        LEFT JOIN qc_runs qr ON qr.task_id = i.task_id
+        ${whereSql}
+      )
+      SELECT COUNT(*) as count FROM merged
     `;
 
-    const totalRes = await this.pool.query(`SELECT COUNT(*)::bigint as count FROM (${baseSql}) t`, params);
+    const totalRes = await this.pool.query(countSql, params);
     const total = Number(totalRes.rows[0]?.count ?? 0);
 
     const pageParams = [...params, filters.pageSize, (filters.page - 1) * filters.pageSize];
-    const limitIndex = params.length + 1;
-    const offsetIndex = params.length + 2;
-    const rowsRes = await this.pool.query(
-      `SELECT * FROM (${baseSql}) t ORDER BY t.updatetime DESC NULLS LAST, t.task_id DESC LIMIT $${limitIndex} OFFSET $${offsetIndex}`,
-      pageParams,
-    );
+    const rowsRes = await this.pool.query(baseSql, pageParams);
 
     return {
       total,

@@ -88,9 +88,12 @@ function parseFilters(query: Record<string, unknown>): DashboardFilters {
     verifyStatus: String(query.verifyStatus ?? "").trim(),
     qcStatus: String(query.qcStatus ?? "").trim(),
     alertTags,
-    manualOnly: parseBoolean(query.manualOnly),
-    anomalyOnly: parseBoolean(query.anomalyOnly),
-    batches: String(query.batch ?? "").split(",").filter(Boolean).map(s => s.trim()),
+    manualOnly: query.manualOnly === "true",
+    anomalyOnly: query.anomalyOnly === "true",
+    batches: query.batch ? (query.batch as string).split(",") : [],
+    startDate: query.startDate as string,
+    endDate: query.endDate as string,
+    granularity: (query.granularity as "day" | "hour") || "hour",
   };
 }
 
@@ -105,7 +108,7 @@ app.get("/api/health", (_req, res) => {
 app.get("/api/dashboard/overview", async (req, res, next) => {
   try {
     const filters = parseFilters(req.query as Record<string, unknown>);
-    res.json(await getRepo(req).getOverview(filters.batches));
+    res.json(await getRepo(req).getOverview(filters));
   } catch (error) {
     next(error);
   }

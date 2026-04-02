@@ -96,6 +96,9 @@ export interface DashboardFilters {
   manualOnly: boolean;
   anomalyOnly: boolean;
   batches?: string[];
+  startDate?: string;
+  endDate?: string;
+  granularity?: "day" | "hour";
 }
 
 export interface ImportSnapshot {
