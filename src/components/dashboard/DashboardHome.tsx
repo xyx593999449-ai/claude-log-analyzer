@@ -2,7 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ChevronDown, ChevronUp, Calendar, Database, Search, Sparkles, UploadCloud } from "lucide-react";
 import { clearCache, fetchFilterOptions, fetchOverview, fetchTaskList, importLogsByFiles } from "../../lib/dashboardApi";
-import type { DashboardOverview, FilterOptions, TaskListResult } from "../../lib/dashboardTypes";
+import type {
+  DashboardOverview,
+  DashboardTimeGranularity,
+  FilterOptions,
+  TaskListResult,
+} from "../../lib/dashboardTypes";
 import { TaskFlowCard } from "./TaskFlowCard";
 import {
   PROCESS_STAGES,
@@ -31,7 +36,14 @@ interface QueryState {
   batches: string[];
   startTime: string;
   endTime: string;
+  timeGranularity: DashboardTimeGranularity;
+  timePreset: TimePreset;
+  timeMode: TimeMode;
+  timeAnchor: string;
 }
+
+type TimePreset = "all" | "one_hour" | "five_hour" | "today" | "custom";
+type TimeMode = "after" | "before" | "range";
 
 interface StageDistributionItem {
   key: ProcessStageKey;
@@ -67,12 +79,46 @@ const ALERT_FILTER_TAGS: Array<{ label: string; tone: AlertTone }> = [
   { label: "质检状态不一致", tone: "warning" },
 ];
 
+const TIME_PRESETS: Array<{ key: Exclude<TimePreset, "custom">; label: string }> = [
+  { key: "one_hour", label: "1 小时" },
+  { key: "five_hour", label: "5 小时" },
+  { key: "today", label: "当天" },
+  { key: "all", label: "全部" },
+];
+
+function formatDateTimeInput(value: Date): string {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  const hours = String(value.getHours()).padStart(2, "0");
+  const minutes = String(value.getMinutes()).padStart(2, "0");
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
+function isTimePreset(value: string | null): value is TimePreset {
+  return value === "all" || value === "one_hour" || value === "five_hour" || value === "today" || value === "custom";
+}
+
+function isTimeMode(value: string | null): value is TimeMode {
+  return value === "after" || value === "before" || value === "range";
+}
+
+function isTimeGranularity(value: string | null): value is DashboardTimeGranularity {
+  return value === "hour" || value === "five_hour" || value === "day";
+}
+
 export function DashboardHome() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const query = useMemo<QueryState>(() => {
     const alertTagsStr = searchParams.get("alertTags");
+    const timePresetRaw = searchParams.get("timePreset");
+    const timeModeRaw = searchParams.get("timeMode");
+    const timeGranularityRaw = searchParams.get("timeGranularity");
+    const startTime = searchParams.get("startTime") || "";
+    const endTime = searchParams.get("endTime") || "";
+    const inferredMode: TimeMode = startTime && endTime ? "range" : endTime ? "before" : "after";
     return {
       page: parseInt(searchParams.get("page") || "1", 10) || 1,
       pageSize: parseInt(searchParams.get("pageSize") || "20", 10) || 20,
@@ -83,8 +129,14 @@ export function DashboardHome() {
       manualOnly: searchParams.get("manualOnly") === "true",
       anomalyOnly: searchParams.get("anomalyOnly") === "true",
       batches: (searchParams.get("batch") || "").split(",").filter(Boolean),
-      startTime: searchParams.get("startTime") || "",
-      endTime: searchParams.get("endTime") || "",
+      startTime,
+      endTime,
+      timeGranularity: isTimeGranularity(timeGranularityRaw) ? timeGranularityRaw : "hour",
+      timePreset: isTimePreset(timePresetRaw)
+        ? timePresetRaw
+        : (startTime || endTime) ? "custom" : "all",
+      timeMode: isTimeMode(timeModeRaw) ? timeModeRaw : inferredMode,
+      timeAnchor: searchParams.get("timeAnchor") || "",
     };
   }, [searchParams]);
 
@@ -102,6 +154,10 @@ export function DashboardHome() {
     if (newQuery.batches.length > 0) params.set("batch", newQuery.batches.join(","));
     if (newQuery.startTime) params.set("startTime", newQuery.startTime);
     if (newQuery.endTime) params.set("endTime", newQuery.endTime);
+    if (newQuery.timeGranularity !== "hour") params.set("timeGranularity", newQuery.timeGranularity);
+    if (newQuery.timePreset !== "all") params.set("timePreset", newQuery.timePreset);
+    if (newQuery.timeMode !== "after") params.set("timeMode", newQuery.timeMode);
+    if (newQuery.timeAnchor) params.set("timeAnchor", newQuery.timeAnchor);
     setSearchParams(params, { replace: true });
   };
 
@@ -112,7 +168,6 @@ export function DashboardHome() {
   const [error, setError] = useState("");
   const [importing, setImporting] = useState(false);
   const [uploadExpanded, setUploadExpanded] = useState(false);
-  const [granularity, setGranularity] = useState<"day" | "hour">("hour");
   const [verifyUploads, setVerifyUploads] = useState<UploadItem[]>([]);
   const [qcUploads, setQcUploads] = useState<UploadItem[]>([]);
 
@@ -124,7 +179,8 @@ export function DashboardHome() {
         fetchOverview(
           currentQuery.batches,
           currentQuery.startTime || undefined,
-          currentQuery.endTime || undefined
+          currentQuery.endTime || undefined,
+          currentQuery.timeGranularity,
         ),
         fetchTaskList({
           ...currentQuery,
@@ -202,6 +258,105 @@ export function DashboardHome() {
     } finally {
       setLoading(false);
     }
+  }
+
+  function applyTimePreset(preset: Exclude<TimePreset, "custom">): void {
+    const now = new Date();
+    const end = formatDateTimeInput(now);
+
+    if (preset === "all") {
+      updateQuery({
+        page: 1,
+        timePreset: "all",
+        timeMode: "after",
+        timeAnchor: "",
+        startTime: "",
+        endTime: "",
+      });
+      return;
+    }
+
+    if (preset === "today") {
+      const startDate = new Date(now);
+      startDate.setHours(0, 0, 0, 0);
+      updateQuery({
+        page: 1,
+        timePreset: "today",
+        timeMode: "range",
+        timeAnchor: "",
+        startTime: formatDateTimeInput(startDate),
+        endTime: end,
+      });
+      return;
+    }
+
+    const hours = preset === "five_hour" ? 5 : 1;
+    const startDate = new Date(now.getTime() - hours * 60 * 60 * 1000);
+    updateQuery({
+      page: 1,
+      timePreset: preset,
+      timeMode: "range",
+      timeAnchor: "",
+      startTime: formatDateTimeInput(startDate),
+      endTime: end,
+    });
+  }
+
+  function changeTimeMode(mode: TimeMode): void {
+    if (mode === query.timeMode) return;
+
+    if (mode === "after") {
+      const anchor = query.timeAnchor || query.startTime;
+      updateQuery({
+        page: 1,
+        timePreset: "custom",
+        timeMode: "after",
+        timeAnchor: anchor,
+        startTime: anchor,
+        endTime: "",
+      });
+      return;
+    }
+
+    if (mode === "before") {
+      const anchor = query.timeAnchor || query.endTime;
+      updateQuery({
+        page: 1,
+        timePreset: "custom",
+        timeMode: "before",
+        timeAnchor: anchor,
+        startTime: "",
+        endTime: anchor,
+      });
+      return;
+    }
+
+    updateQuery({
+      page: 1,
+      timePreset: "custom",
+      timeMode: "range",
+      timeAnchor: "",
+    });
+  }
+
+  function updateTimeAnchor(value: string): void {
+    if (query.timeMode === "after") {
+      updateQuery({
+        page: 1,
+        timePreset: "custom",
+        timeAnchor: value,
+        startTime: value,
+        endTime: "",
+      });
+      return;
+    }
+    updateQuery({
+      page: 1,
+      timePreset: "custom",
+      timeAnchor: value,
+      startTime: "",
+      endTime: value,
+    });
   }
 
   function toggleAlertTag(label: string): void {
@@ -400,45 +555,116 @@ export function DashboardHome() {
 
         {overview?.timeSeries && overview.timeSeries.length > 0 ? (
           <section className="reveal-card delay-2 relative overflow-visible">
-            <TimeseriesChart data={overview.timeSeries} granularity={granularity} onGranularityChange={setGranularity} />
+            <TimeseriesChart
+              data={overview.timeSeries}
+              granularity={query.timeGranularity}
+              onGranularityChange={(timeGranularity) => updateQuery({ page: 1, timeGranularity })}
+            />
           </section>
         ) : null}
 
         {error ? <div className="reveal-card delay-2 rounded-2xl border border-rose-200 bg-rose-50/90 px-4 py-3 text-sm text-rose-700">{error}</div> : null}
 
         <section className="reveal-card delay-3 relative overflow-visible rounded-[28px] border border-white/70 bg-white/84 p-5 shadow-[0_25px_80px_rgba(15,23,42,0.06)] backdrop-blur">
-          <SectionIntro eyebrow="Task Flowboard" title="任务详情列表" />
+          <SectionIntro eyebrow="Task Flowboard" title="任务详情列表" description="默认按最新动作时间倒序，优先展示最近质检/核实有更新的任务。" />
 
-          {/* 时间段筛选器 */}
-          <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50/60 px-4 py-3">
+          <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50/60 px-4 py-3">
             <div className="flex items-center gap-2 text-sm text-slate-600">
               <Calendar className="h-4 w-4 text-slate-400" />
               <span className="font-medium">执行时间</span>
             </div>
-            <input
-              type="date"
-              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-teal-300"
-              value={query.startTime}
-              onChange={(e) => updateQuery({ page: 1, startTime: e.target.value })}
-              placeholder="开始日期"
-            />
-            <span className="text-sm text-slate-400">至</span>
-            <input
-              type="date"
-              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-teal-300"
-              value={query.endTime}
-              onChange={(e) => updateQuery({ page: 1, endTime: e.target.value })}
-              placeholder="结束日期"
-            />
-            {(query.startTime || query.endTime) ? (
-              <button
-                type="button"
-                className="rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-100"
-                onClick={() => updateQuery({ page: 1, startTime: "", endTime: "" })}
-              >
-                清除时间
-              </button>
-            ) : null}
+
+            <div className="mt-3 flex flex-wrap gap-2">
+              {TIME_PRESETS.map((preset) => (
+                <button
+                  key={preset.key}
+                  type="button"
+                  className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${
+                    query.timePreset === preset.key
+                      ? "border-teal-300 bg-teal-100 text-teal-800"
+                      : "border-slate-300 bg-white text-slate-600 hover:bg-slate-100"
+                  }`}
+                  onClick={() => applyTimePreset(preset.key)}
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              {(["after", "before", "range"] as TimeMode[]).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${
+                    query.timeMode === mode
+                      ? "border-slate-900 bg-slate-900 text-white"
+                      : "border-slate-300 bg-white text-slate-600 hover:bg-slate-100"
+                  }`}
+                  onClick={() => changeTimeMode(mode)}
+                >
+                  {mode === "after" ? "之后" : mode === "before" ? "之前" : "时间段"}
+                </button>
+              ))}
+
+              {(query.startTime || query.endTime || query.timePreset !== "all") ? (
+                <button
+                  type="button"
+                  className="rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-100"
+                  onClick={() =>
+                    updateQuery({
+                      page: 1,
+                      startTime: "",
+                      endTime: "",
+                      timePreset: "all",
+                      timeMode: "after",
+                      timeAnchor: "",
+                    })
+                  }
+                >
+                  清除时间
+                </button>
+              ) : null}
+            </div>
+
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              {query.timeMode === "range" ? (
+                <>
+                  <input
+                    type="datetime-local"
+                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-teal-300"
+                    value={query.startTime}
+                    onChange={(e) =>
+                      updateQuery({
+                        page: 1,
+                        timePreset: "custom",
+                        startTime: e.target.value,
+                      })
+                    }
+                  />
+                  <span className="text-sm text-slate-400">至</span>
+                  <input
+                    type="datetime-local"
+                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-teal-300"
+                    value={query.endTime}
+                    onChange={(e) =>
+                      updateQuery({
+                        page: 1,
+                        timePreset: "custom",
+                        endTime: e.target.value,
+                      })
+                    }
+                  />
+                </>
+              ) : (
+                <input
+                  type="datetime-local"
+                  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-teal-300"
+                  value={query.timeAnchor || (query.timeMode === "after" ? query.startTime : query.endTime)}
+                  onChange={(e) => updateTimeAnchor(e.target.value)}
+                />
+              )}
+            </div>
           </div>
 
           <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1fr)_190px_190px_190px]">

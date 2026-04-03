@@ -65,6 +65,7 @@ npm run build
 *   **[历史迭代文档](doc/)**：按版本号归档的所有需求文档、开发计划及验收记录。
     *   [v1_big_poi (大 POI 可视化)](doc/v1_big_poi/)
     *   [v2_dashboard_optimization (近期看板优化)](doc/v2_dashboard_optimization/)
+    *   [v3_dashboard_time_experience_optimization (执行流量趋势与时间交互修复优化，含需求与开发计划)](doc/v3_dashboard_time_experience_optimization/)
 
 ---
 *本系统由数字员工团队维护，持续通过工程化手段优化核实与质检效能。*

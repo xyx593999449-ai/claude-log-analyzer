@@ -1,5 +1,6 @@
 import type {
   DashboardOverview,
+  DashboardTimeGranularity,
   FilterOptions,
   ImportResult,
   TaskListResult,
@@ -19,6 +20,7 @@ interface TaskQuery {
   batches?: string[];
   startTime?: string;
   endTime?: string;
+  timeGranularity?: DashboardTimeGranularity;
 }
 
 interface ImportPayload {
@@ -72,7 +74,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (await res.json()) as T;
 }
 
-export function fetchOverview(batches?: string[], startTime?: string, endTime?: string): Promise<DashboardOverview> {
+export function fetchOverview(
+  batches?: string[],
+  startTime?: string,
+  endTime?: string,
+  timeGranularity: DashboardTimeGranularity = "hour",
+): Promise<DashboardOverview> {
   const params = new URLSearchParams();
   if (batches && batches.length > 0) {
     params.set("batch", batches.join(","));
@@ -83,6 +90,7 @@ export function fetchOverview(batches?: string[], startTime?: string, endTime?: 
   if (endTime) {
     params.set("endTime", endTime);
   }
+  params.set("timeGranularity", timeGranularity);
   const qStr = params.toString();
   const url = qStr ? `/api/dashboard/overview?${qStr}` : `/api/dashboard/overview`;
   return request<DashboardOverview>(url);

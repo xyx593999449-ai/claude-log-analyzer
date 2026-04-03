@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { ArrowLeft, FileSearch, ShieldCheck, ShieldUser } from "lucide-react";
+import { FileSearch, ShieldCheck, ShieldUser } from "lucide-react";
 import { fetchTaskLogs } from "../../lib/dashboardApi";
 import { useParams, useNavigate } from "react-router-dom";
 import type { TaskLogDetail } from "../../lib/dashboardTypes";
 import { AnalysisLayout } from "../legacy/AnalysisLayout";
 import { LegacyLogViewer } from "../legacy/LegacyLogViewer";
+import { formatDateTime, formatDuration } from "./dashboardModel";
 
 interface TaskLogPageProps {
   taskId: string;
@@ -13,6 +14,11 @@ interface TaskLogPageProps {
 }
 
 type PhaseTab = "verify" | "qc";
+
+function formatDurationSafe(durationMs: number | undefined, startedAt?: string | null, endedAt?: string | null): string {
+  if (!durationMs && !startedAt && !endedAt) return "-";
+  return formatDuration(durationMs ?? 0);
+}
 
 export function TaskLogPage() {
   const { taskId } = useParams<{ taskId: string }>();
@@ -104,12 +110,36 @@ export function TaskLogPage() {
                   title="核实日志"
                   value={verifyAvailable ? "已就绪" : "暂无日志"}
                   description={verifyAvailable ? `${detail?.verifySessionIds.length ?? 0} 个 session` : "未导入"}
+                  extraRows={[
+                    { label: "执行状态", value: detail?.verifySummary.status ?? "-" },
+                    { label: "开始时间", value: formatDateTime(detail?.verifySummary.startedAt) },
+                    { label: "结束时间", value: formatDateTime(detail?.verifySummary.endedAt) },
+                    { label: "业务时间", value: formatDateTime(detail?.verifySummary.businessTime) },
+                    {
+                      label: "耗时",
+                      value: formatDurationSafe(
+                        detail?.verifySummary.durationMs,
+                        detail?.verifySummary.startedAt,
+                        detail?.verifySummary.endedAt,
+                      ),
+                    },
+                  ]}
                   tone={verifyAvailable ? "success" : "neutral"}
                 />
                 <SummaryCard
                   title="质检日志"
                   value={qcAvailable ? "已就绪" : "暂无日志"}
                   description={qcAvailable ? `${detail?.qcSessionIds.length ?? 0} 个 session` : "未导入"}
+                  extraRows={[
+                    { label: "执行状态", value: detail?.qcSummary.status ?? "-" },
+                    { label: "开始时间", value: formatDateTime(detail?.qcSummary.startedAt) },
+                    { label: "结束时间", value: formatDateTime(detail?.qcSummary.endedAt) },
+                    { label: "业务时间", value: formatDateTime(detail?.qcSummary.businessTime) },
+                    {
+                      label: "耗时",
+                      value: formatDurationSafe(detail?.qcSummary.durationMs, detail?.qcSummary.startedAt, detail?.qcSummary.endedAt),
+                    },
+                  ]}
                   tone={qcAvailable ? "success" : "neutral"}
                 />
                 <SummaryCard
@@ -177,11 +207,13 @@ function SummaryCard({
   title,
   value,
   description,
+  extraRows,
   tone,
 }: {
   title: string;
   value: string;
   description: string;
+  extraRows?: Array<{ label: string; value: string }>;
   tone: "success" | "neutral" | "info" | "warning";
 }) {
   const classes =
@@ -198,6 +230,16 @@ function SummaryCard({
       <div className="text-xs uppercase tracking-[0.24em] text-slate-400">{title}</div>
       <div className="mt-2 text-2xl font-mono font-bold tracking-tight text-slate-900">{value}</div>
       <p className="mt-2 text-sm leading-6 text-slate-600">{description}</p>
+      {extraRows && extraRows.length > 0 ? (
+        <div className="mt-3 space-y-1.5">
+          {extraRows.map((row) => (
+            <div key={row.label} className="flex items-center justify-between text-xs text-slate-500">
+              <span>{row.label}</span>
+              <span className="font-mono text-slate-700">{row.value}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
     </article>
   );
 }

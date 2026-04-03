@@ -37,6 +37,8 @@ export interface DashboardOverview {
   timeSeries: Array<{ timeBlock: string; verifyCount: number; qcCount: number }>;
 }
 
+export type DashboardTimeGranularity = "hour" | "five_hour" | "day";
+
 export interface RunView {
   phase: "verify" | "qc";
   status: string | null;
@@ -90,6 +92,8 @@ export interface DashboardTaskItem {
     poiVerified: Record<string, unknown> | null;
     poiQc: Record<string, unknown> | null;
   };
+  latestActionTime: string | null;
+  latestActionType: "qc" | "verify" | "init" | null;
 }
 
 export interface TaskListResult {
@@ -110,6 +114,16 @@ export interface TaskLogDetail {
   qcRawLog: string;
   verifySessionIds: string[];
   qcSessionIds: string[];
+  verifySummary: TaskLogPhaseSummary;
+  qcSummary: TaskLogPhaseSummary;
+}
+
+export interface TaskLogPhaseSummary {
+  startedAt: string | null;
+  endedAt: string | null;
+  businessTime: string | null;
+  durationMs: number;
+  status: string | null;
 }
 
 export interface ImportResult {

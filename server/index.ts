@@ -11,6 +11,7 @@ import { loadPgConfig } from "./pgConfig";
 import type { DashboardRepositoryPort } from "./repository";
 import type { AnalysisPhase } from "./types";
 import type { DashboardFilters } from "./types";
+import type { DashboardTimeGranularity } from "./types";
 
 const app = express();
 app.use(express.json({ limit: "100mb" }));
@@ -73,6 +74,12 @@ function parseBoolean(value: unknown): boolean {
   return false;
 }
 
+function parseTimeGranularity(value: unknown): DashboardTimeGranularity {
+  const granularity = String(value ?? "").trim();
+  if (granularity === "five_hour" || granularity === "day") return granularity;
+  return "hour";
+}
+
 function parseFilters(query: Record<string, unknown>): DashboardFilters {
   const page = Math.max(1, Number(query.page ?? 1) || 1);
   const pageSize = Math.min(200, Math.max(10, Number(query.pageSize ?? 20) || 20));
@@ -84,6 +91,7 @@ function parseFilters(query: Record<string, unknown>): DashboardFilters {
   // 提取时间段筛选参数，空字符串视为未设置
   const startTime = String(query.startTime ?? "").trim() || undefined;
   const endTime = String(query.endTime ?? "").trim() || undefined;
+  const timeGranularity = parseTimeGranularity(query.timeGranularity);
 
   return {
     page,
@@ -97,6 +105,7 @@ function parseFilters(query: Record<string, unknown>): DashboardFilters {
     batches: String(query.batch ?? "").split(",").filter(Boolean).map(s => s.trim()),
     startTime,
     endTime,
+    timeGranularity,
   };
 }
 
@@ -111,7 +120,7 @@ app.get("/api/health", (_req, res) => {
 app.get("/api/dashboard/overview", async (req, res, next) => {
   try {
     const filters = parseFilters(req.query as Record<string, unknown>);
-    res.json(await getRepo(req).getOverview(filters.batches, filters.startTime, filters.endTime));
+    res.json(await getRepo(req).getOverview(filters.batches, filters.startTime, filters.endTime, filters.timeGranularity));
   } catch (error) {
     next(error);
   }

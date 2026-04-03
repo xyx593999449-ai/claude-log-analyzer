@@ -1,5 +1,12 @@
 import { Pool, type PoolClient } from "pg";
-import type { AggregatedTaskRun, AnalysisPhase, DashboardFilters, ImportSnapshot, BatchOverviewItem } from "./types";
+import type {
+  AggregatedTaskRun,
+  AnalysisPhase,
+  DashboardFilters,
+  DashboardTimeGranularity,
+  ImportSnapshot,
+  BatchOverviewItem,
+} from "./types";
 import type {
   DashboardFilterOptions,
   DashboardOverview,
@@ -146,6 +153,8 @@ function normalizeTask(row: Record<string, unknown>): DashboardTaskItem {
       poiVerified: safeJsonParse<Record<string, unknown>>((row.poi_verified_raw as string | null) ?? null),
       poiQc: safeJsonParse<Record<string, unknown>>((row.poi_qc_raw as string | null) ?? null),
     },
+    latestActionTime: (row.latest_action_time as string | null) ?? null,
+    latestActionType: (row.latest_action_type as "qc" | "verify" | "init" | null) ?? null,
   };
 
   if (mismatchVerify) item.anomalies.push(mismatchVerify);
@@ -217,14 +226,13 @@ function buildTaskFilterSqlPg(filters: DashboardFilters): { whereSql: string; pa
   }
 
   // 时间段筛选：基于业务最新动作时间（质检时间 > 核实时间 > 初始更新时间）
-  // 注意：此处引用的字段来自 merged CTE 中的列名，需确保 qc_time / verify_time / updatetime 在外层可访问
   if (filters.startTime) {
-    clauses.push(`COALESCE(qc_time, verify_time, updatetime::text) >= $${idx}`);
+    clauses.push(`NULLIF(REPLACE(COALESCE(qc_time, verify_time, updatetime::text), ',', '.'), '')::timestamp >= $${idx}::timestamp`);
     params.push(filters.startTime);
     idx += 1;
   }
   if (filters.endTime) {
-    clauses.push(`COALESCE(qc_time, verify_time, updatetime::text) <= $${idx}`);
+    clauses.push(`NULLIF(REPLACE(COALESCE(qc_time, verify_time, updatetime::text), ',', '.'), '')::timestamp <= $${idx}::timestamp`);
     params.push(filters.endTime);
     idx += 1;
   }
@@ -465,7 +473,12 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
     };
   }
 
-  async getOverview(batches?: string[], startTime?: string, endTime?: string): Promise<DashboardOverview> {
+  async getOverview(
+    batches?: string[],
+    startTime?: string,
+    endTime?: string,
+    granularity: DashboardTimeGranularity = "hour",
+  ): Promise<DashboardOverview> {
     await this.ready();
 
     // 构建 WHERE 子句辅助函数，同时包含批次过滤和时间段过滤
@@ -489,12 +502,12 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
       const tf = opts?.timeField || "started_at";
       const tp = opts?.timePrefix || "";
       if (startTime) {
-        clauses.push(`${tp}${tf}::text >= $${idx}`);
+        clauses.push(`NULLIF(REPLACE(${tp}${tf}::text, ',', '.'), '')::timestamp >= $${idx}::timestamp`);
         params.push(startTime);
         idx += 1;
       }
       if (endTime) {
-        clauses.push(`${tp}${tf}::text <= $${idx}`);
+        clauses.push(`NULLIF(REPLACE(${tp}${tf}::text, ',', '.'), '')::timestamp <= $${idx}::timestamp`);
         params.push(endTime);
         idx += 1;
       }
@@ -521,12 +534,12 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
       const tf = opts?.timeField || "started_at";
       const tp = opts?.timePrefix || "";
       if (startTime) {
-        clauses.push(`${tp}${tf}::text >= $${idx}`);
+        clauses.push(`NULLIF(REPLACE(${tp}${tf}::text, ',', '.'), '')::timestamp >= $${idx}::timestamp`);
         params.push(startTime);
         idx += 1;
       }
       if (endTime) {
-        clauses.push(`${tp}${tf}::text <= $${idx}`);
+        clauses.push(`NULLIF(REPLACE(${tp}${tf}::text, ',', '.'), '')::timestamp <= $${idx}::timestamp`);
         params.push(endTime);
         idx += 1;
       }
@@ -551,7 +564,7 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
     }));
 
     // 流程阶段计数（涉及多表联查，时间过滤应用于日志表 started_at）
-    const wStage = buildWhere("i.");
+    const wStage = buildWhere("i.", { timeField: "updatetime", timePrefix: "i." });
     const wStageInner = buildWhere("", { timeField: "started_at" });
     const flowStageCountsRes = await this.pool.query(`
       WITH latest AS (
@@ -690,7 +703,10 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
     qcMetrics.verificationQualityRate = qcTotal > 0 ? qualityMatched / qcTotal : 0;
 
     // 人工介入任务数（多表联查，不加时间过滤以保持与总任务数口径一致）
-    const aManual = buildAnd("i.");
+    const aManual = buildAnd("i.", {
+      timePrefix: "i.",
+      timeField: "updatetime",
+    });
     const manualTaskCountRes = await this.pool.query(`
       SELECT COUNT(*)::bigint as count
       FROM poi_init i
@@ -704,7 +720,10 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
 
     // 异常任务数（多表联查，时间过滤通过日志表 started_at）
     const wAnomaly = buildWhere("", { timeField: "started_at" });
-    const aAnomaly = buildAnd("i.");
+    const aAnomaly = buildAnd("i.", {
+      timePrefix: "i.",
+      timeField: "updatetime",
+    });
     const anomalyCountRes = await this.pool.query(`
       WITH latest AS (
         SELECT *
@@ -746,10 +765,27 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
     `, aQcRej.params);
     const qcRejectedCount = Number(qcRejectedCountRes.rows[0]?.count ?? 0);
 
+    const timeBlockExpr =
+      granularity === "day"
+        ? `to_char(date_trunc('day', NULLIF(REPLACE(time_val, ',', '.'), '')::timestamp), 'YYYY-MM-DD')`
+        : granularity === "five_hour"
+          ? `to_char(
+              date_trunc('day', NULLIF(REPLACE(time_val, ',', '.'), '')::timestamp)
+              + floor(extract(hour from NULLIF(REPLACE(time_val, ',', '.'), '')::timestamp) / 5) * interval '5 hour',
+              'YYYY-MM-DD HH24:00'
+            )`
+          : `to_char(date_trunc('hour', NULLIF(REPLACE(time_val, ',', '.'), '')::timestamp), 'YYYY-MM-DD HH24:00')`;
+
     // 时间趋势图（过滤日志和业务时间）
     const wTs = buildWhere("", { timeField: "started_at" });
-    const aTsVerify = buildAnd('i.');
-    const aTsQc = buildAnd('i.');
+    const aTsVerify = buildAnd("i.", {
+      timeField: "verify_time",
+      timePrefix: "v.",
+    });
+    const aTsQc = buildAnd("i.", {
+      timeField: "qc_time",
+      timePrefix: "q.",
+    });
     const timeSeriesRes = await this.pool.query(`
       WITH latest AS (
         SELECT task_id, phase, started_at
@@ -781,7 +817,7 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
       blocks AS (
         SELECT 
           phase,
-          SUBSTRING(time_val FROM 1 FOR 13) || ':00' as time_block
+          ${timeBlockExpr} as time_block
         FROM base_times
       )
       SELECT time_block,
@@ -852,6 +888,13 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
           q.is_qualified,
           q.qc_time::text as qc_time,
           to_jsonb(q)::text AS poi_qc_raw,
+          COALESCE(q.qc_time::text, v.verify_time::text, i.updatetime::text) AS latest_action_time,
+          CASE
+            WHEN q.qc_time IS NOT NULL THEN 'qc'
+            WHEN v.verify_time IS NOT NULL THEN 'verify'
+            WHEN i.updatetime IS NOT NULL THEN 'init'
+            ELSE NULL
+          END AS latest_action_type,
 
           vr.task_id AS verify_task_id,
           vr.status AS verify_status,
@@ -930,7 +973,11 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
     const offsetIndex = params.length + 2;
     // 排序优先级：质检时间 > 核实时间 > 初始更新时间，兼容 null / 空值
     const rowsRes = await this.pool.query(
-      `SELECT * FROM (${baseSql}) t ORDER BY COALESCE(t.qc_time, t.verify_time, t.updatetime::text) DESC NULLS LAST, t.task_id DESC LIMIT $${limitIndex} OFFSET $${offsetIndex}`,
+      `SELECT * FROM (${baseSql}) t
+       ORDER BY
+         NULLIF(REPLACE(t.latest_action_time, ',', '.'), '')::timestamp DESC NULLS LAST,
+         t.task_id DESC
+       LIMIT $${limitIndex} OFFSET $${offsetIndex}`,
       pageParams,
     );
 
@@ -946,7 +993,7 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
     await this.ready();
     const runRowsRes = await this.pool.query(
       `
-      SELECT phase, session_ids_json, import_batch_id
+      SELECT phase, session_ids_json, import_batch_id, started_at, ended_at, duration_ms, status
       FROM poi_task_analysis
       WHERE task_id = $1
         AND id IN (
@@ -960,10 +1007,25 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
     );
 
     const runRows = runRowsRes.rows as Array<Record<string, unknown>>;
+    const verifyRun = runRows.find((row) => row.phase === "verify");
+    const qcRun = runRows.find((row) => row.phase === "qc");
     const verifySessionIds =
-      safeJsonParse<string[]>(String(runRows.find((row) => row.phase === "verify")?.session_ids_json ?? "[]")) ?? [];
+      safeJsonParse<string[]>(String(verifyRun?.session_ids_json ?? "[]")) ?? [];
     const qcSessionIds =
-      safeJsonParse<string[]>(String(runRows.find((row) => row.phase === "qc")?.session_ids_json ?? "[]")) ?? [];
+      safeJsonParse<string[]>(String(qcRun?.session_ids_json ?? "[]")) ?? [];
+
+    const businessTimesRes = await this.pool.query(
+      `
+      SELECT v.verify_time::text AS verify_time, q.qc_time::text AS qc_time
+      FROM poi_init i
+      LEFT JOIN poi_verified v ON v.task_id = i.task_id
+      LEFT JOIN poi_qc q ON q.task_id = i.task_id
+      WHERE i.task_id = $1
+      LIMIT 1
+      `,
+      [taskId],
+    );
+    const businessTimes = businessTimesRes.rows[0] as Record<string, unknown> | undefined;
 
     /* 
     注释旧的基于 analysis_imports 的本地日志过滤读取逻辑
@@ -1039,6 +1101,20 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
       qcRawLog: buildLogText(qcSessionIds),
       verifySessionIds,
       qcSessionIds,
+      verifySummary: {
+        startedAt: (verifyRun?.started_at as string | null) ?? null,
+        endedAt: (verifyRun?.ended_at as string | null) ?? null,
+        businessTime: (businessTimes?.verify_time as string | null) ?? null,
+        durationMs: Number(verifyRun?.duration_ms ?? 0),
+        status: (verifyRun?.status as string | null) ?? null,
+      },
+      qcSummary: {
+        startedAt: (qcRun?.started_at as string | null) ?? null,
+        endedAt: (qcRun?.ended_at as string | null) ?? null,
+        businessTime: (businessTimes?.qc_time as string | null) ?? null,
+        durationMs: Number(qcRun?.duration_ms ?? 0),
+        status: (qcRun?.status as string | null) ?? null,
+      },
     };
   }
 

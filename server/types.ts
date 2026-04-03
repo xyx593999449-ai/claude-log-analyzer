@@ -1,4 +1,5 @@
 export type AnalysisPhase = "verify" | "qc";
+export type DashboardTimeGranularity = "hour" | "five_hour" | "day";
 
 export interface SampleSeedRecord {
   record_no?: number;
@@ -100,6 +101,8 @@ export interface DashboardFilters {
   startTime?: string;
   /** 时间段筛选 - 结束时间（ISO 格式或 YYYY-MM-DD），用于按执行日志时间过滤 */
   endTime?: string;
+  /** 趋势图粒度 */
+  timeGranularity?: DashboardTimeGranularity;
 }
 
 export interface ImportSnapshot {

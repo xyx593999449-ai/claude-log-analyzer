@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   Bot,
   CheckCircle2,
+  Clock3,
   ChevronDown,
   ChevronRight,
   ChevronUp,
@@ -82,6 +83,17 @@ export function TaskFlowCard({
   const verifyModule = buildPhaseModuleMeta(item, "verify");
   const qcModule = buildPhaseModuleMeta(item, "qc");
   const hasCritical = alerts.some((alert) => alert.tone === "danger");
+  const latestActionLabel =
+    item.latestActionType === "qc"
+      ? "质检时间"
+      : item.latestActionType === "verify"
+        ? "核实时间"
+        : item.latestActionType === "init"
+          ? "初始更新时间"
+          : "暂无时间";
+  const latestActionValue = formatDateTime(
+    item.latestActionTime ?? item.qcSummary.qcTime ?? item.verifiedSummary.verifyTime ?? item.verifyRun?.endedAt ?? item.verifyRun?.startedAt,
+  );
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [modulesOpen, setModulesOpen] = useState(false);
 
@@ -108,6 +120,12 @@ export function TaskFlowCard({
               {item.city ?? "未知城市"} / {item.poiType ?? "未知类型"} / POI_ID {item.poiId ?? "-"}
             </p>
             {item.address ? <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-500">{item.address}</p> : null}
+            <div className="mt-3 flex flex-wrap gap-2">
+              <InfoBadge icon={<Clock3 className="h-3.5 w-3.5" />} label={`最新动作 ${latestActionValue}`} />
+              <StatusPill label={`排序依据 ${latestActionLabel}`} tone="info" />
+              <InfoBadge icon={<ShieldCheck className="h-3.5 w-3.5" />} label={`核实时间 ${formatDateTime(item.verifiedSummary.verifyTime ?? item.verifyRun?.endedAt ?? item.verifyRun?.startedAt)}`} />
+              <InfoBadge icon={<ShieldAlert className="h-3.5 w-3.5" />} label={`质检时间 ${formatDateTime(item.qcSummary.qcTime ?? item.qcRun?.endedAt ?? item.qcRun?.startedAt)}`} />
+            </div>
           </div>
 
           {evidenceSummary ? <EvidenceSummaryHoverRow summary={evidenceSummary} /> : null}
