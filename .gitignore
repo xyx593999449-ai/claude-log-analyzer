@@ -5,7 +5,11 @@ coverage/
 .DS_Store
 *.log
 .env*
-!.env
+# !.env  <-- 移除此行，确保本地环境配置不被提交
 !.env.example
 tmp/
 *.sqlite
+
+# 样例数据与测试脚本 (按共建准则要求)
+example/
+test_db.ts
