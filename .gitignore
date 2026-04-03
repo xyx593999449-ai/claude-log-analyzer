@@ -5,7 +5,7 @@ coverage/
 .DS_Store
 *.log
 .env*
-# !.env  <-- 移除此行，确保本地环境配置不被提交
+!.env
 !.env.example
 tmp/
 *.sqlite
