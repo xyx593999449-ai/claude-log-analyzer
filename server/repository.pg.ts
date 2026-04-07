@@ -1160,6 +1160,7 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
           qr.ended_at AS qr_ended,
           vr.status AS vr_status,
           qr.status AS qr_status,
+          COALESCE(NULLIF(qr.batch_id, ''), NULLIF(vr.batch_id, '')) AS run_batch_id,
           v.task_id AS is_verified
         FROM poi_init i
         LEFT JOIN poi_verified v ON v.task_id = i.task_id
@@ -1191,16 +1192,25 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
 
     for (const row of rows) {
       const taskId = String(row.task_id);
-      let batchId = "default";
-      const match = taskId.match(/_([^_]+_[0-9]+)$/);
-      if (match) {
-        batchId = match[1];
-      } else {
-        const parts = taskId.split('_');
-        if (parts.length >= 2) {
-          batchId = parts.slice(-2).join('_');
+      const runBatchId =
+        row.run_batch_id == null
+          ? ""
+          : typeof row.run_batch_id === "string"
+            ? row.run_batch_id.trim()
+            : String(row.run_batch_id).trim();
+
+      let batchId = runBatchId;
+      if (!batchId) {
+        const match = taskId.match(/_([^_]+_[0-9]+)$/);
+        if (match) {
+          batchId = match[1];
         } else {
-          batchId = taskId;
+          const parts = taskId.split("_");
+          if (parts.length >= 2) {
+            batchId = parts.slice(-2).join("_");
+          } else {
+            batchId = taskId;
+          }
         }
       }
 
