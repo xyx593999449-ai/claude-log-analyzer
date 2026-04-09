@@ -1199,18 +1199,16 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
             ? row.run_batch_id.trim()
             : String(row.run_batch_id).trim();
 
-      let batchId = runBatchId;
-      if (!batchId) {
-        const match = taskId.match(/_([^_]+_[0-9]+)$/);
-        if (match) {
-          batchId = match[1];
+      let batchId = "";
+      const match = taskId.match(/_([^_]+_[0-9]+)$/);
+      if (match) {
+        batchId = match[1];
+      } else {
+        const parts = taskId.split("_");
+        if (parts.length >= 2) {
+          batchId = parts.slice(-2).join("_");
         } else {
-          const parts = taskId.split("_");
-          if (parts.length >= 2) {
-            batchId = parts.slice(-2).join("_");
-          } else {
-            batchId = taskId;
-          }
+          batchId = runBatchId || taskId;
         }
       }
 
