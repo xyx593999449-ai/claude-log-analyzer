@@ -1,4 +1,4 @@
-import { startTransition, useDeferredValue, useEffect, useState } from "react";
+import { startTransition, useDeferredValue, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { AlertCircle, Clock3, Coins, Database, FileSearch, Hammer, ListTree } from "lucide-react";
 import { parseNDJSON } from "../../lib/parser";
@@ -62,6 +62,14 @@ function renderEventText(event: ParsedEvent): string {
   return event.text ?? event.type;
 }
 
+function parseEventTime(value?: string): number | null {
+  if (!value) return null;
+  const normalized = value.includes("T") ? value : value.replace(" ", "T");
+  const ts = Date.parse(normalized);
+  if (!Number.isNaN(ts)) return ts;
+  return null;
+}
+
 export function LogAnalysisPanel({ title, rawLog, sessionIds = [] }: LogAnalysisPanelProps) {
   const [tab, setTab] = useState<LogTab>("timeline");
   const [analysis, setAnalysis] = useState<LogAnalysis>(createEmptyAnalysis());
@@ -96,7 +104,22 @@ export function LogAnalysisPanel({ title, rawLog, sessionIds = [] }: LogAnalysis
       error: analysis.stats.toolErrors[name] ?? 0,
     }));
 
-  const timeline = analysis.timeline.slice(0, 300);
+  const timeline = useMemo(
+    () =>
+      analysis.timeline
+        .map((event, index) => ({ event, index }))
+        .sort((a, b) => {
+          const ta = parseEventTime(a.event.timestampStr);
+          const tb = parseEventTime(b.event.timestampStr);
+          if (ta !== null && tb !== null && ta !== tb) return ta - tb;
+          if (ta !== null && tb === null) return -1;
+          if (ta === null && tb !== null) return 1;
+          return a.index - b.index;
+        })
+        .map(({ event }) => event)
+        .slice(0, 300),
+    [analysis.timeline],
+  );
 
   return (
     <section className="rounded-2xl border border-zinc-200 bg-white p-4">
@@ -233,6 +256,5 @@ function TabButton({
     </button>
   );
 }
-
 
 

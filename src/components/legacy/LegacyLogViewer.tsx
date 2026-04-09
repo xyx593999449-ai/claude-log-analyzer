@@ -38,6 +38,14 @@ function formatDuration(ms: number): string {
   return `${sec}s`;
 }
 
+function parseEventTime(value?: string): number | null {
+  if (!value) return null;
+  const normalized = value.includes("T") ? value : value.replace(" ", "T");
+  const ts = Date.parse(normalized);
+  if (!Number.isNaN(ts)) return ts;
+  return null;
+}
+
 export function LegacyLogViewer({
   title,
   rawLog,
@@ -74,6 +82,21 @@ export function LegacyLogViewer({
   const toolErrorCount = useMemo(
     () => Object.values(analysis.stats.toolErrors).reduce<number>((sum, value) => sum + Number(value ?? 0), 0),
     [analysis.stats.toolErrors],
+  );
+  const timelineAsc = useMemo(
+    () =>
+      analysis.timeline
+        .map((event, index) => ({ event, index }))
+        .sort((a, b) => {
+          const ta = parseEventTime(a.event.timestampStr);
+          const tb = parseEventTime(b.event.timestampStr);
+          if (ta !== null && tb !== null && ta !== tb) return ta - tb;
+          if (ta !== null && tb === null) return -1;
+          if (ta === null && tb !== null) return 1;
+          return a.index - b.index;
+        })
+        .map(({ event }) => event),
+    [analysis.timeline],
   );
   const hasExecutionError = toolErrorCount > 0;
 
@@ -134,7 +157,7 @@ export function LegacyLogViewer({
       {error ? <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{error}</div> : null}
 
       <div className="mt-5">
-        {tab === "timeline" ? <TimelineView timeline={analysis.timeline.slice(0, 300)} /> : null}
+        {tab === "timeline" ? <TimelineView timeline={timelineAsc.slice(0, 300)} /> : null}
         {tab === "tools" ? <ToolAnalysisView stats={analysis.stats} /> : null}
         {tab === "token" ? <TokenAnalysisView stats={analysis.stats} /> : null}
         {tab === "raw" ? (
