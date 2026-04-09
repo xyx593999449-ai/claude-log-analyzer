@@ -32,6 +32,12 @@ function safeNumber(value: unknown): number {
   return Number.isFinite(num) ? num : 0;
 }
 
+function normalizeTimestamp(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim();
+  return normalized.length > 0 ? normalized : null;
+}
+
 function extractTimestamp(id: string | undefined): string | null {
   if (!id) return null;
   const match = id.match(/^msg_(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/);
@@ -245,9 +251,82 @@ function firstNonEmptyText(content: unknown): string | null {
 export async function parseClaudeTaskLogFile(filePath: string, phase: AnalysisPhase): Promise<ClaudeTaskRecord[]> {
   const sessions = new Map<string, SessionAccumulator>();
   let lineNumber = 0;
+  let pendingTimestamp: string | null = null;
 
   const stream = fs.createReadStream(filePath, { encoding: "utf8" });
   const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
+
+  const processRawObject = (rawObj: Record<string, unknown>): void => {
+    const directTimestamp = normalizeTimestamp(rawObj.timestamp);
+    const isStandaloneTimestamp =
+      !!directTimestamp
+      && Object.keys(rawObj).length === 1
+      && Object.prototype.hasOwnProperty.call(rawObj, "timestamp");
+    if (isStandaloneTimestamp) {
+      pendingTimestamp = directTimestamp;
+      return;
+    }
+
+    const message =
+      rawObj.message && typeof rawObj.message === "object"
+        ? (rawObj.message as Record<string, unknown>)
+        : rawObj;
+
+    const sessionId =
+      (typeof rawObj.session_id === "string" ? rawObj.session_id : null)
+      ?? (typeof message.session_id === "string" ? message.session_id : null)
+      ?? "unknown_session";
+    const session = ensureSession(sessions, sessionId);
+
+    const embeddedTimestamp = normalizeTimestamp(message.timestamp);
+    let timestamp = directTimestamp ?? embeddedTimestamp;
+    if (!timestamp && pendingTimestamp) {
+      timestamp = pendingTimestamp;
+      pendingTimestamp = null;
+    }
+    if (!timestamp) {
+      timestamp = extractTimestamp(typeof message.id === "string" ? message.id : undefined);
+    }
+    if (timestamp) {
+      session.startTime = minTimestamp(session.startTime, timestamp);
+      session.endTime = maxTimestamp(session.endTime, timestamp);
+    }
+
+    const usage = message.usage && typeof message.usage === "object"
+      ? (message.usage as Record<string, unknown>)
+      : null;
+    if (usage) {
+      session.inputTokens += safeNumber(usage.input_tokens);
+      session.outputTokens += safeNumber(usage.output_tokens);
+      session.cacheTokens += safeNumber(usage.cache_creation_input_tokens) + safeNumber(usage.cache_read_input_tokens);
+    }
+    session.totalCostUsd += safeNumber(message.cost_usd);
+    session.totalDurationMs += safeNumber(message.duration_ms);
+
+    const directType = typeof rawObj.type === "string" ? rawObj.type : "";
+    if (directType === "content_block_start" && rawObj.content_block && typeof rawObj.content_block === "object") {
+      const contentBlock = rawObj.content_block as Record<string, unknown>;
+      if (contentBlock.type === "tool_use") {
+        const name = typeof contentBlock.name === "string" ? contentBlock.name : "unknown";
+        bumpCounter(session.toolCounts, name);
+        if (typeof contentBlock.id === "string") {
+          session.toolIdToName.set(contentBlock.id, name);
+        }
+      }
+    }
+
+    const binding = extractBindingFromContent(message.content, session);
+    if (binding && !session.binding) {
+      session.binding = binding;
+    }
+
+    if (!session.errorSummary) {
+      const text = firstNonEmptyText(message.content);
+      if (text && /(error|exception|failed|失败)/i.test(text)) {
+        session.errorSummary = text.slice(0, 300);
+      }
+    }
+  };
 
   try {
     for await (let line of rl) {
@@ -256,67 +335,21 @@ export async function parseClaudeTaskLogFile(filePath: string, phase: AnalysisPh
         line = line.replace(/^\uFEFF/, "");
       }
       const trimmed = line.trim();
-      if (!trimmed || !trimmed.startsWith("{")) continue;
+      if (!trimmed || (!trimmed.startsWith("{") && !trimmed.startsWith("["))) continue;
 
-      let rawObj: Record<string, unknown>;
       try {
         const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) {
+          for (const item of parsed) {
+            if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+            processRawObject(item as Record<string, unknown>);
+          }
+          continue;
+        }
         if (!parsed || typeof parsed !== "object") continue;
-        rawObj = parsed as Record<string, unknown>;
+        processRawObject(parsed as Record<string, unknown>);
       } catch {
         continue;
-      }
-
-      const message =
-        rawObj.message && typeof rawObj.message === "object"
-          ? (rawObj.message as Record<string, unknown>)
-          : rawObj;
-
-      const sessionId =
-        (typeof rawObj.session_id === "string" ? rawObj.session_id : null)
-        ?? (typeof message.session_id === "string" ? message.session_id : null)
-        ?? "unknown_session";
-      const session = ensureSession(sessions, sessionId);
-
-      const timestamp = extractTimestamp(typeof message.id === "string" ? message.id : undefined);
-      if (timestamp) {
-        session.startTime = minTimestamp(session.startTime, timestamp);
-        session.endTime = maxTimestamp(session.endTime, timestamp);
-      }
-
-      const usage = message.usage && typeof message.usage === "object"
-        ? (message.usage as Record<string, unknown>)
-        : null;
-      if (usage) {
-        session.inputTokens += safeNumber(usage.input_tokens);
-        session.outputTokens += safeNumber(usage.output_tokens);
-        session.cacheTokens += safeNumber(usage.cache_creation_input_tokens) + safeNumber(usage.cache_read_input_tokens);
-      }
-      session.totalCostUsd += safeNumber(message.cost_usd);
-      session.totalDurationMs += safeNumber(message.duration_ms);
-
-      const directType = typeof rawObj.type === "string" ? rawObj.type : "";
-      if (directType === "content_block_start" && rawObj.content_block && typeof rawObj.content_block === "object") {
-        const contentBlock = rawObj.content_block as Record<string, unknown>;
-        if (contentBlock.type === "tool_use") {
-          const name = typeof contentBlock.name === "string" ? contentBlock.name : "unknown";
-          bumpCounter(session.toolCounts, name);
-          if (typeof contentBlock.id === "string") {
-            session.toolIdToName.set(contentBlock.id, name);
-          }
-        }
-      }
-
-      const binding = extractBindingFromContent(message.content, session);
-      if (binding && !session.binding) {
-        session.binding = binding;
-      }
-
-      if (!session.errorSummary) {
-        const text = firstNonEmptyText(message.content);
-        if (text && /(error|exception|failed|失败)/i.test(text)) {
-          session.errorSummary = text.slice(0, 300);
-        }
       }
     }
   } finally {
