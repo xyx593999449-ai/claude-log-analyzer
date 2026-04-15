@@ -1,0 +1,114 @@
+{
+  "project": "Claude Log Analyzer",
+  "branchName": "ralph/hitl-skill-iteration-page",
+  "description": "新增面向大 POI 核实场景的 HITL 数字员工 Skill 迭代运营页，展示核实/质检双 Skill 的问题分析、迭代建议、联合回归验证与发布结论。",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "定义 HITL 迭代页的数据类型与页面状态模型",
+      "description": "作为开发者，我想先定义迭代批次、双 Skill 分析、联合回归和发布结论的数据类型，以便后续页面开发基于稳定的数据结构推进。",
+      "acceptanceCriteria": [
+        "在前端类型定义中增加 HITL 迭代页所需的数据模型，至少覆盖迭代批次总览、核实/质检问题分析、迭代建议、候选版本、联合回归结果和发布结论",
+        "数据模型明确区分人工反馈结果池、迭代批次和任务执行批次的概念",
+        "如现有 dashboard 需要展示辅助状态，补充对应的页面状态或视图模型定义",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "新增 HITL 迭代运营页路由与导航入口",
+      "description": "作为用户，我想从现有顶层导航进入新的 HITL 迭代运营页，以便在任务看板之外查看 Skill 迭代闭环。",
+      "acceptanceCriteria": [
+        "在应用路由中新增独立的 HITL 迭代运营页路由",
+        "顶部导航增加进入该页面的入口，命名与现有 dashboard 风格一致",
+        "新路由可正常渲染一个占位页面或骨架页面，不影响现有 batches、tasks、logs 和 analyzer 页面",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "搭建 HITL 迭代页的总览与流程骨架区",
+      "description": "作为数字员工运营负责人，我想在页首看到迭代批次总览和 HITL 闭环流程骨架，以便快速理解本轮迭代的范围、状态和闭环路径。",
+      "acceptanceCriteria": [
+        "新页面包含页首总览区，展示页面标题、迭代批次标识、时间范围、样本量和当前状态",
+        "页面包含 HITL 流程总览模块，覆盖人工反馈结果池、LLM 分析、双 Skill 建议、候选版本、联合回归和发布结论",
+        "页首模块沿用当前 dashboard 视觉语言，不引入明显割裂的全新样式体系",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "实现迭代批次摘要与双 Skill 问题分析区",
+      "description": "作为 Skill 维护人员，我想分别查看核实 Skill 与质检 Skill 的问题分析摘要，以便定位两条链路的主要问题来源和严重度。",
+      "acceptanceCriteria": [
+        "页面新增迭代批次摘要区，展示发起原因、样本来源、时间窗和人工问题类型概览",
+        "页面分别展示核实 Skill 与质检 Skill 的问题分析区",
+        "每个问题分析区至少包含问题分布、频次或严重度、日志归因和证据摘要占位",
+        "页面明确标识核实与质检两条链路，避免内容混淆",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "实现双 Skill 迭代建议与候选版本摘要区",
+      "description": "作为产品经理，我想查看核实和质检两套 Skill 的结构化迭代建议及候选版本摘要，以便判断本轮版本变更范围是否合理。",
+      "acceptanceCriteria": [
+        "页面分别展示核实 Skill 与质检 Skill 的迭代建议列表",
+        "每条建议至少展示问题、建议改动点、预期收益、风险和是否纳入候选版本",
+        "页面新增候选版本摘要区，分别展示核实 Skill 与质检 Skill 的基线版本和候选版本信息",
+        "候选版本区强调能力变更摘要，不直接展示底层代码 diff",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "实现联合回归验证与发布结论区",
+      "description": "作为发布决策人，我想查看一次联合回归中的核实/质检分项结果和整体发布结论，以便决定是否上线新版本。",
+      "acceptanceCriteria": [
+        "页面新增联合回归验证总览区，展示回归样本规模、覆盖范围和执行状态",
+        "页面分别展示核实回归结果与质检回归结果，并清晰标识是否通过",
+        "页面新增发布结论区，展示整体结论、分项结果和决策依据摘要",
+        "当核实与质检结果不一致时，页面仍可清晰表达分项通过情况与整体结论",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "联调整个 HITL 迭代运营页并补充文档入口",
+      "description": "作为项目维护者，我想完成 HITL 迭代运营页的整页联调并同步文档入口，以便该页面可以作为完整的新模块被后续迭代继续推进。",
+      "acceptanceCriteria": [
+        "整页模块按 PRD 的信息架构串联完成，页面滚动与区块层级清晰",
+        "页面文案明确区分人工反馈结果池、迭代批次和任务执行批次",
+        "如有新增页面入口或说明文案，README 或相关项目文档同步更新",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}

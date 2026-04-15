@@ -3,10 +3,13 @@
 ## [Unreleased] - 2026-04-03
 ### Docs
 - **v3 时间体验修复文档归档**：新增 `doc/v3_dashboard_time_experience_optimization/01-requirements.md` 与 `02-development-plan.md`，系统化记录执行流量趋势、时间筛选、任务排序感知及日志详情时间展示的修复需求与可执行开发方案。
+- **HITL 迭代运营页 PRD**：新增 `docs/prd-hitl-skill-iteration-page.md`，正式定义大 POI 核实场景下“人工反馈结果池 -> 双 Skill 分析与建议 -> 联合回归验证 -> 发布结论”的独立页面需求。
+- **HITL 闭环飞轮图表**：新增 `docs/diagrams/hitl-digital-employee-flywheel.svg`，用于展示大 POI 核实场景下的 Human-in-the-Loop 数字员工运营飞轮与双 Skill 闭环结构。
 
 ### Added
 - **趋势图粒度与图例增强**：执行流量趋势补齐 `按小时 / 按 5 小时 / 按天` 三档真实聚合切换，并新增可交互图例以支持核实/质检单独显示。
 - **任务与日志时间摘要可视化**：任务卡片折叠态新增“最新动作时间 + 排序依据 + 核实/质检时间”展示；日志详情新增阶段级时间摘要（执行状态、开始/结束、业务时间、耗时）。
+- **HITL 迭代页类型模型**：新增 `HITLIterationDetail` 及相关类型，覆盖人工反馈结果池、迭代批次、双 Skill 问题分析、迭代建议、候选版本、联合回归和发布结论，并补充 `HITLIterationPageState` 视图状态模型。
 
 ### Changed
 - **任务时间筛选交互升级**：任务列表筛选改为“快捷项 + 单时间点（之前/之后）+ 进阶时间段”模式，并默认选中“全部”。
