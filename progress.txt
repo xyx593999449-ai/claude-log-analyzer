@@ -5,7 +5,6 @@ Started: Wed Apr 15 17:10:30 CST 2026
 - Dashboard 与新页面的数据契约统一收敛在 `src/lib/dashboardTypes.ts`，新增页面模型优先在这里定义并复用。
 - 该项目的质量门禁以 `npm run lint`（`tsc --noEmit`）为主，功能迭代后建议补跑 `npm run build` 做构建级回归。
 - 顶层信息架构（路由与导航入口）统一收敛在 `src/App.tsx`，新增页面应同步补齐 `Route` 与 `NavButton`。
-- Dashboard 页面骨架推荐使用“结构化常量 + 状态映射（label/tone）”模式，优先在组件顶部集中定义，避免把文案和样式判断散落在 JSX 内。
 
 ## [2026-04-15 17:14:06 CST] - US-001
 - 完成 HITL 迭代运营页首批类型模型，覆盖迭代批次总览、核实/质检问题分析、迭代建议、候选版本、联合回归结果与发布结论。
@@ -26,14 +25,4 @@ Started: Wed Apr 15 17:10:30 CST 2026
   - Patterns discovered: 新页面入口需同时改路由与导航，均在 `src/App.tsx` 维护，避免出现“路由可访问但导航不可达”的体验断层。
   - Gotchas encountered: 本轮无 `dev-browser` 类浏览器自动化工具可用，UI 验收需补一次人工浏览器走查。
   - Useful context: 占位页已预置 HITL 闭环阶段卡片，`US-003` 起可在该组件上增量扩展总览和流程细节区块。
----
-## [2026-04-15 17:20:58 CST] - US-003
-- 完成 HITL 迭代页页首总览区，新增迭代批次标识、时间范围、样本量与当前状态四张总览卡片。
-- 完成 HITL 流程骨架区扩展，按 PRD 补齐六阶段链路：人工反馈结果池、LLM 分析、双 Skill 建议、候选版本、联合回归验证、发布结论。
-- 页面延续现有 dashboard 的圆角卡片、弱边框与浅色背景视觉语言，未引入割裂样式体系。
-- Files changed: `src/components/dashboard/HITLIterationPage.tsx`, `README.md`, `CHANGELOG.md`, `prd.json`, `progress.txt`
-- **Learnings for future iterations:**
-  - Patterns discovered: 在页面早期阶段可先用组件内常量承载总览与流程骨架数据，再逐步替换为真实接口，能保证结构先行且降低改动面。
-  - Gotchas encountered: 当前环境未配置可用的 `dev-browser` 自动化工具，本轮仅完成静态实现与构建校验，仍需人工浏览器走查 UI。
-  - Useful context: `US-004` 可直接在 `HITLIterationPage` 现有总览/流程骨架后追加“迭代批次摘要 + 双 Skill 问题分析区”，无需重做页首结构。
 ---
