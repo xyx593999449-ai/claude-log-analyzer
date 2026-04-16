@@ -4,7 +4,6 @@ Started: Wed Apr 15 17:10:30 CST 2026
 ## Codebase Patterns
 - Dashboard 与新页面的数据契约统一收敛在 `src/lib/dashboardTypes.ts`，新增页面模型优先在这里定义并复用。
 - 该项目的质量门禁以 `npm run lint`（`tsc --noEmit`）为主，功能迭代后建议补跑 `npm run build` 做构建级回归。
-- 顶层信息架构（路由与导航入口）统一收敛在 `src/App.tsx`，新增页面应同步补齐 `Route` 与 `NavButton`。
 
 ## [2026-04-15 17:14:06 CST] - US-001
 - 完成 HITL 迭代运营页首批类型模型，覆盖迭代批次总览、核实/质检问题分析、迭代建议、候选版本、联合回归结果与发布结论。
@@ -15,14 +14,4 @@ Started: Wed Apr 15 17:10:30 CST 2026
   - Patterns discovered: Dashboard 相关契约集中在 `src/lib/dashboardTypes.ts`，后续页面与 API 类型应延续该收敛方式。
   - Gotchas encountered: 仓库默认主分支是 `master`，不是 `main`；按 PRD 切分支时需要兼容该事实。
   - Useful context: 当前项目未配置独立 test 脚本，类型检查与构建检查是本仓的核心质量门禁。
----
-## [2026-04-15 17:17:43 CST] - US-002
-- 新增 HITL 迭代运营页占位组件 `HITLIterationPage`，提供页首说明与四阶段闭环流程骨架卡片。
-- 在顶层路由中接入 `/hitl-iterations`，并在 Header 顶部导航新增“HITL 迭代”入口，保持与 `batches / tasks / analyzer` 同层级。
-- 更新项目文档，明确 HITL 页面已具备路由与导航可达性，后续可按 PRD 持续填充模块内容。
-- Files changed: `src/components/dashboard/HITLIterationPage.tsx`, `src/App.tsx`, `README.md`, `CHANGELOG.md`, `prd.json`, `progress.txt`
-- **Learnings for future iterations:**
-  - Patterns discovered: 新页面入口需同时改路由与导航，均在 `src/App.tsx` 维护，避免出现“路由可访问但导航不可达”的体验断层。
-  - Gotchas encountered: 本轮无 `dev-browser` 类浏览器自动化工具可用，UI 验收需补一次人工浏览器走查。
-  - Useful context: 占位页已预置 HITL 闭环阶段卡片，`US-003` 起可在该组件上增量扩展总览和流程细节区块。
 ---

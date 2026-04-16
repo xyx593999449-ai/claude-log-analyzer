@@ -1,11 +1,10 @@
 import type { ReactNode } from "react";
 import { Routes, Route, NavLink, Navigate, Outlet } from "react-router-dom";
-import { LayoutDashboard, Logs, Waypoints, ListTree, Database, Server, Workflow } from "lucide-react";
+import { LayoutDashboard, Logs, Waypoints, ListTree, Database, Server } from "lucide-react";
 import { DashboardHome } from "./components/dashboard/DashboardHome";
 import { LegacyLogAnalyzerPage } from "./components/dashboard/LegacyLogAnalyzerPage";
 import { TaskLogPage } from "./components/dashboard/TaskLogPage";
 import { BatchOverviewPage } from "./components/dashboard/BatchOverviewPage";
-import { HITLIterationPage } from "./components/dashboard/HITLIterationPage";
 
 export default function App() {
   return (
@@ -16,7 +15,6 @@ export default function App() {
         <Route path="tasks" element={<DashboardHome />} />
         <Route path="logs/:taskId" element={<TaskLogPage />} />
         <Route path="analyzer" element={<LegacyLogAnalyzerPage />} />
-        <Route path="hitl-iterations" element={<HITLIterationPage />} />
       </Route>
     </Routes>
   );
@@ -41,7 +39,6 @@ function Layout() {
             <NavButton to="/batches" icon={<ListTree className="h-4 w-4" />} label="批次概览" />
             <NavButton to="/tasks" icon={<LayoutDashboard className="h-4 w-4" />} label="主看板" />
             <NavButton to="/analyzer" icon={<Logs className="h-4 w-4" />} label="日志分析" />
-            <NavButton to="/hitl-iterations" icon={<Workflow className="h-4 w-4" />} label="HITL 迭代" />
             <div className="flex items-center ml-2 pl-4 border-l border-slate-300">
               <button 
                 onClick={() => {
