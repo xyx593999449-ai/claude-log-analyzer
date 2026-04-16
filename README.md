@@ -23,10 +23,22 @@
 ### 2.2 任务列表(执行看板区) (`/tasks`)
 - 列出含有极详细分层信息的独立任务流程明细行。
 - 提供异常提示 Tag（如高频重试告警），多点证据摘要追踪等丰富信息。
+- 证据来源标签支持点击展开，结构化展示证据名称、地址、分类、距离、采集方式、有效性、置信度与证据 ID，并保留精简原始摘要供排查。
 
 ### 2.3 日志回溯 (`/logs/:taskId`)
 - 将核实态和质检查核态做彻底的信息隔离。
 - 提供大模型原初 Prompt 对撞呈现及日志高光。
+
+### 2.4 HITL 迭代运营页 (`/hitl-iterations`)
+- 以前端 mock 数据先行落地“人工反馈结果池 -> LLM 分析 -> 双 Skill 迭代 -> 候选版本 -> 联合回归 -> 发布结论”的完整页面。
+- 参考独立 demo 的信息结构，同时复用当前仓库既有米白工业风看板语言，不引入新的组件体系。
+- 页面已提供迭代批次列表、运营飞轮、问题归因、双 Skill 建议、候选版本、联合回归与发布决策等完整分区。
+- 页面显式区分 `人工反馈结果池`、`迭代批次` 与 `任务执行批次` 三种语义边界，并补充页内导览锚点，方便长页浏览。
+- 已新增 `doc/v4_hitl_backend_adaptation/01-hitl-db-to-frontend-mapping.md`，用于收敛三张 HITL 迭代表到前端页面分区的字段映射、聚合边界与后续展示增减决策。
+- 已新增 `doc/v4_hitl_backend_adaptation/02-requirements.md`、`03-functional-design.md`、`04-development-plan.md`，用于沉淀 `HITL` 页面后端接入、问题下钻和专属问题详情页的需求、功能设计与开发方案。
+- 后端已提供 `HITL` 专用 API：`GET /api/hitl/iterations`、`GET /api/hitl/iterations/:batchId`、`GET /api/hitl/iterations/:batchId/issues/:issueType/tasks`、`GET /api/hitl/iterations/:batchId/issues/:issueType/tasks/:taskId`，并兼容 SQLite / PostgreSQL 仓储。
+- `iteration_overlay_drafts` 已结构化接入主页面：新增批次级根因总述、可学习模式、技能影响展示；根因分布卡片保持“问题原因 + 对应技能 + 数量 + 占比轴 + 问题下钻”紧凑呈现，避免重复长文。
+- Prompt 区按技能分组并使用 Markdown 预览渲染，长文本默认折叠支持展开；版本变更摘要支持按句分段、重点词高亮与灵活换行，提升可读性。
 
 ## 3. 技术项目字典
 
@@ -69,6 +81,7 @@ npm run build
     *   [v1_big_poi (大 POI 可视化)](doc/v1_big_poi/)
     *   [v2_dashboard_optimization (近期看板优化)](doc/v2_dashboard_optimization/)
     *   [v3_dashboard_time_experience_optimization (执行流量趋势与时间交互修复优化，含需求与开发计划)](doc/v3_dashboard_time_experience_optimization/)
+    *   [v4_hitl_backend_adaptation (HITL 后端字段映射与适配收敛)](doc/v4_hitl_backend_adaptation/)
 
 ---
 *本系统由数字员工团队维护，持续通过工程化手段优化核实与质检效能。*

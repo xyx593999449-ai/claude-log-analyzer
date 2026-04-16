@@ -3,15 +3,27 @@
 ## [Unreleased] - 2026-04-03
 ### Docs
 - **v3 时间体验修复文档归档**：新增 `doc/v3_dashboard_time_experience_optimization/01-requirements.md` 与 `02-development-plan.md`，系统化记录执行流量趋势、时间筛选、任务排序感知及日志详情时间展示的修复需求与可执行开发方案。
+- **HITL 后端字段映射文档**：新增 `doc/v4_hitl_backend_adaptation/01-hitl-db-to-frontend-mapping.md`，拆清三张 HITL 迭代表到前端页面的直接字段、后端聚合字段与潜在扩展字段，并明确本轮不处理回归验证与最终结论。
+- **HITL 首批字段口径确认**：更新 `doc/v4_hitl_backend_adaptation/01-hitl-db-to-frontend-mapping.md`，补充 `batchId`、`startedAt`、`issueCount`、根因标签中文展示与 `skillType` 展示口径的首批确认结果。
+- **HITL 聚合展示口径确认**：继续更新 `doc/v4_hitl_backend_adaptation/01-hitl-db-to-frontend-mapping.md`，明确批次状态与流程进度统一由后端推导、建议区直接展示 Prompt、版本区改为“目标 Skill + 修改摘要 + 文件 + 状态 + 时间”。
+- **HITL 流程与问题下钻口径确认**：继续更新 `doc/v4_hitl_backend_adaptation/01-hitl-db-to-frontend-mapping.md`，明确流程区保留六步，并在问题根因区增加下钻到人工标注任务详情的交互设计。
+- **HITL 专属问题详情页口径确认**：继续更新 `doc/v4_hitl_backend_adaptation/01-hitl-db-to-frontend-mapping.md`，明确问题详情页采用 HITL 专属页面，并展示数字员工核实结果、质检结果、人工标注结果与模型分析结果四块信息。
+- **HITL 后端接入文档包**：新增 `doc/v4_hitl_backend_adaptation/02-requirements.md`、`03-functional-design.md` 与 `04-development-plan.md`，系统化沉淀主页面后端接入、问题下钻和专属问题详情页的需求、设计与开发方案。
 
 ### Added
 - **趋势图粒度与图例增强**：执行流量趋势补齐 `按小时 / 按 5 小时 / 按天` 三档真实聚合切换，并新增可交互图例以支持核实/质检单独显示。
 - **任务与日志时间摘要可视化**：任务卡片折叠态新增“最新动作时间 + 排序依据 + 核实/质检时间”展示；日志详情新增阶段级时间摘要（执行状态、开始/结束、业务时间、耗时）。
+- **HITL 后端四个核心接口落地**：新增 `GET /api/hitl/iterations`、`GET /api/hitl/iterations/:batchId`、`GET /api/hitl/iterations/:batchId/issues/:issueType/tasks`、`GET /api/hitl/iterations/:batchId/issues/:issueType/tasks/:taskId`，并统一接入 SQLite + PostgreSQL 仓储层。
 
 ### Changed
 - **任务时间筛选交互升级**：任务列表筛选改为“快捷项 + 单时间点（之前/之后）+ 进阶时间段”模式，并默认选中“全部”。
 - **接口契约扩展**：`overview` 接口新增 `timeGranularity` 参数，任务详情与日志详情返回结构补充时间语义字段。
 - **日志详情时间线展示顺序优化**：日志详情页时间线统一按日志时间正序展示（从前到后），提高排查时序可读性与上下文连续性。
+- **证据详情展示结构化**：任务卡片中的证据弹层由原始 `raw_data` 大段直出，调整为面向 `evidence_record` 的结构化证据卡，优先展示名称、地址、分类、距离、采集方式、有效性、置信度、采集时间与证据 ID，并保留精简原始摘要。
+- **HITL 迭代前端 mock 页面**：新增 `/hitl-iterations` 路由与导航入口，参考“大-poi-核实数字员工”demo 的批次选择、飞轮流程和联调信息结构，先用 mock 数据落地完整前端页面，并保持当前仓库既有工业风看板语法。
+- **HITL 口径在仓储层统一实现**：`batchId` 以 `iteration_negative_samples` 为主、`startedAt` 使用批次最早 `updatetime`、`issueCount` 采用“任一人工标注异常命中即计入”规则；流程保留 6 步且回归/最终结论返回待补充态。
+- **HITL 根因区改为“批次总述 + 行级占比”**：根因卡片隐藏重复长文，新增批次级 `root_cause_analysis` 总述、`learnable_patterns` 与 `skill_impact` 展示，问题条目聚焦“原因/技能/数量/占比/下钻”。
+- **HITL Prompt 与文本展示可读性增强**：Prompt 区采用 Markdown 预览与折叠展开；版本变更与根因文本新增分段、关键词高亮、按句换行，降低大段纯文本阅读负担。
 
 ### Fixed
 - **趋势图按天不生效修复**：修复此前仅切换显示标签而未切换真实聚合的问题。
@@ -20,6 +32,7 @@
 - **PG 批次归组时间异常修复**：`getBatches` 由原先基于 `task_id` 推导批次，调整为优先使用日志聚合表 `batch_id` 分组（缺失时才回退推导），避免批次被误拆分成单任务后导致“开始/完成时间仅几分钟”的偏差。
 - **PG 批次主口径回切**：根据当前批次识别约定，`getBatches` 改回优先以 `task_id` 后缀归组，仅在任务 ID 无法解析批次时才回退使用日志 `batch_id`，与既有筛选口径保持一致。
 - **Claude 日志时间提取兼容修复**：日志解析改为优先使用独立 `timestamp` 记录（含“前置时间戳 JSON + 实际日志对象”模式），仅在缺失时回退 `message.id` 的 `msg_yyyyMMddHHmmss` 提取，兼容历史日志与新日志格式。
+- **PG `prompt_paths` 解析兼容修复**：`iteration_overlay_drafts.prompt_paths` 同时兼容 JSON 数组与 PG 数组字面量（`{"a","b"}`）解析，确保 Prompt 路径在 PG 环境可稳定展示。
 
 ## [v0.5.0] - 2026-04-01
 ### Added

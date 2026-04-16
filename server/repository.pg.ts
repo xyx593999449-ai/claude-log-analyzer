@@ -4,6 +4,14 @@ import type {
   AnalysisPhase,
   DashboardFilters,
   DashboardTimeGranularity,
+  HitlFlowStep,
+  HitlIssueTaskDetail,
+  HitlIssueTaskListItem,
+  HitlIterationDetail,
+  HitlIterationListItem,
+  HitlModificationItem,
+  HitlPromptItem,
+  HitlRootCauseItem,
   ImportSnapshot,
   BatchOverviewItem,
 } from "./types";
@@ -82,6 +90,150 @@ function boolish(value: unknown): boolean {
 
 function toIsoNow(): string {
   return new Date().toISOString();
+}
+
+function normalizeNullableText(value: unknown): string | null {
+  if (value == null) return null;
+  const text = String(value).trim();
+  if (!text) return null;
+  if (text.toLowerCase() === "nan" || text.toLowerCase() === "null") return null;
+  return text;
+}
+
+function parseLooseJson(value: unknown): unknown {
+  if (value == null) return null;
+  if (typeof value === "object") return value;
+  const text = normalizeNullableText(value);
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+function parseArrayLikeText(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.map((item) => normalizeNullableText(item)).filter(Boolean) as string[];
+  }
+  const normalized = normalizeNullableText(value);
+  if (!normalized) return [];
+  const jsonParsed = parseLooseJson(normalized);
+  if (Array.isArray(jsonParsed)) {
+    return jsonParsed.map((item) => normalizeNullableText(item)).filter(Boolean) as string[];
+  }
+  if (normalized.startsWith("{") && normalized.endsWith("}")) {
+    return normalized
+      .slice(1, -1)
+      .split(",")
+      .map((item) => item.replace(/^"+|"+$/g, "").replace(/\\"/g, "\"").trim())
+      .filter(Boolean);
+  }
+  return [];
+}
+
+function parseTagList(value: unknown): string[] {
+  const normalized = normalizeNullableText(value);
+  if (!normalized) return [];
+  return normalized
+    .split(/[,\n\r;，]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function parseBooleanFlag(value: unknown): boolean | null {
+  const normalized = normalizeNullableText(value);
+  if (!normalized) return null;
+  const lowered = normalized.toLowerCase();
+  if (lowered === "1" || lowered === "true" || lowered === "yes") return true;
+  if (lowered === "0" || lowered === "false" || lowered === "no") return false;
+  return null;
+}
+
+function parseNumberOrNull(value: unknown): number | null {
+  const normalized = normalizeNullableText(value);
+  if (!normalized) return null;
+  const num = Number(normalized);
+  return Number.isFinite(num) ? num : null;
+}
+
+function isEvidenceStatusAbnormal(value: unknown): boolean {
+  const normalized = normalizeNullableText(value);
+  if (!normalized) return false;
+  const lowered = normalized.toLowerCase();
+  return !["1", "pass", "normal", "consistent", "ok", "true", "yes"].includes(lowered);
+}
+
+function isIssueRow(row: Record<string, unknown>): boolean {
+  return (
+    normalizeNullableText(row.verify_content_is_correct) === "0" ||
+    normalizeNullableText(row.verify_action_is_correct) === "0" ||
+    normalizeNullableText(row.qc_intercept_is_correct) === "0" ||
+    isEvidenceStatusAbnormal(row.evidence_status) ||
+    parseTagList(row.issue_observation_tags).length > 0 ||
+    parseTagList(row.judgment_dimension_tags).length > 0
+  );
+}
+
+function getIssueTypeLabel(issueType: string): string {
+  const labels: Record<string, string> = {
+    evidence_missing: "证据缺失",
+    evidence_invalid: "证据无效",
+    evidence_conflicting: "证据冲突",
+    invalid_evidence_cited: "引用无效证据",
+    name_judgment_problem: "名称判断问题",
+    address_judgment_problem: "地址判断问题",
+    type_judgment_problem: "类型判断问题",
+    location_judgment_problem: "坐标判断问题",
+    admin_judgment_problem: "行政区划判断问题",
+    evidence_usage_problem: "证据使用问题",
+    manual_escalation_strategy_problem: "转交策略问题",
+    qc_intercept_rule_problem: "质检拦截规则问题",
+  };
+  return labels[issueType] ?? issueType;
+}
+
+function getSkillTypeLabel(skillType: string | null): string | null {
+  if (!skillType) return null;
+  const labels: Record<string, string> = {
+    verification: "核实 Skill (verification)",
+    verify: "核实 Skill (verify)",
+    qc: "质检 Skill (qc)",
+    "qc-stable": "质检 Skill (qc-stable)",
+    "evidence-collection": "证据收集 Skill (evidence-collection)",
+  };
+  return labels[skillType] ?? skillType;
+}
+
+function basenameFromPath(pathText: string): string {
+  const normalized = pathText.trim();
+  if (!normalized) return "";
+  const chunks = normalized.split(/[\\/]+/).filter(Boolean);
+  return chunks[chunks.length - 1] ?? normalized;
+}
+
+function inferSkillKey(rawKey: string, promptPath: string | null): string {
+  const key = rawKey.toLowerCase();
+  const pathText = (promptPath ?? "").toLowerCase();
+  const source = `${key} ${pathText}`;
+  if (source.includes("evidence") || source.includes("collection")) return "evidence-collection";
+  if (source.includes("verification") || source.includes("verify")) return "verification";
+  if (source.includes("qc-stable") || source.includes("qc")) return "qc-stable";
+  return rawKey;
+}
+
+function matchIssueType(issueType: string, issueObservationTags: string[], judgmentDimensionTags: string[]): boolean {
+  const target = issueType.trim().toLowerCase();
+  if (!target) return false;
+  const allTags = [...issueObservationTags, ...judgmentDimensionTags];
+  return allTags.some((tag) => tag.trim().toLowerCase() === target);
+}
+
+function quotePgQualifiedName(qualifiedName: string): string {
+  return qualifiedName
+    .split(".")
+    .map((part) => `"${part.replace(/"/g, "\"\"")}"`)
+    .join(".");
 }
 
 function mapRun(row: Record<string, unknown>, phase: AnalysisPhase): RunView | null {
@@ -247,6 +399,7 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
   private readonly pool: Pool;
   private readonly initPromise: Promise<void>;
   private initError: Error | null = null;
+  private hitlTableNamesPromise: Promise<{ negative: string | null; overlay: string | null; modification: string | null }> | null = null;
 
   constructor(config: PgDbConfig) {
     this.pool = new Pool({
@@ -272,6 +425,122 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
 
   hasInitError(): boolean {
     return this.initError !== null;
+  }
+
+  private async resolveHitlTableName(candidates: string[]): Promise<string | null> {
+    for (const candidate of candidates) {
+      const result = await this.pool.query("SELECT to_regclass($1) AS table_name", [candidate]);
+      const tableName = normalizeNullableText(result.rows[0]?.table_name);
+      if (tableName) return tableName;
+    }
+    return null;
+  }
+
+  private async getHitlTableNames(): Promise<{ negative: string | null; overlay: string | null; modification: string | null }> {
+    if (!this.hitlTableNamesPromise) {
+      this.hitlTableNamesPromise = (async () => {
+        const negative = await this.resolveHitlTableName([
+          "public.iteration_negative_samples",
+          "iteration_negative_samples",
+          "public.iteration_negative_samples_0415_bak",
+          "iteration_negative_samples_0415_bak",
+        ]);
+        const overlay = await this.resolveHitlTableName([
+          "public.iteration_overlay_drafts",
+          "iteration_overlay_drafts",
+          "public.iteration_overlay_drafts_0415_bak",
+          "iteration_overlay_drafts_0415_bak",
+        ]);
+        const modification = await this.resolveHitlTableName([
+          "public.iteration_skill_modifications",
+          "iteration_skill_modifications",
+          "public.iteration_skill_modifications_0415_bak",
+          "iteration_skill_modifications_0415_bak",
+        ]);
+        return { negative, overlay, modification };
+      })();
+    }
+    return this.hitlTableNamesPromise;
+  }
+
+  private async getOverlayByBatch(batchId: string): Promise<Record<string, unknown> | null> {
+    const { overlay } = await this.getHitlTableNames();
+    if (!overlay) return null;
+    const overlayTable = quotePgQualifiedName(overlay);
+    const result = await this.pool.query(
+      `SELECT batch_id, overlay_draft, prompt_paths, prompts FROM ${overlayTable} WHERE batch_id = $1 LIMIT 1`,
+      [batchId],
+    );
+    return (result.rows[0] as Record<string, unknown> | undefined) ?? null;
+  }
+
+  private getFlowSteps(sampleCount: number, hasOverlay: boolean, hasModification: boolean): HitlFlowStep[] {
+    const hasFeedback = sampleCount > 0;
+    const hasAnalysis = hasOverlay;
+    const hasIteration = hasModification;
+    const hasCandidate = hasModification;
+    return [
+      {
+        id: "feedback",
+        label: "反馈池",
+        status: hasFeedback ? "completed" : "pending",
+        summary: hasFeedback ? `已收集 ${sampleCount} 条人工作业反馈样本。` : "暂无人工作业样本。",
+      },
+      {
+        id: "analysis",
+        label: "问题分析",
+        status: hasAnalysis ? "completed" : hasFeedback ? "active" : "pending",
+        summary: hasAnalysis ? "已生成模型问题分析结论。" : "待生成问题分析结论。",
+      },
+      {
+        id: "iteration",
+        label: "迭代处理",
+        status: hasIteration ? "completed" : hasAnalysis ? "active" : "pending",
+        summary: hasIteration ? "已产出 Skill 迭代修改结果。" : "待执行 Skill 迭代修改。",
+      },
+      {
+        id: "candidate",
+        label: "候选版本",
+        status: hasCandidate ? "completed" : hasIteration ? "active" : "pending",
+        summary: hasCandidate ? "已形成候选版本产物。" : "待形成候选版本。",
+      },
+      {
+        id: "regression",
+        label: "回归验证",
+        status: "unavailable",
+        summary: "待补充：回归验证数据当前未 ready。",
+      },
+      {
+        id: "decision",
+        label: "最终结论",
+        status: "unavailable",
+        summary: "待补充：最终结论数据当前未 ready。",
+      },
+    ];
+  }
+
+  private buildPromptItems(promptValue: unknown, promptPathsValue: unknown): HitlPromptItem[] {
+    const promptPaths = parseArrayLikeText(promptPathsValue);
+
+    const prompts = parseLooseJson(promptValue);
+    const list: HitlPromptItem[] = [];
+    if (prompts && typeof prompts === "object" && !Array.isArray(prompts)) {
+      for (const [key, value] of Object.entries(prompts as Record<string, unknown>)) {
+        const content = normalizeNullableText(value);
+        if (!content) continue;
+        const matchedPath = promptPaths.find((pathText) => pathText.includes(key)) ?? null;
+        const inferredSkillKey = inferSkillKey(key, matchedPath);
+        const promptFileName = matchedPath ? basenameFromPath(matchedPath) : basenameFromPath(key) || "prompt.txt";
+        list.push({
+          skillKey: inferredSkillKey,
+          skillLabel: getSkillTypeLabel(inferredSkillKey) ?? inferredSkillKey,
+          promptFileName,
+          promptPath: matchedPath,
+          content,
+        });
+      }
+    }
+    return list;
   }
 
   private async withTx<T>(fn: (client: PoolClient) => Promise<T>): Promise<T> {
@@ -986,6 +1255,322 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
       page: filters.page,
       pageSize: filters.pageSize,
       items: (rowsRes.rows as Array<Record<string, unknown>>).map(normalizeTask),
+    };
+  }
+
+  async getHitlIterations(): Promise<{ items: HitlIterationListItem[] }> {
+    await this.ready();
+    const { negative, overlay, modification } = await this.getHitlTableNames();
+    if (!negative) return { items: [] };
+
+    const negativeTable = quotePgQualifiedName(negative);
+    const rowsRes = await this.pool.query(`
+      SELECT
+        n.batch_id AS batch_id,
+        MIN(NULLIF(TRIM(COALESCE(n.updatetime::text, '')), '')) AS started_at,
+        COUNT(*)::bigint AS sample_count,
+        SUM(
+          CASE WHEN (
+            TRIM(COALESCE(n.verify_content_is_correct::text, '')) = '0'
+            OR TRIM(COALESCE(n.verify_action_is_correct::text, '')) = '0'
+            OR TRIM(COALESCE(n.qc_intercept_is_correct::text, '')) = '0'
+            OR (
+              LOWER(TRIM(COALESCE(n.evidence_status::text, ''))) NOT IN ('', 'nan', '1', 'pass', 'normal', 'consistent', 'ok', 'true', 'yes')
+            )
+            OR (
+              TRIM(COALESCE(n.issue_observation_tags::text, '')) != '' AND LOWER(TRIM(COALESCE(n.issue_observation_tags::text, ''))) != 'nan'
+            )
+            OR (
+              TRIM(COALESCE(n.judgment_dimension_tags::text, '')) != '' AND LOWER(TRIM(COALESCE(n.judgment_dimension_tags::text, ''))) != 'nan'
+            )
+          ) THEN 1 ELSE 0 END
+        )::bigint AS issue_count
+      FROM ${negativeTable} n
+      WHERE TRIM(COALESCE(n.batch_id::text, '')) != ''
+      GROUP BY n.batch_id
+      ORDER BY started_at DESC, n.batch_id DESC
+    `);
+
+    const summaryMap = new Map<string, string | null>();
+    if (overlay) {
+      const overlayTable = quotePgQualifiedName(overlay);
+      const summaryRows = await this.pool.query(`SELECT batch_id, overlay_draft FROM ${overlayTable}`);
+      for (const row of summaryRows.rows as Array<Record<string, unknown>>) {
+        const batchId = normalizeNullableText(row.batch_id);
+        if (!batchId) continue;
+        const draft = parseLooseJson(row.overlay_draft) as Record<string, unknown> | null;
+        summaryMap.set(batchId, normalizeNullableText(draft?.summary) ?? null);
+      }
+    }
+
+    const modBatchSet = new Set<string>();
+    if (modification) {
+      const modificationTable = quotePgQualifiedName(modification);
+      const modRows = await this.pool.query(
+        `SELECT DISTINCT batch_id FROM ${modificationTable} WHERE TRIM(COALESCE(batch_id::text, '')) != ''`,
+      );
+      for (const row of modRows.rows as Array<Record<string, unknown>>) {
+        const batchId = normalizeNullableText(row.batch_id);
+        if (batchId) modBatchSet.add(batchId);
+      }
+    }
+
+    const items = (rowsRes.rows as Array<Record<string, unknown>>).map((row) => {
+      const batchId = String(row.batch_id);
+      const hasOverlay = summaryMap.has(batchId);
+      const hasModification = modBatchSet.has(batchId);
+      const status: HitlIterationListItem["status"] = hasModification ? "regression" : hasOverlay ? "iteration" : "analysis";
+      return {
+        batchId,
+        startedAt: normalizeNullableText(row.started_at),
+        sampleCount: Number(row.sample_count ?? 0),
+        issueCount: Number(row.issue_count ?? 0),
+        summary: summaryMap.get(batchId) ?? null,
+        status,
+      };
+    });
+
+    return { items };
+  }
+
+  async getHitlIterationDetail(batchId: string): Promise<HitlIterationDetail | null> {
+    await this.ready();
+    const { negative, modification } = await this.getHitlTableNames();
+    if (!negative) return null;
+    const negativeTable = quotePgQualifiedName(negative);
+
+    const sampleRowsRes = await this.pool.query(`SELECT * FROM ${negativeTable} WHERE batch_id = $1`, [batchId]);
+    const sampleRows = sampleRowsRes.rows as Array<Record<string, unknown>>;
+    if (sampleRows.length === 0) return null;
+
+    const sampleCount = sampleRows.length;
+    const issueCount = sampleRows.filter((row) => isIssueRow(row)).length;
+    const startedAt = sampleRows
+      .map((row) => normalizeNullableText(row.updatetime))
+      .filter(Boolean)
+      .sort()[0] ?? null;
+
+    const overlayRow = await this.getOverlayByBatch(batchId);
+    const overlayDraft = parseLooseJson(overlayRow?.overlay_draft) as Record<string, unknown> | null;
+    const prompts = this.buildPromptItems(overlayRow?.prompts, overlayRow?.prompt_paths);
+
+    const rootCauses: HitlRootCauseItem[] = [];
+    const issueDistribution = Array.isArray(overlayDraft?.issue_distribution)
+      ? overlayDraft.issue_distribution as Array<Record<string, unknown>>
+      : [];
+    for (const item of issueDistribution) {
+      const issueType = normalizeNullableText(item.issue_type) ?? "unknown";
+      const skillType = normalizeNullableText(item.step) ?? "unknown";
+      rootCauses.push({
+        issueType,
+        issueTypeLabel: getIssueTypeLabel(issueType),
+        count: Number(item.count ?? 0),
+        skillType,
+        skillTypeLabel: getSkillTypeLabel(skillType) ?? skillType,
+        summary: normalizeNullableText(overlayDraft?.root_cause_analysis) ?? normalizeNullableText(overlayDraft?.learnable_patterns),
+        detailUrl: `/hitl-iterations/${encodeURIComponent(batchId)}/issues/${encodeURIComponent(issueType)}/tasks`,
+      });
+    }
+    const learnablePatterns = Array.isArray(overlayDraft?.learnable_patterns)
+      ? overlayDraft.learnable_patterns as Array<Record<string, unknown>>
+      : [];
+    const skillImpactDraft = overlayDraft?.skill_impact && typeof overlayDraft.skill_impact === "object"
+      ? overlayDraft.skill_impact as Record<string, unknown>
+      : {};
+    const overlayInsight = {
+      rootCauseAnalysis: normalizeNullableText(overlayDraft?.root_cause_analysis),
+      learnablePatterns: learnablePatterns
+        .map((item) => {
+          const issueType = normalizeNullableText(item.issue_type) ?? "unknown";
+          return {
+            issueType,
+            issueTypeLabel: getIssueTypeLabel(issueType),
+            pattern: normalizeNullableText(item.pattern) ?? "",
+            count: Number(item.count ?? 0),
+          };
+        })
+        .filter((item) => item.pattern),
+      skillImpact: Object.entries(skillImpactDraft)
+        .map(([skillType, summary]) => ({
+          skillType,
+          skillTypeLabel: getSkillTypeLabel(skillType) ?? skillType,
+          impactSummary: normalizeNullableText(summary) ?? "",
+        }))
+        .filter((item) => item.impactSummary),
+    };
+
+    const modifications: HitlModificationItem[] = [];
+    if (modification) {
+      const modificationTable = quotePgQualifiedName(modification);
+      const modRowsRes = await this.pool.query(
+        `SELECT target_skill, modified_file, changes, status, created_at::text as created_at
+         FROM ${modificationTable}
+         WHERE batch_id = $1
+         ORDER BY created_at DESC`,
+        [batchId],
+      );
+      for (const row of modRowsRes.rows as Array<Record<string, unknown>>) {
+        const changesObj = parseLooseJson(row.changes) as Record<string, unknown> | null;
+        const modifiedFilesRaw = Array.isArray(changesObj?.modified_files) ? changesObj.modified_files : [];
+        const modifiedFiles = (modifiedFilesRaw as unknown[])
+          .map((item) => normalizeNullableText(item))
+          .filter(Boolean) as string[];
+        const fallbackFile = normalizeNullableText(row.modified_file);
+        if (modifiedFiles.length === 0 && fallbackFile) modifiedFiles.push(fallbackFile);
+        const targetSkill = normalizeNullableText(row.target_skill) ?? "unknown";
+        modifications.push({
+          targetSkill,
+          targetSkillLabel: getSkillTypeLabel(targetSkill) ?? targetSkill,
+          changeSummary: normalizeNullableText(changesObj?.summary),
+          modifiedFiles,
+          status: normalizeNullableText(row.status),
+          createdAt: normalizeNullableText(row.created_at),
+        });
+      }
+    }
+
+    const hasOverlay = Boolean(overlayRow);
+    const hasModification = modifications.length > 0;
+    return {
+      overview: {
+        batchId,
+        startedAt,
+        sampleCount,
+        issueCount,
+        summary: normalizeNullableText(overlayDraft?.summary),
+        status: hasModification ? "regression" : hasOverlay ? "iteration" : "analysis",
+      },
+      flow: this.getFlowSteps(sampleCount, hasOverlay, hasModification),
+      rootCauses,
+      prompts,
+      modifications,
+      overlayInsight,
+    };
+  }
+
+  async getHitlIssueTasks(batchId: string, issueType: string): Promise<{ items: HitlIssueTaskListItem[] }> {
+    await this.ready();
+    const { negative } = await this.getHitlTableNames();
+    if (!negative) return { items: [] };
+    const negativeTable = quotePgQualifiedName(negative);
+
+    const rowsRes = await this.pool.query(
+      `SELECT
+         task_id, name, address, city, poi_type, verify_result,
+         quality_status, issue_observation_tags, judgment_dimension_tags,
+         manual_comment, updatetime
+       FROM ${negativeTable}
+       WHERE batch_id = $1`,
+      [batchId],
+    );
+
+    const items: HitlIssueTaskListItem[] = (rowsRes.rows as Array<Record<string, unknown>>)
+      .map((row) => ({
+        taskId: String(row.task_id ?? ""),
+        name: normalizeNullableText(row.name),
+        address: normalizeNullableText(row.address),
+        city: normalizeNullableText(row.city),
+        poiType: normalizeNullableText(row.poi_type),
+        verifyResult: normalizeNullableText(row.verify_result),
+        qualityStatus: normalizeNullableText(row.quality_status),
+        issueObservationTags: parseTagList(row.issue_observation_tags),
+        judgmentDimensionTags: parseTagList(row.judgment_dimension_tags),
+        manualComment: normalizeNullableText(row.manual_comment),
+        updatetime: normalizeNullableText(row.updatetime),
+      }))
+      .filter((item) => matchIssueType(issueType, item.issueObservationTags, item.judgmentDimensionTags))
+      .sort((a, b) => (b.updatetime ?? "").localeCompare(a.updatetime ?? ""));
+
+    return { items };
+  }
+
+  async getHitlIssueTaskDetail(batchId: string, issueType: string, taskId: string): Promise<HitlIssueTaskDetail | null> {
+    await this.ready();
+    const { negative } = await this.getHitlTableNames();
+    if (!negative) return null;
+    const negativeTable = quotePgQualifiedName(negative);
+
+    const rowRes = await this.pool.query(
+      `SELECT * FROM ${negativeTable} WHERE batch_id = $1 AND task_id = $2 LIMIT 1`,
+      [batchId, taskId],
+    );
+    const row = rowRes.rows[0] as Record<string, unknown> | undefined;
+    if (!row) return null;
+
+    const issueObservationTags = parseTagList(row.issue_observation_tags);
+    const judgmentDimensionTags = parseTagList(row.judgment_dimension_tags);
+    if (!matchIssueType(issueType, issueObservationTags, judgmentDimensionTags)) {
+      return null;
+    }
+
+    const overlayRow = await this.getOverlayByBatch(batchId);
+    const overlayDraft = parseLooseJson(overlayRow?.overlay_draft) as Record<string, unknown> | null;
+    const promptItems = this.buildPromptItems(overlayRow?.prompts, overlayRow?.prompt_paths);
+    const issueDistribution = Array.isArray(overlayDraft?.issue_distribution)
+      ? overlayDraft.issue_distribution as Array<Record<string, unknown>>
+      : [];
+    const issueDistributionItem = issueDistribution.find(
+      (item) => normalizeNullableText(item.issue_type)?.toLowerCase() === issueType.toLowerCase(),
+    ) ?? null;
+    const skillType = normalizeNullableText(issueDistributionItem?.step);
+
+    const filteredPrompts = promptItems.filter((item) => {
+      const normalizedSkill = skillType?.toLowerCase();
+      if (normalizedSkill && item.skillKey.toLowerCase().includes(normalizedSkill)) return true;
+      return item.content.toLowerCase().includes(issueType.toLowerCase());
+    });
+
+    return {
+      task: {
+        taskId,
+        batchId,
+        id: normalizeNullableText(row.id),
+        name: normalizeNullableText(row.name),
+        address: normalizeNullableText(row.address),
+        city: normalizeNullableText(row.city),
+        poiType: normalizeNullableText(row.poi_type),
+        updatetime: normalizeNullableText(row.updatetime),
+        qcTime: normalizeNullableText(row.qc_time),
+      },
+      verifyResult: {
+        verifyResult: normalizeNullableText(row.verify_result),
+        verifyInfo: parseLooseJson(row.verify_info) as Record<string, unknown> | null,
+        evidenceRecord: parseLooseJson(row.evidence_record),
+      },
+      qcResult: {
+        qualityStatus: normalizeNullableText(row.quality_status),
+        qcStatus: normalizeNullableText(row.qc_status),
+        qcScore: parseNumberOrNull(row.qc_score),
+        qcResult: parseLooseJson(row.qc_result) as Record<string, unknown> | null,
+        isQualified: parseBooleanFlag(row.is_qualified),
+        hasRisk: parseBooleanFlag(row.has_risk),
+      },
+      manualResult: {
+        verifyContentIsCorrect: parseBooleanFlag(row.verify_content_is_correct),
+        verifyActionIsCorrect: parseBooleanFlag(row.verify_action_is_correct),
+        qcInterceptIsCorrect: parseBooleanFlag(row.qc_intercept_is_correct),
+        evidenceStatus: normalizeNullableText(row.evidence_status),
+        issueObservationTags,
+        judgmentDimensionTags,
+        manualComment: normalizeNullableText(row.manual_comment),
+        conflictingEvidence: normalizeNullableText(row.conflicting_evidence),
+        manualAddedEvidenceUrl: normalizeNullableText(row.manual_added_evidence_url),
+        manualAddedEvidenceType: normalizeNullableText(row.manual_added_evidence_type),
+        manualAddedEvidenceAbstract: normalizeNullableText(row.manual_added_evidence_abstract),
+        verifiedName: normalizeNullableText(row.verified_name),
+        verifiedAddr: normalizeNullableText(row.verified_addr),
+        verifiedPoiType: normalizeNullableText(row.verified_poi_type),
+        verifiedCityAdcode: normalizeNullableText(row.verified_city_adcode),
+      },
+      modelAnalysis: {
+        issueType,
+        issueTypeLabel: getIssueTypeLabel(issueType),
+        skillType,
+        skillTypeLabel: getSkillTypeLabel(skillType),
+        summary: normalizeNullableText(overlayDraft?.root_cause_analysis) ?? normalizeNullableText(overlayDraft?.summary),
+        rootCause: issueDistributionItem,
+        prompts: filteredPrompts.length > 0 ? filteredPrompts : promptItems,
+      },
     };
   }
 

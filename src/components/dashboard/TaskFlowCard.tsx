@@ -39,8 +39,18 @@ interface EvidenceSourceTag {
 }
 
 interface EvidenceDetail {
+  title: string;
+  address: string;
+  category: string;
+  distanceText: string;
+  phone: string;
   sourceUrl: string;
-  rawData: string;
+  confidenceText: string;
+  validityText: string;
+  collectedAtText: string;
+  collectionMethod: string;
+  evidenceId: string;
+  rawPreview: string;
 }
 
 interface EvidenceSummary {
@@ -355,11 +365,28 @@ function EvidenceSummaryHoverRow({ summary }: { summary: EvidenceSummary }) {
                 {details.length ? (
                   details.map((detail, index) => (
                     <div key={`${source.sourceName}_${index}`} className="rounded-xl border border-slate-200 bg-slate-50 p-2">
-                      <div className="text-[11px] text-slate-500">source_url</div>
-                      <div className="select-text break-all text-slate-800">{detail.sourceUrl || "-"}</div>
-                      <div className="mt-2 text-[11px] text-slate-500">raw_data</div>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="font-medium text-slate-900">{detail.title || "-"}</div>
+                          <div className="mt-1 text-[11px] text-slate-500">{detail.category || "未标注分类"}</div>
+                        </div>
+                        <span className="shrink-0 rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[11px] text-sky-700">
+                          {detail.distanceText}
+                        </span>
+                      </div>
+                      <div className="mt-2 grid gap-2 text-[11px] leading-5 text-slate-700">
+                        <EvidenceMetaRow label="地址" value={detail.address} />
+                        <EvidenceMetaRow label="电话" value={detail.phone} />
+                        <EvidenceMetaRow label="来源链接" value={detail.sourceUrl} breakAll />
+                        <EvidenceMetaRow label="采集方式" value={detail.collectionMethod} />
+                        <EvidenceMetaRow label="有效性" value={detail.validityText} />
+                        <EvidenceMetaRow label="置信度" value={detail.confidenceText} />
+                        <EvidenceMetaRow label="采集时间" value={detail.collectedAtText} />
+                        <EvidenceMetaRow label="证据 ID" value={detail.evidenceId} />
+                      </div>
+                      <div className="mt-2 text-[11px] text-slate-500">原始摘要</div>
                       <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-all rounded-lg border border-slate-200 bg-white p-2 text-[11px] leading-5 text-slate-700 select-text">
-                        {detail.rawData || "-"}
+                        {detail.rawPreview || "-"}
                       </pre>
                     </div>
                   ))
@@ -371,6 +398,23 @@ function EvidenceSummaryHoverRow({ summary }: { summary: EvidenceSummary }) {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function EvidenceMetaRow({
+  label,
+  value,
+  breakAll = false,
+}: {
+  label: string;
+  value: string;
+  breakAll?: boolean;
+}) {
+  return (
+    <div className="grid grid-cols-[52px_minmax(0,1fr)] gap-2">
+      <div className="text-slate-500">{label}</div>
+      <div className={`text-slate-800 ${breakAll ? "break-all" : ""}`}>{value || "-"}</div>
     </div>
   );
 }
@@ -524,22 +568,78 @@ function extractEvidenceSummaryWithDetails(item: DashboardTaskItem): EvidenceSum
       readTextAtPath(entry, ["data", "raw_data", "source_url"]) ??
       readTextAtPath(entry, ["data", "source_url"]) ??
       "";
-    const rawDataValue =
-      readUnknownAtPath(entry, ["data", "raw_data"]) ??
-      readUnknownAtPath(entry, ["raw_data"]) ??
-      readUnknownAtPath(entry, ["source"]);
+    const title =
+      readTextAtPath(entry, ["data", "name"]) ??
+      readTextAtPath(entry, ["metadata", "page_title"]) ??
+      readTextAtPath(entry, ["source", "source_name"]) ??
+      "未命名证据";
+    const address = readTextAtPath(entry, ["data", "address"]) ?? "-";
+    const category =
+      readTextAtPath(entry, ["data", "category"]) ??
+      readTextAtPath(entry, ["metadata", "text_snippet"]) ??
+      "-";
+    const phone = readTextAtPath(entry, ["data", "phone"]) ?? "-";
+    const computedDistance = readNumberAtPath(entry, ["data", "computed_distance_meters"]);
+    const confidence = readNumberAtPath(entry, ["verification", "confidence"]);
+    const isValid = readBooleanAtPath(entry, ["verification", "is_valid"]);
+    const collectedAt = readTextAtPath(entry, ["collected_at"]) ?? "-";
+    const collectionMethod =
+      joinNonEmpty([
+        readTextAtPath(entry, ["metadata", "collection_branch"]),
+        readTextAtPath(entry, ["metadata", "collection_method"]),
+      ]) ?? "-";
+    const evidenceId = readTextAtPath(entry, ["evidence_id"]) ?? "-";
+    const rawPreviewValue = {
+      poi_id: readTextAtPath(entry, ["poi_id"]) ?? null,
+      administrative: readUnknownAtPath(entry, ["data", "administrative"]),
+      coordinates: readUnknownAtPath(entry, ["data", "coordinates"]),
+      source_id: readTextAtPath(entry, ["source", "source_id"]) ?? null,
+      source_type: readTextAtPath(entry, ["source", "source_type"]) ?? null,
+      authority_signals: readUnknownAtPath(entry, ["metadata", "authority_signals"]),
+      signal_origin: readTextAtPath(entry, ["metadata", "signal_origin"]) ?? null,
+      source_domain: readTextAtPath(entry, ["metadata", "source_domain"]) ?? null,
+    };
 
     const current = sourceCounter.get(sourceName);
     if (current) {
       current.count += 1;
       if ((current.details?.length ?? 0) < 5) {
-        current.details = [...(current.details ?? []), { sourceUrl, rawData: stringifyEvidenceRawData(rawDataValue) }];
+        current.details = [
+          ...(current.details ?? []),
+          {
+            title,
+            address,
+            category,
+            distanceText: formatDistance(computedDistance),
+            phone,
+            sourceUrl,
+            confidenceText: formatConfidence(confidence),
+            validityText: formatEvidenceValidity(isValid),
+            collectedAtText: collectedAt,
+            collectionMethod,
+            evidenceId,
+            rawPreview: stringifyEvidenceRawData(rawPreviewValue),
+          },
+        ];
       }
     } else {
       sourceCounter.set(sourceName, {
         sourceName,
         count: 1,
-        details: [{ sourceUrl, rawData: stringifyEvidenceRawData(rawDataValue) }],
+        details: [{
+          title,
+          address,
+          category,
+          distanceText: formatDistance(computedDistance),
+          phone,
+          sourceUrl,
+          confidenceText: formatConfidence(confidence),
+          validityText: formatEvidenceValidity(isValid),
+          collectedAtText: collectedAt,
+          collectionMethod,
+          evidenceId,
+          rawPreview: stringifyEvidenceRawData(rawPreviewValue),
+        }],
       });
     }
   }
@@ -582,6 +682,22 @@ function readUnknownAtPath(source: unknown, path: string[]): unknown {
   return current;
 }
 
+function readNumberAtPath(source: unknown, path: string[]): number | null {
+  const value = readUnknownAtPath(source, path);
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function readBooleanAtPath(source: unknown, path: string[]): boolean | null {
+  const value = readUnknownAtPath(source, path);
+  if (typeof value === "boolean") return value;
+  return null;
+}
+
 function stringifyEvidenceRawData(value: unknown): string {
   if (value == null) return "";
   if (typeof value === "string") return value.trim();
@@ -591,6 +707,27 @@ function stringifyEvidenceRawData(value: unknown): string {
   } catch {
     return String(value);
   }
+}
+
+function formatDistance(value: number | null): string {
+  if (value == null) return "距离未知";
+  return `${formatNumber(value)} 米`;
+}
+
+function formatConfidence(value: number | null): string {
+  if (value == null) return "-";
+  return value.toFixed(2);
+}
+
+function formatEvidenceValidity(value: boolean | null): string {
+  if (value == null) return "-";
+  return value ? "有效" : "无效";
+}
+
+function joinNonEmpty(values: Array<string | null>): string | null {
+  const filtered = values.filter((value): value is string => Boolean(value && value.trim()));
+  if (!filtered.length) return null;
+  return filtered.join(" / ");
 }
 
 function readArrayAtPath(source: unknown, path: string[]): Record<string, unknown>[] {

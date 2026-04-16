@@ -159,6 +159,52 @@ app.get("/api/dashboard/tasks/:taskId/logs", async (req, res, next) => {
   }
 });
 
+app.get("/api/hitl/iterations", async (req, res, next) => {
+  try {
+    res.json(await getRepo(req).getHitlIterations());
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get("/api/hitl/iterations/:batchId", async (req, res, next) => {
+  try {
+    const result = await getRepo(req).getHitlIterationDetail(req.params.batchId);
+    if (!result) {
+      res.status(404).json({ message: "HITL batch not found" });
+      return;
+    }
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get("/api/hitl/iterations/:batchId/issues/:issueType/tasks", async (req, res, next) => {
+  try {
+    res.json(await getRepo(req).getHitlIssueTasks(req.params.batchId, req.params.issueType));
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get("/api/hitl/iterations/:batchId/issues/:issueType/tasks/:taskId", async (req, res, next) => {
+  try {
+    const result = await getRepo(req).getHitlIssueTaskDetail(
+      req.params.batchId,
+      req.params.issueType,
+      req.params.taskId,
+    );
+    if (!result) {
+      res.status(404).json({ message: "HITL issue task not found" });
+      return;
+    }
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
 /* 注释涉及本地手动大文件导入和状态清空的路由
 app.post("/api/dashboard/import", async (req, res, next) => {
   try {

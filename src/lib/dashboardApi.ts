@@ -2,6 +2,10 @@ import type {
   DashboardOverview,
   DashboardTimeGranularity,
   FilterOptions,
+  HitlIssueTaskDetail,
+  HitlIssueTaskListItem,
+  HitlIterationDetail,
+  HitlIterationListItem,
   ImportResult,
   TaskListResult,
   TaskLogDetail,
@@ -156,4 +160,28 @@ export function clearCache(): Promise<{ deletedRows: number; deletedImports: num
   return request<{ deletedRows: number; deletedImports: number }>("/api/dashboard/clear-cache", {
     method: "POST",
   });
+}
+
+export function fetchHitlIterations(): Promise<HitlIterationListItem[]> {
+  return request<{ items: HitlIterationListItem[] }>("/api/hitl/iterations").then((res) => res.items ?? []);
+}
+
+export function fetchHitlIterationDetail(batchId: string): Promise<HitlIterationDetail> {
+  return request<HitlIterationDetail>(`/api/hitl/iterations/${encodeURIComponent(batchId)}`);
+}
+
+export function fetchHitlIssueTasks(batchId: string, issueType: string): Promise<HitlIssueTaskListItem[]> {
+  return request<{ items: HitlIssueTaskListItem[] }>(
+    `/api/hitl/iterations/${encodeURIComponent(batchId)}/issues/${encodeURIComponent(issueType)}/tasks`,
+  ).then((res) => res.items ?? []);
+}
+
+export function fetchHitlIssueTaskDetail(
+  batchId: string,
+  issueType: string,
+  taskId: string,
+): Promise<HitlIssueTaskDetail> {
+  return request<HitlIssueTaskDetail>(
+    `/api/hitl/iterations/${encodeURIComponent(batchId)}/issues/${encodeURIComponent(issueType)}/tasks/${encodeURIComponent(taskId)}`,
+  );
 }

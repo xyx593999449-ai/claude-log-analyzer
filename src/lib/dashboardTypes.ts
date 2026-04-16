@@ -147,3 +147,120 @@ export interface BatchOverviewItem {
   totalTokens: number;
   status: "pending" | "running" | "completed";
 }
+
+export type HitlFlowStepId = "feedback" | "analysis" | "iteration" | "candidate" | "regression" | "decision";
+export type HitlFlowStepStatus = "completed" | "active" | "pending" | "unavailable";
+
+export interface HitlIterationListItem {
+  batchId: string;
+  startedAt: string | null;
+  sampleCount: number;
+  issueCount: number;
+  summary: string | null;
+  status: string | null;
+}
+
+export interface HitlFlowStep {
+  id: HitlFlowStepId;
+  label: string;
+  summary: string;
+  status: HitlFlowStepStatus;
+}
+
+export interface HitlRootCauseItem {
+  issueType: string;
+  issueTypeLabel: string;
+  count: number;
+  skillType: string;
+  skillTypeLabel: string;
+  summary: string | null;
+  detailUrl: string;
+}
+
+export interface HitlPromptItem {
+  skillKey: string;
+  skillLabel: string;
+  promptFileName: string;
+  promptPath: string | null;
+  content: string;
+}
+
+export interface HitlModificationItem {
+  targetSkill: string;
+  targetSkillLabel: string;
+  changeSummary: string | null;
+  modifiedFiles: string[];
+  status: string | null;
+  createdAt: string | null;
+}
+
+export interface HitlOverlayPatternItem {
+  issueType: string;
+  issueTypeLabel: string;
+  pattern: string;
+  count: number;
+}
+
+export interface HitlOverlaySkillImpactItem {
+  skillType: string;
+  skillTypeLabel: string;
+  impactSummary: string;
+}
+
+export interface HitlOverlayInsight {
+  rootCauseAnalysis: string | null;
+  learnablePatterns: HitlOverlayPatternItem[];
+  skillImpact: HitlOverlaySkillImpactItem[];
+}
+
+export interface HitlRegressionMetric {
+  label: string;
+  baseline: string;
+  candidate: string;
+  delta: string;
+}
+
+export interface HitlRegressionResult {
+  skillType: string;
+  passed: boolean;
+  summary: string;
+  metrics: HitlRegressionMetric[];
+}
+
+export interface HitlFinalConclusion {
+  title: string;
+  summary: string;
+  actions: string[];
+}
+
+export interface HitlIterationDetail {
+  overview: HitlIterationListItem;
+  flow: HitlFlowStep[];
+  rootCauses: HitlRootCauseItem[];
+  prompts: HitlPromptItem[];
+  modifications: HitlModificationItem[];
+  overlayInsight: HitlOverlayInsight;
+  regressionResults?: HitlRegressionResult[];
+  conclusion?: HitlFinalConclusion;
+}
+
+export interface HitlIssueTaskListItem {
+  taskId: string;
+  name: string | null;
+  address: string | null;
+  city: string | null;
+  poiType: string | null;
+  verifyResult: string | null;
+  qualityStatus: string | null;
+  issueObservationTags: string[];
+  judgmentDimensionTags: string[];
+  manualComment: string | null;
+}
+
+export interface HitlIssueTaskDetail {
+  task: Record<string, unknown>;
+  verifyResult: Record<string, unknown>;
+  qcResult: Record<string, unknown>;
+  manualResult: Record<string, unknown>;
+  modelAnalysis: Record<string, unknown>;
+}

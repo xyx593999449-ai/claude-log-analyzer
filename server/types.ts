@@ -127,3 +127,144 @@ export interface BatchOverviewItem {
   totalTokens: number;
   status: "pending" | "running" | "completed";
 }
+
+export type HitlFlowStepId = "feedback" | "analysis" | "iteration" | "candidate" | "regression" | "decision";
+export type HitlFlowStepStatus = "completed" | "active" | "pending" | "unavailable";
+
+export interface HitlIterationListItem {
+  batchId: string;
+  startedAt: string | null;
+  sampleCount: number;
+  issueCount: number;
+  summary: string | null;
+  status: "analysis" | "iteration" | "regression";
+}
+
+export interface HitlFlowStep {
+  id: HitlFlowStepId;
+  label: string;
+  status: HitlFlowStepStatus;
+  summary: string;
+}
+
+export interface HitlRootCauseItem {
+  issueType: string;
+  issueTypeLabel: string;
+  count: number;
+  skillType: string;
+  skillTypeLabel: string;
+  summary: string | null;
+  detailUrl: string;
+}
+
+export interface HitlPromptItem {
+  skillKey: string;
+  skillLabel: string;
+  promptFileName: string;
+  promptPath: string | null;
+  content: string;
+}
+
+export interface HitlModificationItem {
+  targetSkill: string;
+  targetSkillLabel: string;
+  changeSummary: string | null;
+  modifiedFiles: string[];
+  status: string | null;
+  createdAt: string | null;
+}
+
+export interface HitlOverlayPatternItem {
+  issueType: string;
+  issueTypeLabel: string;
+  pattern: string;
+  count: number;
+}
+
+export interface HitlOverlaySkillImpactItem {
+  skillType: string;
+  skillTypeLabel: string;
+  impactSummary: string;
+}
+
+export interface HitlOverlayInsight {
+  rootCauseAnalysis: string | null;
+  learnablePatterns: HitlOverlayPatternItem[];
+  skillImpact: HitlOverlaySkillImpactItem[];
+}
+
+export interface HitlIterationDetail {
+  overview: HitlIterationListItem;
+  flow: HitlFlowStep[];
+  rootCauses: HitlRootCauseItem[];
+  prompts: HitlPromptItem[];
+  modifications: HitlModificationItem[];
+  overlayInsight: HitlOverlayInsight;
+}
+
+export interface HitlIssueTaskListItem {
+  taskId: string;
+  name: string | null;
+  address: string | null;
+  city: string | null;
+  poiType: string | null;
+  verifyResult: string | null;
+  qualityStatus: string | null;
+  issueObservationTags: string[];
+  judgmentDimensionTags: string[];
+  manualComment: string | null;
+  updatetime: string | null;
+}
+
+export interface HitlIssueTaskDetail {
+  task: {
+    taskId: string;
+    batchId: string;
+    id: string | null;
+    name: string | null;
+    address: string | null;
+    city: string | null;
+    poiType: string | null;
+    updatetime: string | null;
+    qcTime: string | null;
+  };
+  verifyResult: {
+    verifyResult: string | null;
+    verifyInfo: Record<string, unknown> | null;
+    evidenceRecord: unknown;
+  };
+  qcResult: {
+    qualityStatus: string | null;
+    qcStatus: string | null;
+    qcScore: number | null;
+    qcResult: Record<string, unknown> | null;
+    isQualified: boolean | null;
+    hasRisk: boolean | null;
+  };
+  manualResult: {
+    verifyContentIsCorrect: boolean | null;
+    verifyActionIsCorrect: boolean | null;
+    qcInterceptIsCorrect: boolean | null;
+    evidenceStatus: string | null;
+    issueObservationTags: string[];
+    judgmentDimensionTags: string[];
+    manualComment: string | null;
+    conflictingEvidence: string | null;
+    manualAddedEvidenceUrl: string | null;
+    manualAddedEvidenceType: string | null;
+    manualAddedEvidenceAbstract: string | null;
+    verifiedName: string | null;
+    verifiedAddr: string | null;
+    verifiedPoiType: string | null;
+    verifiedCityAdcode: string | null;
+  };
+  modelAnalysis: {
+    issueType: string;
+    issueTypeLabel: string;
+    skillType: string | null;
+    skillTypeLabel: string | null;
+    summary: string | null;
+    rootCause: Record<string, unknown> | null;
+    prompts: HitlPromptItem[];
+  };
+}
