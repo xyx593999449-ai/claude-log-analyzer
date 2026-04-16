@@ -28,10 +28,6 @@
 - 将核实态和质检查核态做彻底的信息隔离。
 - 提供大模型原初 Prompt 对撞呈现及日志高光。
 
-### 2.4 HITL 迭代运营页（建设中）
-- 已完成 HITL 运营页首批前端类型定义，覆盖人工反馈结果池、迭代批次、核实/质检问题分析、迭代建议、候选版本、联合回归与发布结论。
-- 数据模型已明确区分 `人工反馈结果池`、`迭代批次` 与 `任务执行批次`，为后续路由与页面模块开发提供稳定契约。
-
 ## 3. 技术项目字典
 
 | 核心功能段 | 说明简述 | 存储空间指引 |
@@ -73,8 +69,6 @@ npm run build
     *   [v1_big_poi (大 POI 可视化)](doc/v1_big_poi/)
     *   [v2_dashboard_optimization (近期看板优化)](doc/v2_dashboard_optimization/)
     *   [v3_dashboard_time_experience_optimization (执行流量趋势与时间交互修复优化，含需求与开发计划)](doc/v3_dashboard_time_experience_optimization/)
-*   **[当前新增 PRD](docs/prd-hitl-skill-iteration-page.md)**：面向大 POI 核实场景的 HITL 数字员工 Skill 迭代运营页正式需求文档。
-*   **[HITL 闭环飞轮图](docs/diagrams/hitl-digital-employee-flywheel.svg)**：展示“人工反馈结果池 -> 双 Skill 分析与建议 -> 联合回归验证 -> 统一发布结论”的数字员工运营飞轮图表。
 
 ---
 *本系统由数字员工团队维护，持续通过工程化手段优化核实与质检效能。*
