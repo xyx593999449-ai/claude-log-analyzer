@@ -12,6 +12,7 @@ import type { DashboardRepositoryPort } from "./repository";
 import type { AnalysisPhase } from "./types";
 import type { DashboardFilters } from "./types";
 import type { DashboardTimeGranularity } from "./types";
+import type { HitlRegressionType } from "./types";
 
 const app = express();
 app.use(express.json({ limit: "100mb" }));
@@ -78,6 +79,12 @@ function parseTimeGranularity(value: unknown): DashboardTimeGranularity {
   const granularity = String(value ?? "").trim();
   if (granularity === "five_hour" || granularity === "day") return granularity;
   return "hour";
+}
+
+function parseRegressionType(value: unknown): HitlRegressionType | null {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  if (normalized === "verify" || normalized === "qc") return normalized;
+  return null;
 }
 
 function parseFilters(query: Record<string, unknown>): DashboardFilters {
@@ -172,6 +179,65 @@ app.get("/api/hitl/iterations/:batchId", async (req, res, next) => {
     const result = await getRepo(req).getHitlIterationDetail(req.params.batchId);
     if (!result) {
       res.status(404).json({ message: "HITL batch not found" });
+      return;
+    }
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get("/api/hitl/iterations/:batchId/regressions/runs", async (req, res, next) => {
+  try {
+    res.json(await getRepo(req).getHitlRegressionRuns(req.params.batchId));
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get("/api/hitl/iterations/:batchId/regressions/:regressionType", async (req, res, next) => {
+  try {
+    const regressionType = parseRegressionType(req.params.regressionType);
+    if (!regressionType) {
+      res.status(400).json({ message: "Invalid regression type" });
+      return;
+    }
+    const runId = String(req.query.runId ?? "").trim() || undefined;
+    const datasetName = String(req.query.datasetName ?? "").trim() || undefined;
+    const runAt = String(req.query.runAt ?? "").trim() || undefined;
+    const result = await getRepo(req).getHitlRegressionDetail(req.params.batchId, regressionType, runId, datasetName, runAt);
+    if (!result) {
+      res.status(404).json({ message: "HITL regression detail not found" });
+      return;
+    }
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get("/api/hitl/iterations/:batchId/regressions/:regressionType/samples/:sampleId", async (req, res, next) => {
+  try {
+    const regressionType = parseRegressionType(req.params.regressionType);
+    if (!regressionType) {
+      res.status(400).json({ message: "Invalid regression type" });
+      return;
+    }
+    const runId = String(req.query.runId ?? "").trim() || undefined;
+    const datasetName = String(req.query.datasetName ?? "").trim() || undefined;
+    const runAt = String(req.query.runAt ?? "").trim() || undefined;
+    const taskId = String(req.query.taskId ?? "").trim() || undefined;
+    const result = await getRepo(req).getHitlRegressionSampleDetail(
+      req.params.batchId,
+      regressionType,
+      req.params.sampleId,
+      runId,
+      datasetName,
+      runAt,
+      taskId,
+    );
+    if (!result) {
+      res.status(404).json({ message: "HITL regression sample detail not found" });
       return;
     }
     res.json(result);

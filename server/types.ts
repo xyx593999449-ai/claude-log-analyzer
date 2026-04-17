@@ -1,5 +1,9 @@
 export type AnalysisPhase = "verify" | "qc";
 export type DashboardTimeGranularity = "hour" | "five_hour" | "day";
+export type HitlRegressionType = "verify" | "qc";
+export type HitlDecision = "launch" | "rollback" | "review";
+export type HitlDecisionReasonSeverity = "high" | "medium" | "low";
+export type HitlRegressionDiffDirection = "better" | "worsen" | "same" | "unknown";
 
 export interface SampleSeedRecord {
   record_no?: number;
@@ -193,6 +197,169 @@ export interface HitlOverlayInsight {
   skillImpact: HitlOverlaySkillImpactItem[];
 }
 
+export interface HitlRegressionSummaryCard {
+  regressionType: HitlRegressionType;
+  title: string;
+  batchId: string;
+  datasetName: string | null;
+  runAt: string | null;
+  runId: string | null;
+  totalCount: number;
+  positiveCount: number;
+  negativeCount: number;
+  betterRatio: number | null;
+  worsenRatio: number | null;
+  detailUrl: string;
+}
+
+export interface HitlIterationRegressionOverview {
+  batchId: string;
+  latestRunAt: string | null;
+  datasetName: string | null;
+  runId: string | null;
+  verify: HitlRegressionSummaryCard | null;
+  qc: HitlRegressionSummaryCard | null;
+}
+
+export interface HitlRegressionRunItem {
+  batchId: string;
+  datasetName: string | null;
+  runAt: string | null;
+  runId: string | null;
+  totalCount: number;
+  positiveCount: number;
+  negativeCount: number;
+  verifyBetterRatio: number | null;
+  verifyWorsenRatio: number | null;
+  qcBetterRatio: number | null;
+  qcWorsenRatio: number | null;
+}
+
+export interface HitlDecisionReasonItem {
+  type: string;
+  title: string;
+  description: string;
+  severity: HitlDecisionReasonSeverity;
+  metricValue: number | null;
+}
+
+export interface HitlIterationDecisionOverview {
+  decision: HitlDecision;
+  decisionLabel: string;
+  reasonSummary: string | null;
+  runAt: string | null;
+  datasetName: string | null;
+  runId: string | null;
+  verifyBetterRatio: number | null;
+  verifyWorsenRatio: number | null;
+  qcBetterRatio: number | null;
+  qcWorsenRatio: number | null;
+  reasonItems: HitlDecisionReasonItem[];
+}
+
+export interface HitlRegressionFieldDiff {
+  label: string;
+  oldValue: string | null;
+  newValue: string | null;
+  diffText: string | null;
+}
+
+export interface HitlRegressionHeader {
+  batchId: string;
+  regressionType: HitlRegressionType;
+  regressionTypeLabel: string;
+  datasetName: string | null;
+  runAt: string | null;
+  runId: string | null;
+  totalCount: number;
+}
+
+export interface HitlRegressionSummary {
+  totalCount: number;
+  positiveCount: number;
+  negativeCount: number;
+  betterRatio: number | null;
+  worsenRatio: number | null;
+  changedCount: number;
+  betterCount: number;
+  worsenCount: number;
+  sameCount: number;
+  unknownCount: number;
+}
+
+export interface HitlRegressionDiffRow {
+  sampleId: string;
+  taskId: string | null;
+  poiName: string | null;
+  sampleType: string | null;
+  isConsistent: boolean | null;
+  diffDirection: HitlRegressionDiffDirection;
+  primaryOldValue: string | null;
+  primaryNewValue: string | null;
+  primaryDiffText: string | null;
+  secondaryOldValue: string | null;
+  secondaryNewValue: string | null;
+  secondaryDiffText: string | null;
+  detailPreview: string | null;
+  sampleDetailUrl: string;
+}
+
+export interface HitlRegressionDetailResponse {
+  header: HitlRegressionHeader;
+  summary: HitlRegressionSummary;
+  rows: HitlRegressionDiffRow[];
+}
+
+export interface HitlRegressionSampleDetail {
+  header: {
+    batchId: string;
+    regressionType: HitlRegressionType;
+    regressionTypeLabel: string;
+    datasetName: string | null;
+    runAt: string | null;
+    runId: string | null;
+    sampleId: string;
+    taskId: string | null;
+    sampleType: string | null;
+    isConsistent: boolean | null;
+  };
+  baseInfo: {
+    poiName: string | null;
+    address: string | null;
+    city: string | null;
+    poiType: string | null;
+    status: string | null;
+  };
+  resultDiffs: {
+    primary: HitlRegressionFieldDiff;
+    secondary: HitlRegressionFieldDiff;
+  };
+  fieldDiffs: HitlRegressionFieldDiff[];
+  truthInfo: {
+    name: string | null;
+    address: string | null;
+    city: string | null;
+    poiType: string | null;
+    cityAdcode: string | null;
+    status: string | null;
+  };
+  currentInfo: {
+    verifyResult: string | null;
+    qcStatus: string | null;
+  };
+  verifiedInfo: {
+    name: string | null;
+    address: string | null;
+    city: string | null;
+    poiType: string | null;
+    cityAdcode: string | null;
+    status: string | null;
+    verifyResult: string | null;
+  };
+  verifyInfo: Record<string, unknown> | null;
+  evidenceRecord: unknown;
+}
+
 export interface HitlIterationDetail {
   overview: HitlIterationListItem;
   flow: HitlFlowStep[];
@@ -200,6 +367,8 @@ export interface HitlIterationDetail {
   prompts: HitlPromptItem[];
   modifications: HitlModificationItem[];
   overlayInsight: HitlOverlayInsight;
+  regressionOverview: HitlIterationRegressionOverview | null;
+  decisionOverview: HitlIterationDecisionOverview | null;
 }
 
 export interface HitlIssueTaskListItem {

@@ -1,5 +1,7 @@
 # Claude Log Analyzer
 
+当前版本：`v0.6.0`（2026-04-17）
+
 > 2026-03-25 更新：全系统顺利通过了产品经理主导的极高标准视觉升维与重构。后端正式打通多批次联合筛选聚合 API (`?batch=A,B`)。前端主看板全面强化了工业级 Mono 数据渲染字体及微投影呼吸卡片；特别在前线底层分析侧，开创性地引入了 **VSCode 级代码错误探测微缩雷达 (Interactive Minimap)**，支持一键长距精准下钻至极其微小的异常锚点，辅以全局修复的无边界浮窗与面包屑体系，护航业务深度探索体验。
 
 面向全流程的大 POI 核实与质检链数字员工所配建的高深度结构化日志分析台。极大地方便业务专员用以把控整个任务分发流水线上的宏观核实趋势、特定异常流巡检、下钻长日志排障微缩探查以及底层大模型的具体内部推导反刍。
@@ -35,10 +37,17 @@
 - 页面已提供迭代批次列表、运营飞轮、问题归因、双 Skill 建议、候选版本、联合回归与发布决策等完整分区。
 - 页面显式区分 `人工反馈结果池`、`迭代批次` 与 `任务执行批次` 三种语义边界，并补充页内导览锚点，方便长页浏览。
 - 已新增 `doc/v4_hitl_backend_adaptation/01-hitl-db-to-frontend-mapping.md`，用于收敛三张 HITL 迭代表到前端页面分区的字段映射、聚合边界与后续展示增减决策。
+- `doc/v4_hitl_backend_adaptation/01-hitl-db-to-frontend-mapping.md` 已继续补充回归三表（`poi_verified_regression_test / compare / result`）到回归验证区与回归详情页的展示方案、字段映射与 `batch_id = batch_0415` 统一口径。
 - 已新增 `doc/v4_hitl_backend_adaptation/02-requirements.md`、`03-functional-design.md`、`04-development-plan.md`，用于沉淀 `HITL` 页面后端接入、问题下钻和专属问题详情页的需求、功能设计与开发方案。
 - 后端已提供 `HITL` 专用 API：`GET /api/hitl/iterations`、`GET /api/hitl/iterations/:batchId`、`GET /api/hitl/iterations/:batchId/issues/:issueType/tasks`、`GET /api/hitl/iterations/:batchId/issues/:issueType/tasks/:taskId`，并兼容 SQLite / PostgreSQL 仓储。
+- SQLite mock 初始化已补齐 `example/hitl/example/` 下回归三表样例导入，默认会把回归摘要、差异明细与样本详情灌入本地演示库，便于直接在 `/hitl-iterations` 查看真实回归展示效果。
+- HITL 回归区与回归详情页的展示文案已收敛为业务视角，移除“等待后端返回 / 待补充 / 原因说明”等研发占位措辞，避免把需求与实现过程暴露到前端界面。
+- HITL 回归指标展示已明确以 `poi_verified_regression_test_result` 为权威口径；页面不再把 `positive_count / negative_count` 误展示为“变好样本 / 变差样本”，改为按字段真实语义展示“正样本 / 负样本”。
+- HITL 回归区已进一步收敛信息层级：顶部统一展示运行时间、数据集、总样本、正样本、负样本；核实 / 质检卡片内部仅保留对应结论与两项核心指标（核实逆向率/提升率、质检逆向率/提升率），不重复展示公共信息。
 - `iteration_overlay_drafts` 已结构化接入主页面：新增批次级根因总述、可学习模式、技能影响展示；根因分布卡片保持“问题原因 + 对应技能 + 数量 + 占比轴 + 问题下钻”紧凑呈现，避免重复长文。
 - Prompt 区按技能分组并使用 Markdown 预览渲染，长文本默认折叠支持展开；版本变更摘要支持按句分段、重点词高亮与灵活换行，提升可读性。
+- 已新增 `doc/v4_hitl_backend_adaptation/06-hitl-main-page-display-optimization.md`，固化本轮 HITL 主页面展示优化需求：流程图与模块联动、横向主卡切换、上一/下一按钮、默认从当前进行步骤展示并跳过 `反馈池` 内容页。
+- HITL 主页面已完成“流程导航联动 + 单主卡切换”改造：流程节点点击、上一/下一按钮、键盘左右键会驱动同一内容舞台切换；支持按批次记忆最近停留模块，并通过主卡最小高度与高度过渡降低切换抖动。
 
 ## 3. 技术项目字典
 
@@ -82,6 +91,8 @@ npm run build
     *   [v2_dashboard_optimization (近期看板优化)](doc/v2_dashboard_optimization/)
     *   [v3_dashboard_time_experience_optimization (执行流量趋势与时间交互修复优化，含需求与开发计划)](doc/v3_dashboard_time_experience_optimization/)
     *   [v4_hitl_backend_adaptation (HITL 后端字段映射与适配收敛)](doc/v4_hitl_backend_adaptation/)
+    *   [v4_hitl_backend_adaptation/05-hitl-regression-detail-page-refactor-design.md (HITL 回归详情页重构设计)](doc/v4_hitl_backend_adaptation/05-hitl-regression-detail-page-refactor-design.md)
+    *   [v4_hitl_backend_adaptation/06-hitl-main-page-display-optimization.md (HITL 主页面展示优化需求)](doc/v4_hitl_backend_adaptation/06-hitl-main-page-display-optimization.md)
 
 ---
 *本系统由数字员工团队维护，持续通过工程化手段优化核实与质检效能。*

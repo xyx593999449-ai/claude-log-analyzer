@@ -2,24 +2,39 @@
 
 ## 1. 文档目标
 
-本文档用于收敛 `HITL 迭代运营页` 从当前三张数据库表适配到前端页面时的字段边界，供逐项确认：
+本文档用于收敛 `HITL 迭代运营页` 从当前数据库表适配到前端页面时的字段边界，供逐项确认：
 
 - 哪些字段可以直接从数据库读取
 - 哪些字段需要后端聚合或推导
 - 哪些字段数据库中已经存在，但前端当前未展示
 
-当前范围仅覆盖以下三张表：
+当前范围覆盖以下六张表：
 
 - `iteration_negative_samples`
 - `iteration_overlay_drafts`
 - `iteration_skill_modifications`
+- `poi_verified_regression_test`
+- `poi_verified_regression_test_compare`
+- `poi_verified_regression_test_result`
 
-明确不纳入本轮：
+本轮纳入补充：
 
-- 回归验证
 - 最终结论
 
-原因：这两部分当前数据库尚未 ready，本轮仅做前置字段收敛，不在这里设计占位口径。
+原因：
+
+- 回归验证已补齐独立底层数据，可作为最终结论的事实基础
+- 最终结论不再依赖新增业务表，先基于核实 / 质检回归指标做决策型聚合
+
+### 1.1 本轮新增前提
+
+数据库中的三张回归表已新增 `batch_id` 字段，并与前置 `HITL` 迭代批次统一到 `batch_0415`。
+
+这意味着：
+
+- 回归验证区本轮可以直接按 `batch_id` 与 `HITL` 主页面关联
+- 不再需要用 `dataset_name`、`task_id` 或时间窗做弱关联
+- 页面主视角仍以 `batchId` 为主，`dataset_name` 退化为回归区内部的分组维度
 
 ---
 
@@ -35,7 +50,7 @@
 6. 回归验证
 7. 最终结论
 
-本轮重点分析前五项，后两项暂不处理。
+本轮重点分析全部七项，其中最终结论基于回归指标做后端聚合，不直接读取独立事实表。
 
 ---
 
@@ -89,6 +104,51 @@
 - 修改摘要
 - 修改覆盖的问题类型
 - 修改文件列表
+
+### 3.4 `poi_verified_regression_test`
+
+更接近：
+
+- 候选版本进入回归时的样本全集
+- 单条样本的真值 / 当前结果 / 核实后结果对照
+- 回归样本详情下钻的数据底表
+
+可支撑的信息方向：
+
+- 数据集维度的样本规模
+- 正负样本拆分
+- 单条样本详情
+- 核实证据与 `verify_info` 展示
+
+### 3.5 `poi_verified_regression_test_compare`
+
+更接近：
+
+- 回归后与真值不一致的差异明细
+- 本轮候选版本相对基线的变化记录
+- 适合作为“变化摘要 / 风险明细 / 典型波动 case”来源
+
+可支撑的信息方向：
+
+- 一致 / 不一致数量
+- 核实结论变化
+- 质检结论变化
+- 名称 / 地址 / 类型 / 行政区划 / 状态等字段变化
+
+### 3.6 `poi_verified_regression_test_result`
+
+更接近：
+
+- 每次回归运行的汇总结果
+- 回归区顶部 KPI 的最佳事实来源
+
+可支撑的信息方向：
+
+- 总样本数
+- 正负样本数
+- 核实提升率 / 逆向率
+- 质检提升率 / 逆向率
+- 总体提升率 / 逆向率
 
 ---
 
@@ -258,6 +318,51 @@
 2. 数字员工质检结果
 3. 人工标注结果
 4. 模型分析结果
+
+### 4.5 回归验证区可直接读取的字段
+
+| 前端字段 | 建议来源 | 处理方式 | 备注 |
+|---|---|---|---|
+| `batchId` | 三张回归表的 `batch_id` | 直接过滤 | 本轮已确认统一为 `batch_0415` |
+| `datasetName` | `poi_verified_regression_test_result.dataset_name` | 直接映射 | 作为回归区内部的分组标题 |
+| `runAt` | `poi_verified_regression_test_result.updatetime` | 直接映射 | 用于展示最近一次回归运行时间 |
+| `runId` | `poi_verified_regression_test_result.timestamp_suffix` | 直接映射 | 作为一次回归运行的轻量标识 |
+| `totalCount` | `poi_verified_regression_test_result.total_count` | 直接映射 | 总样本数 |
+| `positiveCount` | `poi_verified_regression_test_result.positive_count` | 直接映射 | 正样本数 |
+| `negativeCount` | `poi_verified_regression_test_result.negative_count` | 直接映射 | 负样本数 |
+| `verifyBetterRatio` | `poi_verified_regression_test_result.verify_better_ratio` | 直接映射 | 核实提升率 |
+| `verifyWorsenRatio` | `poi_verified_regression_test_result.verify_worsen_ratio` | 直接映射 | 核实逆向率 |
+| `qcBetterRatio` | `poi_verified_regression_test_result.qc_better_ratio` | 直接映射 | 质检提升率 |
+| `qcWorsenRatio` | `poi_verified_regression_test_result.qc_worsen_ratio` | 直接映射 | 质检逆向率 |
+| `totalBetterRatio` | `poi_verified_regression_test_result.total_better_ratio` | 直接映射 | 总体提升率 |
+| `totalWorsenRatio` | `poi_verified_regression_test_result.total_worsen_ratio` | 直接映射 | 总体逆向率 |
+
+### 4.6 回归变化明细可直接读取的字段
+
+| 前端字段 | 建议来源 | 处理方式 | 备注 |
+|---|---|---|---|
+| `isConsistent` | `poi_verified_regression_test_compare.is_consistent` | 直接映射 | 可用于“一致 / 不一致”统计 |
+| `sampleType` | `poi_verified_regression_test_compare.sample_type` | 直接映射 | 正样本 / 负样本 |
+| `compareVerifyResult` | `compare_verify_result` | 直接映射 | 基线核实结论 |
+| `newVerifyResult` | `new_verify_result` | 直接映射 | 候选版本核实结论 |
+| `compareQcStatus` | `compare_qc_status` | 直接映射 | 基线质检结论 |
+| `newQcStatus` | `new_qc_status` | 直接映射 | 候选版本质检结论 |
+| `compareName / compareAddress / comparePoiType / compareCityAdcode / compareStatus` | `compare_*` | 直接映射 | 这些字段本身已是 `old->new` 差异串 |
+| `taskId` | `poi_verified_regression_test_compare.task_id` | 直接映射 | 回归执行明细标识 |
+| `id` | `poi_verified_regression_test_compare.id` | 直接映射 | POI 业务主键 |
+
+### 4.7 回归样本详情可直接读取的字段
+
+| 前端字段 | 建议来源 | 处理方式 | 备注 |
+|---|---|---|---|
+| `sampleType` | `poi_verified_regression_test.sample_type` | 直接映射 | 正样本 / 负样本 |
+| `curVerifyResult` | `cur_verify_result` | 直接映射 | 当前核实结论 |
+| `curQcStatus` | `cur_qc_status` | 直接映射 | 当前质检结论 |
+| `verifiedVerifyResult` | `verified_verify_result` | 直接映射 | 候选版本核实结论 |
+| `name / address / poiType / city / cityAdcode` | 当前输入字段 | 直接映射 | 输入侧 |
+| `trueName / trueAddress / truePoiType / trueCity / trueCityAdcode` | 真值字段 | 直接映射 | 真值侧 |
+| `verifiedName / verifiedAddress / verifiedPoiType / verifiedCity / verifiedCityAdcode` | 核实后字段 | 直接映射 | 候选版本输出侧 |
+| `verifyInfo / evidenceRecord` | JSON 字段 | 直接透传 | 用于样本详情抽屉或详情页 |
 
 其中建议的数据来源如下：
 
@@ -550,6 +655,7 @@
 - 问题根因
 - 迭代建议
 - Skill 版本变更
+- 回归验证
 
 ### 7.2 建议保留现有流程区结构
 
@@ -569,15 +675,78 @@
 
 ### 7.3 建议暂停
 
-- 回归验证
 - 最终结论
 
 原因：
 
-- 当前库中无 ready 数据
-- 本轮不应做弱推导占位
+- 当前库中仍无稳定、可审计的事实字段
+- 若强行从回归结果反推最终结论，容易把“回归事实”与“发布决策”混在一起
 
-### 7.4 已确认的新增交互
+### 7.4 回归验证区展示方案
+
+在 `batch_id` 已打通的前提下，当前更推荐把回归区设计成“两层结构”：
+
+#### 主页面：核实 / 质检双摘要
+
+展示内容：
+
+- 回归运行时间
+- 数据集 / 运行批次标识
+- 样本规模摘要：总样本、正样本、负样本
+- `核实回归` 指标卡
+  - 核实提升率
+  - 核实逆向率
+  - 查看详情
+- `质检回归` 指标卡
+  - 质检提升率
+  - 质检逆向率
+  - 查看详情
+
+优点：
+
+- 主页面聚焦“这轮回归是否健康”
+- 天然贴合用户对“核实”和“质检”两条链路分别观察的需求
+- 不会把字段变化和样本明细直接堆在主页面
+
+代价：
+
+- 明细信息必须下钻到详情页
+- 需要定义详情页的分 tab / 分视图逻辑
+
+#### 详情页：对应回归明细
+
+展示内容：
+
+- 进入方式：
+  - 从 `核实回归` 卡进入核实回归详情
+  - 从 `质检回归` 卡进入质检回归详情
+- 页面建议展示：
+  - 顶部摘要：运行时间、数据集、样本规模、当前回归类型
+  - 指标摘要：当前回归类型下的提升率 / 逆向率
+  - 明细列表：对应样本的结论变化与字段差异
+  - 明细下钻：查看某条回归样本的真值 / 当前结果 / 候选结果 / 证据
+
+优点：
+
+- 主页面保持克制，详情页承担解释和复盘
+- 用户可以按“核实”或“质检”分别排查，不会混淆
+
+代价：
+
+- 需要新增回归详情页路由与接口
+- 要先定义“核实详情页看哪些字段，质检详情页看哪些字段”
+
+### 7.5 当前推荐方案
+
+当前推荐采用 **“主页面双摘要 + 回归详情页”**。
+
+原因：
+
+- 比单纯 KPI 更完整，用户能继续追到明细
+- 比在主页面堆变化摘要或典型样本更克制
+- 与当前 HITL 页“主页面看全局、详情页看明细”的整体交互风格一致
+
+### 7.6 已确认的新增交互
 
 优先新增：
 
@@ -628,7 +797,114 @@
    - `changes.summary`
    - `status`
    - `created_at`
-5. 在问题根因区增加“查看问题详情”的下钻能力，优先展示人工标注任务，而不是先做新的静态信息块
+5. 回归验证区本轮按 `batch_id = batch_0415` 直接关联回归三表，不再做弱关联
+6. 回归验证区优先采用“主页面双摘要 + 回归详情页”方案：
+   - 主页面分别展示 `核实回归` 与 `质检回归`
+   - 明细数据统一下钻到回归详情页
+7. 在问题根因区增加“查看问题详情”的下钻能力，优先展示人工标注任务，而不是先做新的静态信息块
+
+### 9.1 回归验证区建议字段映射
+
+建议把回归验证区拆成三个子块：
+
+#### A. 回归结果总览
+
+- `runAt` ← `poi_verified_regression_test_result.updatetime`
+- `datasetName` ← `poi_verified_regression_test_result.dataset_name`
+- `sampleSummary` ← `total_count / positive_count / negative_count`
+- `runId` ← `poi_verified_regression_test_result.timestamp_suffix`
+
+#### B. 核实回归卡
+
+- `betterRatio` ← `verify_better_ratio`
+- `worsenRatio` ← `verify_worsen_ratio`
+- `detailType` ← 固定为 `verify`
+- `detailTitle` ← `核实回归详情`
+
+#### C. 质检回归卡
+
+- `betterRatio` ← `qc_better_ratio`
+- `worsenRatio` ← `qc_worsen_ratio`
+- `detailType` ← 固定为 `qc`
+- `detailTitle` ← `质检回归详情`
+
+### 9.2 回归详情页建议字段映射
+
+建议新增 `HITL` 专属回归详情页，而不是把回归明细继续压回主页面。
+
+#### A. 页首摘要
+
+- `batchId` ← 查询参数 / 路由参数
+- `regressionType` ← `verify | qc`
+- `datasetName` ← `poi_verified_regression_test_result.dataset_name`
+- `runAt` ← `poi_verified_regression_test_result.updatetime`
+- `runId` ← `poi_verified_regression_test_result.timestamp_suffix`
+- `sampleSummary` ← `total_count / positive_count / negative_count`
+
+#### B. 指标摘要
+
+当 `regressionType = verify`：
+
+- `betterRatio` ← `verify_better_ratio`
+- `worsenRatio` ← `verify_worsen_ratio`
+
+当 `regressionType = qc`：
+
+- `betterRatio` ← `qc_better_ratio`
+- `worsenRatio` ← `qc_worsen_ratio`
+
+#### C. 明细列表
+
+回归详情页的明细主数据建议来自 `poi_verified_regression_test_compare`。
+
+通用字段：
+
+- `consistentCount` ← `count(*) where is_consistent = '是'`
+- `inconsistentCount` ← `count(*) where is_consistent = '否'`
+- `sampleType` ← `sample_type`
+- `isConsistent` ← `is_consistent`
+- `nameChange` ← `compare_name`
+- `addressChange` ← `compare_address`
+- `typeChange` ← `compare_poi_type`
+- `adcodeChange` ← `compare_city_adcode`
+- `statusChange` ← `compare_status`
+- `taskId` ← `task_id`
+- `id` ← `id`
+
+当 `regressionType = verify`：
+
+- 主展示变化字段：
+  - `compare_verify_result`
+  - `new_verify_result`
+- 排序优先建议：
+  - 逆向样本优先
+  - 结论发生变化的样本优先
+  - `is_consistent = '否'` 优先
+
+当 `regressionType = qc`：
+
+- 主展示变化字段：
+  - `compare_qc_status`
+  - `new_qc_status`
+- 排序优先建议：
+  - 逆向样本优先
+  - 质检结论发生变化的样本优先
+  - `is_consistent = '否'` 优先
+
+#### D. 样本详情抽屉 / 二级详情
+
+样本详情建议再读 `poi_verified_regression_test`，用于展示：
+
+- 输入数据：`name / address / poi_type / city / city_adcode`
+- 真值数据：`true_*`
+- 候选结果：`verified_* / verified_verify_result`
+- 当前结果：`cur_verify_result / cur_qc_status`
+- 证据与解释：`verify_info / evidence_record`
+
+说明：
+
+- `compare_*` 字段本身已是 `old->new` 文本，不必再额外拼接
+- `verify` 与 `qc` 两类详情页共享底表，但主展示字段和默认排序应不同
 
 ---
 
@@ -654,3 +930,61 @@
 10. 流程区保留六步，不做缩减
 11. 在问题根因区增加“查看问题详情”的交互，并跳转展示人工标注的具体任务
 12. 问题详情页新增为 `HITL` 专属详情页，展示数字员工核实结果、质检结果、人工标注结果、模型分析结果
+13. 回归验证区本轮纳入真实字段映射，不再维持“待补充”前提
+14. 回归三张表已新增 `batch_id`，并与前置 `HITL` 批次统一到 `batch_0415`
+15. 回归区内部以 `dataset_name + updatetime / timestamp_suffix` 作为展示分组，不替代页面主 `batchId`
+
+
+### 9.2 最终结论区建议字段映射
+
+建议把最终结论区设计成“决策卡 + 原因列表”两层结构。
+
+#### 决策卡
+
+页面核心不是展示一个普通状态标签，而是突出：
+
+- `建议上线`
+- `建议回滚`
+- `建议人工复核`
+
+建议字段：
+
+| 前端字段 | 建议来源 | 处理方式 | 备注 |
+|---|---|---|---|
+| `decision` | 后端聚合字段 | 基于核实 / 质检回归指标推导 | 枚举：`launch` / `rollback` / `review` |
+| `decisionLabel` | 后端聚合字段 | 展示中文文案 | 如“建议上线” |
+| `decisionReasonSummary` | 后端聚合字段 | 拼接主要原因 | 用于主卡副标题 |
+| `verifyWorsenRatio` | `poi_verified_regression_test_result.verify_worsen_ratio` | 直接映射 | 决策依据之一 |
+| `verifyBetterRatio` | `poi_verified_regression_test_result.verify_better_ratio` | 直接映射 | 决策依据之一 |
+| `qcWorsenRatio` | `poi_verified_regression_test_result.qc_worsen_ratio` | 直接映射 | 决策依据之一 |
+| `qcBetterRatio` | `poi_verified_regression_test_result.qc_better_ratio` | 直接映射 | 决策依据之一 |
+| `runAt` | `poi_verified_regression_test_result.updatetime` | 直接映射 | 说明决策对应哪次回归 |
+
+#### 原因列表
+
+建议把原因拆成结构化条目，而不是只输出一段总结文本：
+
+- 核实回归是否出现明显变差
+- 质检回归是否出现明显变差
+- 是否存在正向收益可支撑上线
+- 是否存在需要人工复核的不确定信号
+
+建议字段：
+
+| 前端字段 | 建议来源 | 处理方式 | 备注 |
+|---|---|---|---|
+| `reasonItems[].type` | 后端聚合字段 | 枚举化 | 如 `verify_worsen` / `qc_worsen` / `verify_better` |
+| `reasonItems[].title` | 后端聚合字段 | 输出简短原因标题 | 如“核实回归出现变差” |
+| `reasonItems[].description` | 后端聚合字段 | 输出解释文本 | 如“核实变差比例高于变好比例” |
+| `reasonItems[].severity` | 后端聚合字段 | 枚举化 | `high` / `medium` / `low` |
+| `reasonItems[].metricValue` | 回归结果表字段 | 直接引用对应指标 | 用于展示具体比例 |
+
+#### 当前建议的推导方向
+
+在没有独立发布决策表的前提下，最终结论区先采用“回归指标驱动的决策聚合”方案：
+
+- 若核实或质检出现明显变差，优先给出 `建议回滚`
+- 若核实和质检均未出现明显变差，且存在正向收益，可给出 `建议上线`
+- 若指标互相冲突或信号不够明确，则给出 `建议人工复核`
+
+这里的阈值不在本轮文档中硬编码，但页面结构和返回字段应提前按三态决策设计。

@@ -1,7 +1,9 @@
-import type { CSSProperties, ReactNode } from "react";
-import { useEffect, useMemo, useState } from "react";
+import type { CSSProperties, KeyboardEvent, ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
+  AlertTriangle,
+  ArrowLeft,
   ArrowRight,
   BrainCircuit,
   ChevronDown,
@@ -9,7 +11,9 @@ import {
   FlaskConical,
   GitBranch,
   Rocket,
+  ShieldAlert,
   ShieldCheck,
+  Sparkles,
   Users,
 } from "lucide-react";
 import { fetchHitlIterationDetail, fetchHitlIterations } from "../../lib/dashboardApi";
@@ -22,6 +26,7 @@ import type {
   HitlPromptItem,
   HitlRootCauseItem,
 } from "../../lib/dashboardTypes";
+import { buildRegressionOverview, formatCount, formatRatio, getDecisionTone, type RegressionMetricCardModel } from "./hitlRegressionModel";
 
 const FLOW_META: Array<{ id: HitlFlowStepId; label: string; icon: typeof Users }> = [
   { id: "feedback", label: "反馈池", icon: Users },
@@ -32,20 +37,23 @@ const FLOW_META: Array<{ id: HitlFlowStepId; label: string; icon: typeof Users }
   { id: "decision", label: "最终结论", icon: ShieldCheck },
 ];
 
+const DISPLAYABLE_STEP_IDS: HitlFlowStepId[] = ["analysis", "iteration", "candidate", "regression", "decision"];
+const HITL_STEP_MEMORY_STORAGE_KEY = "hitl-iteration-step-memory-v1";
+
 const DEFAULT_UNAVAILABLE_SUMMARY: Record<HitlFlowStepId, string> = {
-  feedback: "待补充",
-  analysis: "待补充",
-  iteration: "待补充",
-  candidate: "待补充",
-  regression: "当前数据未 ready，待补充。",
-  decision: "当前数据未 ready，待补充。",
+  feedback: "当前阶段暂无展示内容。",
+  analysis: "分析结果生成中。",
+  iteration: "迭代结果生成中。",
+  candidate: "候选版本整理中。",
+  regression: "回归结果生成中。",
+  decision: "发布建议生成中。",
 };
 
 const STEP_STATUS_META: Record<HitlFlowStepStatus, { text: string; className: string }> = {
   completed: { text: "已完成", className: "border-emerald-200 bg-emerald-50 text-emerald-700" },
   active: { text: "进行中", className: "border-amber-200 bg-amber-50 text-amber-700" },
   pending: { text: "待处理", className: "border-slate-200 bg-slate-100 text-slate-700" },
-  unavailable: { text: "待补充", className: "border-slate-200 bg-slate-100 text-slate-500" },
+  unavailable: { text: "未生成", className: "border-slate-200 bg-slate-100 text-slate-500" },
 };
 
 const BATCH_STATUS_META: Record<string, { label: string; className: string }> = {
@@ -53,7 +61,7 @@ const BATCH_STATUS_META: Record<string, { label: string; className: string }> = 
   iterating: { label: "迭代中", className: "border-indigo-200 bg-indigo-50 text-indigo-700" },
   regression: { label: "回归中", className: "border-sky-200 bg-sky-50 text-sky-700" },
   completed: { label: "已完成", className: "border-emerald-200 bg-emerald-50 text-emerald-700" },
-  unavailable: { label: "待补充", className: "border-slate-200 bg-slate-100 text-slate-700" },
+  unavailable: { label: "未生成", className: "border-slate-200 bg-slate-100 text-slate-700" },
 };
 
 const ISSUE_LABEL_MAP: Record<string, string> = {
@@ -74,6 +82,8 @@ const ISSUE_LABEL_MAP: Record<string, string> = {
 export function HITLIterationPage() {
   const [batches, setBatches] = useState<HitlIterationListItem[]>([]);
   const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
+  const [activeStepId, setActiveStepId] = useState<HitlFlowStepId | null>(null);
+  const [stepMemoryByBatch, setStepMemoryByBatch] = useState<Record<string, HitlFlowStepId>>(() => loadStepMemory());
   const [detail, setDetail] = useState<HitlIterationDetail | null>(null);
   const [loadingBatches, setLoadingBatches] = useState(true);
   const [loadingDetail, setLoadingDetail] = useState(false);
@@ -81,6 +91,9 @@ export function HITLIterationPage() {
   const [detailError, setDetailError] = useState<string | null>(null);
   const [expandedPrompt, setExpandedPrompt] = useState<Record<string, boolean>>({});
   const [expandedRootCause, setExpandedRootCause] = useState(false);
+  const [activePanelHeight, setActivePanelHeight] = useState<number | null>(null);
+  const [panelHeightReady, setPanelHeightReady] = useState(false);
+  const activePanelContentRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -143,6 +156,11 @@ export function HITLIterationPage() {
   const selectedBatch = useMemo(() => batches.find((item) => item.batchId === selectedBatchId) ?? null, [batches, selectedBatchId]);
   const flowSteps = useMemo(() => normalizeFlow(detail?.flow), [detail?.flow]);
   const currentStepIndex = useMemo(() => getCurrentStepIndex(flowSteps), [flowSteps]);
+  const displayableSteps = useMemo(() => flowSteps.filter((step) => DISPLAYABLE_STEP_IDS.includes(step.id)), [flowSteps]);
+  const activeDisplayStepIndex = useMemo(
+    () => displayableSteps.findIndex((step) => step.id === activeStepId),
+    [displayableSteps, activeStepId],
+  );
 
   const totalRootCauseCount = useMemo(
     () => (detail?.rootCauses ?? []).reduce((acc, item) => acc + Math.max(item.count, 0), 0),
@@ -153,6 +171,8 @@ export function HITLIterationPage() {
   const rootCauseSummary = detail?.overlayInsight?.rootCauseAnalysis ?? null;
   const learnablePatterns = detail?.overlayInsight?.learnablePatterns ?? [];
   const skillImpacts = detail?.overlayInsight?.skillImpact ?? [];
+  const regressionOverview = useMemo(() => buildRegressionOverview(detail, selectedBatch?.batchId), [detail, selectedBatch?.batchId]);
+  const decisionTone = useMemo(() => getDecisionTone(regressionOverview.decision.status), [regressionOverview.decision.status]);
   const skillImpactMap = useMemo(() => {
     const map = new Map<string, string>();
     for (const impact of skillImpacts) {
@@ -164,6 +184,67 @@ export function HITLIterationPage() {
   const hasLongRootCauseSummary = (rootCauseSummary?.length ?? 0) > 260;
   const rootCauseSummaryPreview =
     rootCauseSummary && hasLongRootCauseSummary && !expandedRootCause ? `${rootCauseSummary.slice(0, 260)}…` : rootCauseSummary;
+  const currentDisplayStepId =
+    activeStepId && displayableSteps.some((step) => step.id === activeStepId) ? activeStepId : (displayableSteps[0]?.id ?? null);
+  const canMovePrev = activeDisplayStepIndex > 0;
+  const canMoveNext = activeDisplayStepIndex >= 0 && activeDisplayStepIndex < displayableSteps.length - 1;
+
+  useEffect(() => {
+    if (!selectedBatchId || displayableSteps.length === 0) {
+      setActiveStepId(null);
+      return;
+    }
+    const rememberedStepId = stepMemoryByBatch[selectedBatchId];
+    if (rememberedStepId && displayableSteps.some((step) => step.id === rememberedStepId)) {
+      setActiveStepId(rememberedStepId);
+      return;
+    }
+    setActiveStepId(getDefaultDisplayStepId(displayableSteps));
+  }, [selectedBatchId, displayableSteps, stepMemoryByBatch]);
+
+  useEffect(() => {
+    saveStepMemory(stepMemoryByBatch);
+  }, [stepMemoryByBatch]);
+
+  useEffect(() => {
+    const target = activePanelContentRef.current;
+    if (!target) return;
+
+    const syncHeight = () => {
+      setActivePanelHeight(target.offsetHeight);
+      setPanelHeightReady(true);
+    };
+
+    syncHeight();
+
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(syncHeight);
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [activeStepId, detail, expandedPrompt, expandedRootCause]);
+
+  const activateStep = (stepId: HitlFlowStepId) => {
+    if (!DISPLAYABLE_STEP_IDS.includes(stepId)) return;
+    if (!displayableSteps.some((step) => step.id === stepId)) return;
+    setActiveStepId(stepId);
+    if (selectedBatchId) {
+      setStepMemoryByBatch((prev) => ({ ...prev, [selectedBatchId]: stepId }));
+    }
+  };
+
+  const handleStepHotkey = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.altKey || event.metaKey || event.ctrlKey) return;
+    if (activeDisplayStepIndex < 0) return;
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    event.preventDefault();
+    if (event.key === "ArrowLeft" && activeDisplayStepIndex > 0) {
+      activateStep(displayableSteps[activeDisplayStepIndex - 1].id);
+      return;
+    }
+    if (event.key === "ArrowRight" && activeDisplayStepIndex < displayableSteps.length - 1) {
+      activateStep(displayableSteps[activeDisplayStepIndex + 1].id);
+    }
+  };
 
   return (
     <div className="dashboard-shell dashboard-grid min-h-[calc(100vh-96px)] rounded-[36px] p-4 text-slate-900 sm:p-6 lg:p-8">
@@ -223,7 +304,12 @@ export function HITLIterationPage() {
             <div className="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-400">迭代流程</div>
             <h2 className="mt-2 text-2xl font-semibold text-slate-950">{selectedBatch?.batchId ?? "未选择批次"}</h2>
           </div>
-          <StatusPill label={`当前：${FLOW_META[currentStepIndex]?.label ?? "反馈池"}`} className="border-slate-200 bg-slate-50 text-slate-700" />
+          <StatusPill
+            label={`当前：${
+              displayableSteps.find((step) => step.id === activeStepId)?.label ?? FLOW_META[currentStepIndex]?.label ?? "反馈池"
+            }`}
+            className="border-slate-200 bg-slate-50 text-slate-700"
+          />
         </div>
 
         {loadingDetail ? <div className="mt-5 text-sm text-slate-500">批次详情加载中...</div> : null}
@@ -236,24 +322,52 @@ export function HITLIterationPage() {
               const status = flowSteps[index]?.status ?? "pending";
               const current = status === "active";
               const active = current || status === "completed";
+              const isDisplayable = DISPLAYABLE_STEP_IDS.includes(step.id);
+              const selected = activeStepId === step.id;
               return (
                 <div key={step.id} className="flex flex-1 items-center gap-3">
-                  <div className="flex flex-col items-center gap-3">
-                    <div
-                      className={`flex h-14 w-14 items-center justify-center rounded-2xl border-2 ${
-                        current
-                          ? "border-amber-200 bg-gradient-to-br from-amber-50 via-white to-orange-50 text-amber-700 shadow-[0_12px_28px_rgba(245,158,11,0.12)]"
-                          : active
-                            ? "border-sky-200 bg-gradient-to-br from-sky-50 via-white to-blue-50 text-sky-700"
-                            : status === "unavailable"
-                              ? "border-slate-200 bg-slate-100 text-slate-400"
-                              : "border-slate-200 bg-slate-50 text-slate-400"
-                      }`}
+                  {isDisplayable ? (
+                    <button
+                      type="button"
+                      onClick={() => activateStep(step.id)}
+                      className="flex flex-col items-center gap-3 rounded-2xl p-1 text-center transition hover:bg-white/60"
+                      aria-current={selected ? "step" : undefined}
                     >
-                      <Icon className="h-6 w-6" />
+                      <div
+                        className={`flex h-14 w-14 items-center justify-center rounded-2xl border-2 ${
+                          selected
+                            ? "border-teal-200 bg-gradient-to-br from-teal-50 via-white to-cyan-50 text-teal-700 shadow-[0_12px_28px_rgba(20,184,166,0.15)]"
+                            : current
+                              ? "border-amber-200 bg-gradient-to-br from-amber-50 via-white to-orange-50 text-amber-700 shadow-[0_12px_28px_rgba(245,158,11,0.12)]"
+                              : active
+                                ? "border-sky-200 bg-gradient-to-br from-sky-50 via-white to-blue-50 text-sky-700"
+                                : status === "unavailable"
+                                  ? "border-slate-200 bg-slate-100 text-slate-400"
+                                  : "border-slate-200 bg-slate-50 text-slate-400"
+                        }`}
+                      >
+                        <Icon className="h-6 w-6" />
+                      </div>
+                      <div className={`text-xs font-bold ${selected ? "text-teal-700" : current ? "text-amber-700" : active ? "text-sky-700" : "text-slate-400"}`}>{step.label}</div>
+                    </button>
+                  ) : (
+                    <div className="flex flex-col items-center gap-3 opacity-80">
+                      <div
+                        className={`flex h-14 w-14 items-center justify-center rounded-2xl border-2 ${
+                          current
+                            ? "border-amber-200 bg-gradient-to-br from-amber-50 via-white to-orange-50 text-amber-700 shadow-[0_12px_28px_rgba(245,158,11,0.12)]"
+                            : active
+                              ? "border-sky-200 bg-gradient-to-br from-sky-50 via-white to-blue-50 text-sky-700"
+                              : status === "unavailable"
+                                ? "border-slate-200 bg-slate-100 text-slate-400"
+                                : "border-slate-200 bg-slate-50 text-slate-400"
+                        }`}
+                      >
+                        <Icon className="h-6 w-6" />
+                      </div>
+                      <div className={`text-xs font-bold ${current ? "text-amber-700" : active ? "text-sky-700" : "text-slate-400"}`}>{step.label}</div>
                     </div>
-                    <div className={`text-xs font-bold ${current ? "text-amber-700" : active ? "text-sky-700" : "text-slate-400"}`}>{step.label}</div>
-                  </div>
+                  )}
                   {index < FLOW_META.length - 1 ? (
                     <div className="flex flex-1 justify-center">
                       <ArrowRight className={`h-4 w-4 ${active ? "text-slate-500" : "text-slate-300"}`} />
@@ -265,202 +379,322 @@ export function HITLIterationPage() {
           </div>
         </div>
 
-        <div className="mt-8 grid gap-4 lg:grid-cols-3">
-          {flowSteps.map((step) => (
-            <article key={step.id} className={`rounded-[24px] border p-4 ${getFlowStepCardClass(step.status)}`}>
+        <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+          {displayableSteps.map((step) => (
+            <button
+              key={step.id}
+              type="button"
+              onClick={() => activateStep(step.id)}
+              className={`rounded-[24px] border p-4 text-left transition ${getFlowStepCardClass(step.status)} ${
+                activeStepId === step.id ? "ring-2 ring-teal-200 ring-offset-2 ring-offset-white" : "hover:border-slate-300"
+              }`}
+            >
               <div className="flex items-center justify-between gap-3">
-                <div className={`text-[11px] font-bold uppercase tracking-[0.2em] ${step.status === "active" ? "text-amber-700" : "text-slate-400"}`}>{step.label}</div>
+                <div className={`text-[11px] font-bold uppercase tracking-[0.2em] ${activeStepId === step.id ? "text-teal-700" : step.status === "active" ? "text-amber-700" : "text-slate-400"}`}>
+                  {step.label}
+                </div>
                 <StatusPill label={STEP_STATUS_META[step.status].text} className={STEP_STATUS_META[step.status].className} />
               </div>
               <div className="mt-3 text-sm leading-6 text-slate-600">{step.summary}</div>
-            </article>
+            </button>
           ))}
         </div>
       </section>
 
-      <section className="mt-6 grid gap-6 xl:grid-cols-2">
-        <article className="reveal-card delay-2 rounded-[32px] border border-white/70 bg-white/82 p-6 shadow-[0_20px_70px_rgba(15,23,42,0.07)] backdrop-blur">
-          <div className="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-400">根因分析</div>
-          <h2 className="mt-2 text-2xl font-semibold text-slate-950">根因分析</h2>
-          {rootCauseSummary ? (
-            <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-              <div className="text-xs font-semibold text-slate-600">批次问题总述</div>
-              <div className="mt-2 text-sm leading-6 text-slate-700">
-                <ReadableSummary text={rootCauseSummaryPreview ?? ""} />
-              </div>
-              {hasLongRootCauseSummary ? (
-                <button
-                  type="button"
-                  onClick={() => setExpandedRootCause((prev) => !prev)}
-                  className="mt-2 inline-flex items-center gap-1 rounded-full border border-slate-200 px-2.5 py-1 text-xs text-slate-600 hover:bg-white"
-                >
-                  {expandedRootCause ? "收起分析" : "展开分析"}
-                  {expandedRootCause ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-                </button>
-              ) : null}
-            </div>
-          ) : null}
-          {learnablePatterns.length > 0 ? (
-            <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
-              <div className="mb-2 text-xs font-semibold text-slate-600">可学习模式</div>
-              <div className="space-y-2">
-                {learnablePatterns.slice(0, 4).map((item, idx) => (
-                  <div key={`${item.issueType}-${idx}`} className="rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-2">
-                    <div className="flex flex-wrap items-center gap-2 text-xs">
-                      <span className="font-semibold text-slate-800">{item.issueTypeLabel}</span>
-                      <span className="font-mono text-slate-500">{item.issueType}</span>
-                      <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 font-medium text-amber-700">{item.count} 次</span>
-                    </div>
-                    <div className="mt-1 text-sm leading-6 text-slate-700">
-                      <ReadableSummary text={item.pattern} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : null}
-          <div className="mt-5 space-y-3">
-            {(detail?.rootCauses ?? []).length === 0 ? <InlineInfo text="暂无根因数据" /> : null}
-            {(detail?.rootCauses ?? []).map((item) => (
-              <div key={`${item.skillType}-${item.issueType}-${item.issueTypeLabel}`}>
-                <RootCauseRow item={item} total={totalRootCauseCount} batchId={selectedBatch?.batchId ?? ""} />
-              </div>
-            ))}
+      <section className="mt-6 reveal-card delay-2 rounded-[32px] border border-white/70 bg-white/82 p-6 shadow-[0_24px_72px_rgba(15,23,42,0.08)] backdrop-blur">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <div className="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-400">模块内容</div>
+            <h2 className="mt-2 text-2xl font-semibold text-slate-950">{displayableSteps.find((step) => step.id === currentDisplayStepId)?.label ?? "暂无模块"}</h2>
           </div>
-        </article>
+          <div className="flex flex-wrap items-center gap-2">
+            <StatusPill
+              label={STEP_STATUS_META[flowSteps.find((step) => step.id === currentDisplayStepId)?.status ?? "unavailable"].text}
+              className={STEP_STATUS_META[flowSteps.find((step) => step.id === currentDisplayStepId)?.status ?? "unavailable"].className}
+            />
+            <StatusPill
+              label={`第 ${Math.max(activeDisplayStepIndex + 1, 1)} / ${Math.max(displayableSteps.length, 1)} 步`}
+              className="border-slate-200 bg-slate-50 text-slate-700"
+            />
+          </div>
+        </div>
 
-        <article className="reveal-card delay-3 rounded-[32px] border border-white/70 bg-white/82 p-6 shadow-[0_20px_70px_rgba(15,23,42,0.07)] backdrop-blur">
-          <div className="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-400">迭代建议</div>
-          <h2 className="mt-2 text-2xl font-semibold text-slate-950">迭代建议</h2>
-          <div className="mt-5 space-y-4">
-            {groupedPrompts.length === 0 ? <InlineInfo text="暂无 Prompt 数据" /> : null}
-            {groupedPrompts.map((group) => {
-              const skillTheme = getSkillColorTheme(group.skillKey);
-              return (
-              <article key={group.skillKey} className="rounded-[22px] border border-slate-200 bg-slate-50/70 p-4">
-                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                  <span
-                    className="inline-flex rounded-full border px-3 py-1 text-sm font-semibold"
-                    style={{
-                      borderColor: skillTheme.borderColor,
-                      backgroundColor: skillTheme.bgColor,
-                      color: skillTheme.textColor,
-                    }}
-                  >
-                    {group.skillLabel}
-                  </span>
-                  <StatusPill
-                    label={`${group.items.length} 条 Prompt`}
-                    className="bg-white"
-                    style={{ borderColor: skillTheme.borderColor, color: skillTheme.textColor }}
-                  />
-                </div>
-                {getSkillImpactForPromptGroup(skillImpactMap, group.skillKey) ? (
-                  <div className="mb-3 rounded-xl border border-slate-200 bg-white p-3">
-                    <div className="text-xs font-semibold text-slate-600">技能影响</div>
-                    <div className="mt-1 text-sm leading-6 text-slate-700">{renderSkillImpactSummary(getSkillImpactForPromptGroup(skillImpactMap, group.skillKey) ?? "")}</div>
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={() => {
+              if (!canMovePrev || activeDisplayStepIndex <= 0) return;
+              activateStep(displayableSteps[activeDisplayStepIndex - 1].id);
+            }}
+            disabled={!canMovePrev}
+            className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            上一模块
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (!canMoveNext || activeDisplayStepIndex < 0) return;
+              activateStep(displayableSteps[activeDisplayStepIndex + 1].id);
+            }}
+            disabled={!canMoveNext}
+            className="inline-flex items-center gap-1 rounded-full border border-teal-200 bg-teal-50 px-3 py-1.5 text-sm font-medium text-teal-700 transition hover:border-teal-300 hover:bg-teal-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+          >
+            下一模块
+            <ArrowRight className="h-4 w-4" />
+          </button>
+          <div className="text-xs text-slate-500">支持键盘左右键切换</div>
+        </div>
+
+        <div
+          className="mt-6 overflow-hidden rounded-[28px] border border-slate-200/80 bg-white/90 transition-[height] duration-300"
+          style={{
+            minHeight: "520px",
+            height: panelHeightReady && activePanelHeight ? `${activePanelHeight}px` : undefined,
+          }}
+        >
+          <div
+            ref={activePanelContentRef}
+            className="p-6"
+            tabIndex={0}
+            onKeyDown={handleStepHotkey}
+          >
+            {currentDisplayStepId === "analysis" ? (
+              <article>
+                <div className="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-400">根因分析</div>
+                <h3 className="mt-2 text-2xl font-semibold text-slate-950">根因分析</h3>
+                {rootCauseSummary ? (
+                  <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                    <div className="text-xs font-semibold text-slate-600">批次问题总述</div>
+                    <div className="mt-2 text-sm leading-6 text-slate-700">
+                      <ReadableSummary text={rootCauseSummaryPreview ?? ""} />
+                    </div>
+                    {hasLongRootCauseSummary ? (
+                      <button
+                        type="button"
+                        onClick={() => setExpandedRootCause((prev) => !prev)}
+                        className="mt-2 inline-flex items-center gap-1 rounded-full border border-slate-200 px-2.5 py-1 text-xs text-slate-600 hover:bg-white"
+                      >
+                        {expandedRootCause ? "收起分析" : "展开分析"}
+                        {expandedRootCause ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                      </button>
+                    ) : null}
                   </div>
                 ) : null}
-                <div className="space-y-3">
-                  {group.items.map((prompt, idx) => {
-                    const key = `${group.skillKey}:${idx}`;
-                    const expanded = Boolean(expandedPrompt[key]);
-                    const isLong = prompt.content.length > 320;
+                {learnablePatterns.length > 0 ? (
+                  <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
+                    <div className="mb-2 text-xs font-semibold text-slate-600">可学习模式</div>
+                    <div className="space-y-2">
+                      {learnablePatterns.slice(0, 4).map((item, idx) => (
+                        <div key={`${item.issueType}-${idx}`} className="rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-2">
+                          <div className="flex flex-wrap items-center gap-2 text-xs">
+                            <span className="font-semibold text-slate-800">{item.issueTypeLabel}</span>
+                            <span className="font-mono text-slate-500">{item.issueType}</span>
+                            <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 font-medium text-amber-700">{item.count} 次</span>
+                          </div>
+                          <div className="mt-1 text-sm leading-6 text-slate-700">
+                            <ReadableSummary text={item.pattern} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                <div className="mt-5 space-y-3">
+                  {(detail?.rootCauses ?? []).length === 0 ? <InlineInfo text="暂无根因数据" /> : null}
+                  {(detail?.rootCauses ?? []).map((item) => (
+                    <div key={`${item.skillType}-${item.issueType}-${item.issueTypeLabel}`}>
+                      <RootCauseRow item={item} total={totalRootCauseCount} batchId={selectedBatch?.batchId ?? ""} />
+                    </div>
+                  ))}
+                </div>
+              </article>
+            ) : null}
+
+            {currentDisplayStepId === "iteration" ? (
+              <article>
+                <div className="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-400">迭代建议</div>
+                <h3 className="mt-2 text-2xl font-semibold text-slate-950">迭代建议</h3>
+                <div className="mt-5 space-y-4">
+                  {groupedPrompts.length === 0 ? <InlineInfo text="暂无 Prompt 数据" /> : null}
+                  {groupedPrompts.map((group) => {
+                    const skillTheme = getSkillColorTheme(group.skillKey);
                     return (
-                      <div key={`${prompt.promptFileName}-${idx}`} className="rounded-2xl border border-slate-200 bg-white p-3">
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                          <div className="text-xs font-semibold text-slate-700">迭代提示词</div>
-                          {isLong ? (
-                            <button
-                              type="button"
-                              onClick={() => setExpandedPrompt((prev) => ({ ...prev, [key]: !expanded }))}
-                              className="inline-flex items-center gap-1 rounded-full border border-slate-200 px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-50"
-                            >
-                              {expanded ? "收起" : "展开"}
-                              {expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-                            </button>
-                          ) : null}
+                      <article key={group.skillKey} className="rounded-[22px] border border-slate-200 bg-slate-50/70 p-4">
+                        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                          <span
+                            className="inline-flex rounded-full border px-3 py-1 text-sm font-semibold"
+                            style={{
+                              borderColor: skillTheme.borderColor,
+                              backgroundColor: skillTheme.bgColor,
+                              color: skillTheme.textColor,
+                            }}
+                          >
+                            {group.skillLabel}
+                          </span>
+                          <StatusPill
+                            label={`${group.items.length} 条 Prompt`}
+                            className="bg-white"
+                            style={{ borderColor: skillTheme.borderColor, color: skillTheme.textColor }}
+                          />
                         </div>
-                        {prompt.promptPath ? <div className="mt-1 text-[11px] text-slate-500">{prompt.promptPath}</div> : null}
-                        <div className="mt-3 rounded-xl border border-slate-100 bg-slate-50/60 p-3">
-                          <MarkdownPreview content={prompt.content} collapsed={!expanded && isLong} />
+                        {getSkillImpactForPromptGroup(skillImpactMap, group.skillKey) ? (
+                          <div className="mb-3 rounded-xl border border-slate-200 bg-white p-3">
+                            <div className="text-xs font-semibold text-slate-600">技能影响</div>
+                            <div className="mt-1 text-sm leading-6 text-slate-700">{renderSkillImpactSummary(getSkillImpactForPromptGroup(skillImpactMap, group.skillKey) ?? "")}</div>
+                          </div>
+                        ) : null}
+                        <div className="space-y-3">
+                          {group.items.map((prompt, idx) => {
+                            const key = `${group.skillKey}:${idx}`;
+                            const expanded = Boolean(expandedPrompt[key]);
+                            const isLong = prompt.content.length > 320;
+                            return (
+                              <div key={`${prompt.promptFileName}-${idx}`} className="rounded-2xl border border-slate-200 bg-white p-3">
+                                <div className="flex flex-wrap items-center justify-between gap-3">
+                                  <div className="text-xs font-semibold text-slate-700">迭代提示词</div>
+                                  {isLong ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => setExpandedPrompt((prev) => ({ ...prev, [key]: !expanded }))}
+                                      className="inline-flex items-center gap-1 rounded-full border border-slate-200 px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-50"
+                                    >
+                                      {expanded ? "收起" : "展开"}
+                                      {expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                                    </button>
+                                  ) : null}
+                                </div>
+                                {prompt.promptPath ? <div className="mt-1 text-[11px] text-slate-500">{prompt.promptPath}</div> : null}
+                                <div className="mt-3 rounded-xl border border-slate-100 bg-slate-50/60 p-3">
+                                  <MarkdownPreview content={prompt.content} collapsed={!expanded && isLong} />
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
-                      </div>
+                      </article>
                     );
                   })}
                 </div>
               </article>
-              );
-            })}
-          </div>
-        </article>
-      </section>
+            ) : null}
 
-      <section className="mt-6 reveal-card delay-4 rounded-[32px] border border-white/70 bg-white/82 p-6 shadow-[0_20px_70px_rgba(15,23,42,0.07)] backdrop-blur">
-        <div className="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-400">版本变更</div>
-        <h2 className="mt-2 text-2xl font-semibold text-slate-950">按技能纵向记录</h2>
-        <div className="mt-5 overflow-hidden rounded-[22px] border border-slate-200">
-          {(detail?.modifications ?? []).length === 0 ? <InlineInfo text="暂无版本变更数据" className="m-3" /> : null}
-          {(detail?.modifications ?? []).map((record, index) => (
-            <div key={`${record.targetSkill}-${record.createdAt ?? index}`} className="grid gap-3 border-b border-slate-200 bg-white px-4 py-4 last:border-b-0 lg:grid-cols-[220px_1fr_220px]">
-              <div>
-                <div className="text-sm font-semibold text-slate-900">{record.targetSkillLabel || record.targetSkill}</div>
-                <div className="mt-1 text-xs text-slate-500">{formatDateTime(record.createdAt)}</div>
-              </div>
-              <div>
-                <div className="text-sm leading-6 text-slate-700">
-                  <ReadableSummary text={record.changeSummary ?? "暂无修改摘要"} />
+            {currentDisplayStepId === "candidate" ? (
+              <article>
+                <div className="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-400">版本变更</div>
+                <h3 className="mt-2 text-2xl font-semibold text-slate-950">按技能纵向记录</h3>
+                <div className="mt-5 overflow-hidden rounded-[22px] border border-slate-200">
+                  {(detail?.modifications ?? []).length === 0 ? <InlineInfo text="暂无版本变更数据" className="m-3" /> : null}
+                  {(detail?.modifications ?? []).map((record, index) => (
+                    <div key={`${record.targetSkill}-${record.createdAt ?? index}`} className="grid gap-3 border-b border-slate-200 bg-white px-4 py-4 last:border-b-0 lg:grid-cols-[220px_1fr_220px]">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">{record.targetSkillLabel || record.targetSkill}</div>
+                        <div className="mt-1 text-xs text-slate-500">{formatDateTime(record.createdAt)}</div>
+                      </div>
+                      <div>
+                        <div className="text-sm leading-6 text-slate-700">
+                          <ReadableSummary text={record.changeSummary ?? "暂无修改摘要"} />
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {record.modifiedFiles.length > 0 ? (
+                            record.modifiedFiles.map((file) => (
+                              <span key={file} className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs text-slate-600">
+                                {file}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-xs text-slate-500">暂无文件信息</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-start justify-start lg:justify-end">
+                        <StatusPill label={record.status ?? "未生成"} className="border-slate-200 bg-slate-50 text-slate-700" />
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {record.modifiedFiles.length > 0 ? (
-                    record.modifiedFiles.map((file) => (
-                      <span key={file} className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs text-slate-600">
-                        {file}
-                      </span>
-                    ))
-                  ) : (
-                    <span className="text-xs text-slate-500">暂无文件信息</span>
-                  )}
+              </article>
+            ) : null}
+
+            {currentDisplayStepId === "regression" ? (
+              <article>
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <div className="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-400">回归验证</div>
+                    <h3 className="mt-2 text-2xl font-semibold text-slate-950">回归验证</h3>
+                  </div>
+                  <StatusPill
+                    label={STEP_STATUS_META[flowSteps.find((s) => s.id === "regression")?.status ?? "unavailable"].text}
+                    className={STEP_STATUS_META[flowSteps.find((s) => s.id === "regression")?.status ?? "unavailable"].className}
+                  />
                 </div>
-              </div>
-              <div className="flex items-start justify-start lg:justify-end">
-                <StatusPill label={record.status ?? "待补充"} className="border-slate-200 bg-slate-50 text-slate-700" />
-              </div>
-            </div>
-          ))}
+                <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                  <HeroMetric title="运行时间" value={regressionOverview.verify.runAt ?? regressionOverview.qc.runAt ?? "暂无"} />
+                  <HeroMetric title="回归数据集" value={regressionOverview.verify.datasetName ?? regressionOverview.qc.datasetName ?? "暂无"} />
+                  <HeroMetric title="总样本" value={formatCount(regressionOverview.verify.totalCount ?? regressionOverview.qc.totalCount)} />
+                  <HeroMetric title="正样本" value={formatCount(regressionOverview.verify.positiveCount ?? regressionOverview.qc.positiveCount)} />
+                  <HeroMetric title="负样本" value={formatCount(regressionOverview.verify.negativeCount ?? regressionOverview.qc.negativeCount)} />
+                </div>
+                <div className="mt-5 grid gap-4 lg:grid-cols-2">
+                  <RegressionMetricPanel batchId={selectedBatch?.batchId ?? ""} card={regressionOverview.verify} />
+                  <RegressionMetricPanel batchId={selectedBatch?.batchId ?? ""} card={regressionOverview.qc} />
+                </div>
+              </article>
+            ) : null}
+
+            {currentDisplayStepId === "decision" ? (
+              <article>
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <div className="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-400">最终结论</div>
+                    <h3 className="mt-2 text-2xl font-semibold text-slate-950">发布决策</h3>
+                  </div>
+                  <StatusPill
+                    label={STEP_STATUS_META[flowSteps.find((s) => s.id === "decision")?.status ?? "unavailable"].text}
+                    className={STEP_STATUS_META[flowSteps.find((s) => s.id === "decision")?.status ?? "unavailable"].className}
+                  />
+                </div>
+                <div className={`mt-4 rounded-[24px] border p-5 ${decisionTone.panelClass}`}>
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500">结论主卡</div>
+                      <div className={`mt-2 text-3xl font-semibold ${decisionTone.accentClass}`}>{regressionOverview.decision.title}</div>
+                      <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-700">{regressionOverview.decision.summary}</p>
+                    </div>
+                    <div className={`flex h-14 w-14 items-center justify-center rounded-2xl border bg-white/80 ${decisionTone.pillClass}`}>
+                      {regressionOverview.decision.status === "rollback" ? (
+                        <ShieldAlert className="h-6 w-6" />
+                      ) : regressionOverview.decision.status === "launch" ? (
+                        <Sparkles className="h-6 w-6" />
+                      ) : (
+                        <AlertTriangle className="h-6 w-6" />
+                      )}
+                    </div>
+                  </div>
+                  <div className="mt-4 flex flex-wrap items-center gap-2">
+                    <StatusPill label={regressionOverview.decision.confidenceLabel} className={decisionTone.pillClass} />
+                    <StatusPill label={`核实 ${regressionOverview.verify.statusText}`} className="border-slate-200 bg-white/80 text-slate-700" />
+                    <StatusPill label={`质检 ${regressionOverview.qc.statusText}`} className="border-slate-200 bg-white/80 text-slate-700" />
+                  </div>
+                </div>
+                <div className="mt-4 rounded-[24px] border border-slate-200 bg-slate-50/70 p-4">
+                  <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">具体原因</div>
+                  <div className="mt-3 space-y-2">
+                    {regressionOverview.decision.reasons.map((reason, index) => (
+                      <div key={`${reason}-${index}`} className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm leading-6 text-slate-700">
+                        <span className="mr-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 text-xs font-semibold text-slate-700">
+                          {index + 1}
+                        </span>
+                        {reason}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </article>
+            ) : null}
+          </div>
         </div>
-      </section>
-
-      <section className="mt-6 grid gap-6 xl:grid-cols-2">
-        <article className="reveal-card delay-5 rounded-[32px] border border-white/70 bg-white/82 p-6 shadow-[0_20px_70px_rgba(15,23,42,0.07)] backdrop-blur">
-          <div className="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-400">回归验证</div>
-          <h2 className="mt-2 text-2xl font-semibold text-slate-950">回归验证</h2>
-          <div className="mt-4 rounded-[22px] border border-slate-200 bg-slate-50/70 p-4">
-            <div className="mb-2 flex items-center justify-between gap-2">
-              <span className="text-sm font-semibold text-slate-900">当前状态</span>
-              <StatusPill
-                label={STEP_STATUS_META[flowSteps.find((s) => s.id === "regression")?.status ?? "unavailable"].text}
-                className={STEP_STATUS_META[flowSteps.find((s) => s.id === "regression")?.status ?? "unavailable"].className}
-              />
-            </div>
-            <p className="text-sm leading-6 text-slate-600">{flowSteps.find((s) => s.id === "regression")?.summary ?? "待补充"}</p>
-          </div>
-        </article>
-
-        <article className="reveal-card delay-6 rounded-[32px] border border-white/70 bg-white/82 p-6 shadow-[0_20px_70px_rgba(15,23,42,0.07)] backdrop-blur">
-          <div className="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-400">最终结论</div>
-          <h2 className="mt-2 text-2xl font-semibold text-slate-950">最终结论</h2>
-          <div className="mt-4 rounded-[22px] border border-slate-200 bg-slate-50/70 p-4">
-            <div className="mb-2 flex items-center justify-between gap-2">
-              <span className="text-sm font-semibold text-slate-900">当前状态</span>
-              <StatusPill
-                label={STEP_STATUS_META[flowSteps.find((s) => s.id === "decision")?.status ?? "unavailable"].text}
-                className={STEP_STATUS_META[flowSteps.find((s) => s.id === "decision")?.status ?? "unavailable"].className}
-              />
-            </div>
-            <p className="text-sm leading-6 text-slate-600">{flowSteps.find((s) => s.id === "decision")?.summary ?? "待补充"}</p>
-          </div>
-        </article>
       </section>
     </div>
   );
@@ -519,6 +753,74 @@ function RootCauseRow({
   );
 }
 
+function RegressionMetricPanel({ batchId, card }: { batchId: string; card: RegressionMetricCardModel }) {
+  const tone =
+    card.statusText === "建议回滚"
+      ? {
+          pillClass: "border-rose-200 bg-rose-50 text-rose-700",
+          panelClass: "border-rose-200 bg-gradient-to-br from-rose-50/90 via-white to-orange-50/90",
+        }
+      : card.statusText === "建议上线"
+        ? {
+            pillClass: "border-emerald-200 bg-emerald-50 text-emerald-700",
+            panelClass: "border-emerald-200 bg-gradient-to-br from-emerald-50/90 via-white to-teal-50/90",
+          }
+        : {
+            pillClass: "border-amber-200 bg-amber-50 text-amber-700",
+            panelClass: "border-amber-200 bg-gradient-to-br from-amber-50/90 via-white to-yellow-50/90",
+          };
+  const detailPath = batchId ? `/hitl-iterations/${encodeURIComponent(batchId)}/regressions/${card.perspective}` : null;
+
+  return (
+    <article className={`rounded-[24px] border p-4 ${tone.panelClass}`}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">{card.title}</div>
+          <div className="mt-2 text-xl font-semibold text-slate-950">{card.headline}</div>
+        </div>
+        <StatusPill label={card.statusText} className={tone.pillClass} />
+      </div>
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <RegressionMetricTile
+          title={card.perspective === "verify" ? "核实逆向率" : "质检逆向率"}
+          value={formatRatio(card.worsenRatio)}
+          tone="worsen"
+        />
+        <RegressionMetricTile
+          title={card.perspective === "verify" ? "核实提升率" : "质检提升率"}
+          value={formatRatio(card.betterRatio)}
+          tone="better"
+        />
+      </div>
+
+      {detailPath ? (
+        <Link to={detailPath} className="mt-4 inline-flex items-center text-sm font-medium text-teal-700 hover:text-teal-800">
+          查看详情
+          <ChevronRight className="ml-1 h-4 w-4" />
+        </Link>
+      ) : null}
+    </article>
+  );
+}
+
+function RegressionMetricTile({
+  title,
+  value,
+  tone,
+}: {
+  title: string;
+  value: string;
+  tone: "better" | "worsen";
+}) {
+  return (
+    <div className={`rounded-[20px] border p-4 ${tone === "better" ? "border-emerald-200 bg-emerald-50/80" : "border-rose-200 bg-rose-50/80"}`}>
+      <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">{title}</div>
+      <div className={`mt-2 text-2xl font-semibold ${tone === "better" ? "text-emerald-700" : "text-rose-700"}`}>{value}</div>
+    </div>
+  );
+}
+
 function HeroMetric({ title, value }: { title: string; value: string }) {
   return (
     <div className="rounded-[22px] border border-slate-200 bg-slate-50/75 p-4">
@@ -564,6 +866,44 @@ function getCurrentStepIndex(flow: HitlFlowStep[]): number {
     if (flow[idx].status === "completed") return idx;
   }
   return 0;
+}
+
+function getDefaultDisplayStepId(flow: HitlFlowStep[]): HitlFlowStepId {
+  const activeStep = flow.find((step) => step.status === "active");
+  if (activeStep) return activeStep.id;
+
+  for (let idx = flow.length - 1; idx >= 0; idx -= 1) {
+    if (flow[idx].status === "completed") return flow[idx].id;
+  }
+
+  return flow[0]?.id ?? "analysis";
+}
+
+function loadStepMemory(): Record<string, HitlFlowStepId> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(HITL_STEP_MEMORY_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const result: Record<string, HitlFlowStepId> = {};
+    for (const [batchId, stepId] of Object.entries(parsed)) {
+      if (typeof stepId === "string" && DISPLAYABLE_STEP_IDS.includes(stepId as HitlFlowStepId)) {
+        result[batchId] = stepId as HitlFlowStepId;
+      }
+    }
+    return result;
+  } catch {
+    return {};
+  }
+}
+
+function saveStepMemory(stepMemoryByBatch: Record<string, HitlFlowStepId>) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(HITL_STEP_MEMORY_STORAGE_KEY, JSON.stringify(stepMemoryByBatch));
+  } catch {
+    // ignore storage failure
+  }
 }
 
 function getFlowStepCardClass(status: HitlFlowStepStatus): string {
@@ -690,7 +1030,7 @@ function parseSkillImpactItems(summary: string): Array<{ issueType: string; issu
 }
 
 function formatDateTime(value: string | null | undefined): string {
-  if (!value) return "待补充";
+  if (!value) return "暂无";
   return value;
 }
 

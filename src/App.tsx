@@ -7,6 +7,7 @@ import { TaskLogPage } from "./components/dashboard/TaskLogPage";
 import { BatchOverviewPage } from "./components/dashboard/BatchOverviewPage";
 import { HITLIterationPage } from "./components/dashboard/HITLIterationPage";
 import { HITLIssueDetailPage } from "./components/dashboard/HITLIssueDetailPage";
+import { HITLRegressionDetailPage } from "./components/dashboard/HITLRegressionDetailPage";
 
 export default function App() {
   return (
@@ -19,6 +20,7 @@ export default function App() {
         <Route path="analyzer" element={<LegacyLogAnalyzerPage />} />
         <Route path="hitl-iterations" element={<HITLIterationPage />} />
         <Route path="hitl-iterations/:batchId/issues/:issueType" element={<HITLIssueDetailPage />} />
+        <Route path="hitl-iterations/:batchId/regressions/:regressionType" element={<HITLRegressionDetailPage />} />
         <Route
           path="hitl-iterations/:batchId/issues/:issueType/tasks/:taskId"
           element={<HITLIssueDetailPage />}

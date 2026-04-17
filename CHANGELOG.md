@@ -1,6 +1,8 @@
 # Changelog
 
-## [Unreleased] - 2026-04-03
+## [Unreleased]
+
+## [v0.6.0] - 2026-04-17
 ### Docs
 - **v3 时间体验修复文档归档**：新增 `doc/v3_dashboard_time_experience_optimization/01-requirements.md` 与 `02-development-plan.md`，系统化记录执行流量趋势、时间筛选、任务排序感知及日志详情时间展示的修复需求与可执行开发方案。
 - **HITL 后端字段映射文档**：新增 `doc/v4_hitl_backend_adaptation/01-hitl-db-to-frontend-mapping.md`，拆清三张 HITL 迭代表到前端页面的直接字段、后端聚合字段与潜在扩展字段，并明确本轮不处理回归验证与最终结论。
@@ -9,6 +11,10 @@
 - **HITL 流程与问题下钻口径确认**：继续更新 `doc/v4_hitl_backend_adaptation/01-hitl-db-to-frontend-mapping.md`，明确流程区保留六步，并在问题根因区增加下钻到人工标注任务详情的交互设计。
 - **HITL 专属问题详情页口径确认**：继续更新 `doc/v4_hitl_backend_adaptation/01-hitl-db-to-frontend-mapping.md`，明确问题详情页采用 HITL 专属页面，并展示数字员工核实结果、质检结果、人工标注结果与模型分析结果四块信息。
 - **HITL 后端接入文档包**：新增 `doc/v4_hitl_backend_adaptation/02-requirements.md`、`03-functional-design.md` 与 `04-development-plan.md`，系统化沉淀主页面后端接入、问题下钻和专属问题详情页的需求、设计与开发方案。
+- **HITL 回归映射脑暴补充**：更新 `doc/v4_hitl_backend_adaptation/01-hitl-db-to-frontend-mapping.md`，将回归三表纳入范围，补充 `batch_id = batch_0415` 前提，并收敛为“主页面分别展示核实/质检回归指标，通过查看详情进入回归详情页查看对应明细”的推荐方案。
+- **回归样例规格补齐 `batch_id`**：更新 `example/hitl/ddl/` 与 `example/hitl/example/` 下三张回归表样例，显式补充 `batch_id` 字段及 `batch_0415` 示例值，统一与 HITL 主批次的关联口径。
+- **HITL 回归详情页重构设计**：新增 `doc/v4_hitl_backend_adaptation/05-hitl-regression-detail-page-refactor-design.md`，基于样例数据与回归三表 DDL 注释收敛“运行上下文、摘要指标、差异列表、样本详情”的重构方案，并明确前端改为强契约消费后端字段，避免旧值/新值与差异方向失真。
+- **HITL 主页面展示优化需求落盘**：新增 `doc/v4_hitl_backend_adaptation/06-hitl-main-page-display-optimization.md`，明确“流程图节点与模块内容联动 + 横向主卡切换 + 上一/下一按钮 + 默认从当前进行步骤展示”，并确认本轮不改业务逻辑与数据口径。
 
 ### Added
 - **趋势图粒度与图例增强**：执行流量趋势补齐 `按小时 / 按 5 小时 / 按天` 三档真实聚合切换，并新增可交互图例以支持核实/质检单独显示。
@@ -24,6 +30,8 @@
 - **HITL 口径在仓储层统一实现**：`batchId` 以 `iteration_negative_samples` 为主、`startedAt` 使用批次最早 `updatetime`、`issueCount` 采用“任一人工标注异常命中即计入”规则；流程保留 6 步且回归/最终结论返回待补充态。
 - **HITL 根因区改为“批次总述 + 行级占比”**：根因卡片隐藏重复长文，新增批次级 `root_cause_analysis` 总述、`learnable_patterns` 与 `skill_impact` 展示，问题条目聚焦“原因/技能/数量/占比/下钻”。
 - **HITL Prompt 与文本展示可读性增强**：Prompt 区采用 Markdown 预览与折叠展开；版本变更与根因文本新增分段、关键词高亮、按句换行，降低大段纯文本阅读负担。
+- **HITL 主页面切换体验重构**：流程图节点改为可点击联动，主内容区改为单主卡舞台，支持“上一模块/下一模块”与键盘左右键切换；默认从当前进行步骤展示并跳过 `feedback` 内容页。
+- **HITL 主页面增加批次内模块记忆与平滑切换**：在同一批次下记住最近浏览模块，切换时通过主卡 `min-height + height transition` 缓解内容高度差导致的抖动。
 
 ### Fixed
 - **趋势图按天不生效修复**：修复此前仅切换显示标签而未切换真实聚合的问题。
@@ -33,6 +41,10 @@
 - **PG 批次主口径回切**：根据当前批次识别约定，`getBatches` 改回优先以 `task_id` 后缀归组，仅在任务 ID 无法解析批次时才回退使用日志 `batch_id`，与既有筛选口径保持一致。
 - **Claude 日志时间提取兼容修复**：日志解析改为优先使用独立 `timestamp` 记录（含“前置时间戳 JSON + 实际日志对象”模式），仅在缺失时回退 `message.id` 的 `msg_yyyyMMddHHmmss` 提取，兼容历史日志与新日志格式。
 - **PG `prompt_paths` 解析兼容修复**：`iteration_overlay_drafts.prompt_paths` 同时兼容 JSON 数组与 PG 数组字面量（`{"a","b"}`）解析，确保 Prompt 路径在 PG 环境可稳定展示。
+- **SQLite 回归 mock 缺口修复**：补齐本地 SQLite 对 `example/hitl/example/` 回归三表样例的自动导入，兼容旧文件名 `public.poi_verified_regression_compare.txt`，并统一将样例批次号归一为 `batch-0415`，确保回归区与回归详情页在 mock 环境下可直接看到真实数据。
+- **HITL 回归区研发占位文案清理**：移除回归验证与回归详情页中“等待后端返回”“待补充原因说明”“页面默认如何展示”等内部措辞，统一改为面向业务的展示文案，避免把需求和实现思路直接暴露到前端页面。
+- **HITL 回归样本数字口径修正**：根据回归结果表 DDL 注释，明确 `positive_count / negative_count` 表示“正样本 / 负样本”，不再在主页面和详情页误展示为“变好样本 / 变差样本”；回归占比继续以 `poi_verified_regression_test_result` 的 `*_better_ratio / *_worsen_ratio` 为准。
+- **HITL 回归区信息层级去重**：移除回归区标题下的解释性说明和卡片底部重复的总样本 / 正负样本 / 数据集展示；顶部统一承载批次级公共信息，核实 / 质检卡片改为直接展示对应的逆向率与提升率。
 
 ## [v0.5.0] - 2026-04-01
 ### Added
@@ -102,3 +114,11 @@
 ### Added
 - 大 POI 核实场景的数字员工系统初版基础交付。
 - 内置初步的执行流程解析呈现以及底层开发环境基础设施就绪。
+- docs(hitl): 补齐回归展示 PRD 与开发文档，正式确认主页面核实/质检双回归卡与回归详情页方案
+- docs(hitl): 细化回归详情页差异展示逻辑，明确旧值/新值对比、变好/变差方向与样本抽屉设计
+
+- docs(hitl): 补充最终结论区方案，明确基于核实/质检回归指标输出上线、回滚或人工复核建议
+- docs(hitl): 细化最终结论 UI 重点，突出发布决策主卡与结构化原因说明
+
+- feat(hitl): 打通回归验证主页面展示，新增核实/质检双回归卡与最终结论决策区
+- feat(hitl): 新增回归详情与样本详情接口，支持新旧结果对比、差异方向与样本级下钻

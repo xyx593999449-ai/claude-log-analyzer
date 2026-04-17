@@ -4,6 +4,10 @@ import type {
   FilterOptions,
   HitlIssueTaskDetail,
   HitlIssueTaskListItem,
+  HitlRegressionDetailResponse,
+  HitlRegressionRunItem,
+  HitlRegressionSampleDetail,
+  HitlRegressionType,
   HitlIterationDetail,
   HitlIterationListItem,
   ImportResult,
@@ -168,6 +172,44 @@ export function fetchHitlIterations(): Promise<HitlIterationListItem[]> {
 
 export function fetchHitlIterationDetail(batchId: string): Promise<HitlIterationDetail> {
   return request<HitlIterationDetail>(`/api/hitl/iterations/${encodeURIComponent(batchId)}`);
+}
+
+export function fetchHitlRegressionRuns(batchId: string): Promise<HitlRegressionRunItem[]> {
+  return request<{ items: HitlRegressionRunItem[] }>(
+    `/api/hitl/iterations/${encodeURIComponent(batchId)}/regressions/runs`,
+  ).then((res) => res.items ?? []);
+}
+
+export function fetchHitlRegressionDetail(
+  batchId: string,
+  regressionType: HitlRegressionType,
+  query?: { runId?: string; datasetName?: string; runAt?: string },
+): Promise<HitlRegressionDetailResponse> {
+  const params = new URLSearchParams();
+  if (query?.runId) params.set("runId", query.runId);
+  if (query?.datasetName) params.set("datasetName", query.datasetName);
+  if (query?.runAt) params.set("runAt", query.runAt);
+  const suffix = params.toString() ? `?${params.toString()}` : "";
+  return request<HitlRegressionDetailResponse>(
+    `/api/hitl/iterations/${encodeURIComponent(batchId)}/regressions/${encodeURIComponent(regressionType)}${suffix}`,
+  );
+}
+
+export function fetchHitlRegressionSampleDetail(
+  batchId: string,
+  regressionType: HitlRegressionType,
+  sampleId: string,
+  query?: { runId?: string; datasetName?: string; runAt?: string; taskId?: string },
+): Promise<HitlRegressionSampleDetail> {
+  const params = new URLSearchParams();
+  if (query?.runId) params.set("runId", query.runId);
+  if (query?.datasetName) params.set("datasetName", query.datasetName);
+  if (query?.runAt) params.set("runAt", query.runAt);
+  if (query?.taskId) params.set("taskId", query.taskId);
+  const suffix = params.toString() ? `?${params.toString()}` : "";
+  return request<HitlRegressionSampleDetail>(
+    `/api/hitl/iterations/${encodeURIComponent(batchId)}/regressions/${encodeURIComponent(regressionType)}/samples/${encodeURIComponent(sampleId)}${suffix}`,
+  );
 }
 
 export function fetchHitlIssueTasks(batchId: string, issueType: string): Promise<HitlIssueTaskListItem[]> {

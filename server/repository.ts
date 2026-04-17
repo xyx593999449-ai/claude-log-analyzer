@@ -4,19 +4,31 @@ import path from "node:path";
 import type {
   AggregatedTaskRun,
   AnalysisPhase,
+  BatchOverviewItem,
   DashboardFilters,
   DashboardTimeGranularity,
+  HitlDecisionReasonItem,
   HitlFlowStep,
+  HitlIterationDecisionOverview,
   HitlIssueTaskDetail,
   HitlIssueTaskListItem,
   HitlIterationDetail,
+  HitlIterationRegressionOverview,
   HitlIterationListItem,
   HitlModificationItem,
   HitlPromptItem,
+  HitlRegressionDetailResponse,
+  HitlRegressionDiffDirection,
+  HitlRegressionDiffRow,
+  HitlRegressionFieldDiff,
+  HitlRegressionSampleDetail,
+  HitlRegressionSummary,
+  HitlRegressionSummaryCard,
+  HitlRegressionRunItem,
+  HitlRegressionType,
   HitlRootCauseItem,
   ImportSnapshot,
   SampleSeedRecord,
-  BatchOverviewItem,
 } from "./types";
 
 export interface DashboardOverview {
@@ -112,6 +124,20 @@ interface RunView {
   errorSummary: string | null;
 }
 
+interface RegressionRunSummaryRow {
+  batch_id?: unknown;
+  dataset_name?: unknown;
+  updatetime?: unknown;
+  timestamp_suffix?: unknown;
+  total_count?: unknown;
+  positive_count?: unknown;
+  negative_count?: unknown;
+  verify_better_ratio?: unknown;
+  verify_worsen_ratio?: unknown;
+  qc_better_ratio?: unknown;
+  qc_worsen_ratio?: unknown;
+}
+
 export interface TaskListResult {
   total: number;
   page: number;
@@ -165,6 +191,23 @@ export interface DashboardRepositoryPort {
   getBatches(): Promise<BatchOverviewItem[]>;
   getHitlIterations(): Promise<{ items: HitlIterationListItem[] }>;
   getHitlIterationDetail(batchId: string): Promise<HitlIterationDetail | null>;
+  getHitlRegressionRuns(batchId: string): Promise<{ items: HitlRegressionRunItem[] }>;
+  getHitlRegressionDetail(
+    batchId: string,
+    regressionType: HitlRegressionType,
+    runId?: string,
+    datasetName?: string,
+    runAt?: string,
+  ): Promise<HitlRegressionDetailResponse | null>;
+  getHitlRegressionSampleDetail(
+    batchId: string,
+    regressionType: HitlRegressionType,
+    sampleId: string,
+    runId?: string,
+    datasetName?: string,
+    runAt?: string,
+    taskId?: string,
+  ): Promise<HitlRegressionSampleDetail | null>;
   getHitlIssueTasks(batchId: string, issueType: string): Promise<{ items: HitlIssueTaskListItem[] }>;
   getHitlIssueTaskDetail(batchId: string, issueType: string, taskId: string): Promise<HitlIssueTaskDetail | null>;
   hasInitError(): boolean;
@@ -344,10 +387,302 @@ function matchIssueType(issueType: string, issueObservationTags: string[], judgm
   return allTags.some((tag) => tag.trim().toLowerCase() === target);
 }
 
+function getRegressionTypeLabel(regressionType: HitlRegressionType): string {
+  return regressionType === "verify" ? "核实回归" : "质检回归";
+}
+
+function parseConsistencyFlag(value: unknown): boolean | null {
+  const normalized = normalizeNullableText(value);
+  if (!normalized) return null;
+  if (["是", "true", "1", "yes", "y"].includes(normalized.toLowerCase()) || normalized === "是") return true;
+  if (["否", "false", "0", "no", "n"].includes(normalized.toLowerCase()) || normalized === "否") return false;
+  return null;
+}
+
+function valuesEqual(left: string | null, right: string | null): boolean {
+  return (left ?? "") === (right ?? "");
+}
+
+function parseDiffField(rawValue: unknown, explicitNewValue?: unknown, label = ""): HitlRegressionFieldDiff {
+  const rawText = normalizeNullableText(rawValue);
+  const fallbackNew = normalizeNullableText(explicitNewValue);
+  if (rawText && rawText.includes("->")) {
+    const [oldText, ...rest] = rawText.split("->");
+    const parsedNew = normalizeNullableText(rest.join("->"));
+    return {
+      label,
+      oldValue: normalizeNullableText(oldText),
+      newValue: fallbackNew ?? parsedNew,
+      diffText: rawText,
+    };
+  }
+  if (rawText && fallbackNew && !valuesEqual(rawText, fallbackNew)) {
+    return {
+      label,
+      oldValue: rawText,
+      newValue: fallbackNew,
+      diffText: `${rawText} -> ${fallbackNew}`,
+    };
+  }
+  if (rawText || fallbackNew) {
+    return {
+      label,
+      oldValue: rawText,
+      newValue: fallbackNew ?? rawText,
+      diffText: rawText && fallbackNew && valuesEqual(rawText, fallbackNew) ? rawText : null,
+    };
+  }
+  return { label, oldValue: null, newValue: null, diffText: null };
+}
+
+function getVerifyResultRank(value: string | null): number | null {
+  if (!value) return null;
+  if (value === "核实通过") return 2;
+  if (value === "需人工核实") return 1;
+  return 0;
+}
+
+function getQcStatusRank(value: string | null): number | null {
+  if (!value) return null;
+  const normalized = value.toLowerCase();
+  if (normalized === "qualified") return 3;
+  if (normalized === "risky") return 2;
+  if (normalized === "unqualified") return 1;
+  return 0;
+}
+
+function inferRegressionDiffDirection(
+  regressionType: HitlRegressionType,
+  primaryDiff: HitlRegressionFieldDiff,
+  isConsistent: boolean | null,
+): HitlRegressionDiffDirection {
+  const oldValue = primaryDiff.oldValue;
+  const newValue = primaryDiff.newValue;
+  if (!oldValue && !newValue) {
+    return isConsistent === true ? "same" : "unknown";
+  }
+  if (valuesEqual(oldValue, newValue)) {
+    return "same";
+  }
+
+  const oldRank = regressionType === "verify" ? getVerifyResultRank(oldValue) : getQcStatusRank(oldValue);
+  const newRank = regressionType === "verify" ? getVerifyResultRank(newValue) : getQcStatusRank(newValue);
+  if (oldRank != null && newRank != null) {
+    if (newRank > oldRank) return "better";
+    if (newRank < oldRank) return "worsen";
+  }
+
+  return isConsistent === true ? "same" : "unknown";
+}
+
+function pickDetailPreview(row: Record<string, unknown>): string | null {
+  const parts = [
+    parseDiffField(row.compare_name).diffText,
+    parseDiffField(row.compare_address).diffText,
+    parseDiffField(row.compare_poi_type).diffText,
+    parseDiffField(row.compare_city).diffText,
+    parseDiffField(row.compare_city_adcode).diffText,
+    parseDiffField(row.compare_status).diffText,
+  ].filter(Boolean) as string[];
+  return parts.length > 0 ? parts.slice(0, 2).join(" | ") : null;
+}
+
+function matchesRunAt(candidate: string | null, expected: string | undefined): boolean {
+  if (!expected) return true;
+  if (!candidate) return false;
+  return candidate === expected;
+}
+
+function matchesRunId(candidate: string | null, expected: string | undefined): boolean {
+  if (!expected) return true;
+  if (!candidate) return false;
+  return candidate === expected;
+}
+
+function compareByRunTimeDesc(left: Record<string, unknown>, right: Record<string, unknown>): number {
+  const leftTime = normalizeNullableText(left.updatetime) ?? "";
+  const rightTime = normalizeNullableText(right.updatetime) ?? "";
+  if (leftTime !== rightTime) return rightTime.localeCompare(leftTime);
+  const leftSuffix = normalizeNullableText(left.timestamp_suffix) ?? "";
+  const rightSuffix = normalizeNullableText(right.timestamp_suffix) ?? "";
+  return rightSuffix.localeCompare(leftSuffix);
+}
+
+function toRatio(value: unknown): number | null {
+  const num = parseNumberOrNull(value);
+  return num == null ? null : num;
+}
+
+function buildRegressionSummaryCard(
+  batchId: string,
+  regressionType: HitlRegressionType,
+  row: RegressionRunSummaryRow,
+): HitlRegressionSummaryCard {
+  const datasetName = normalizeNullableText(row.dataset_name);
+  const runAt = normalizeNullableText(row.updatetime);
+  const runId = normalizeNullableText(row.timestamp_suffix);
+  const betterRatio = regressionType === "verify" ? toRatio(row.verify_better_ratio) : toRatio(row.qc_better_ratio);
+  const worsenRatio = regressionType === "verify" ? toRatio(row.verify_worsen_ratio) : toRatio(row.qc_worsen_ratio);
+  const query = new URLSearchParams();
+  if (runId) query.set("runId", runId);
+  if (datasetName) query.set("datasetName", datasetName);
+  if (runAt) query.set("runAt", runAt);
+  return {
+    regressionType,
+    title: getRegressionTypeLabel(regressionType),
+    batchId,
+    datasetName,
+    runAt,
+    runId,
+    totalCount: Number(row.total_count ?? 0),
+    positiveCount: Number(row.positive_count ?? 0),
+    negativeCount: Number(row.negative_count ?? 0),
+    betterRatio,
+    worsenRatio,
+    detailUrl: `/hitl-iterations/${encodeURIComponent(batchId)}/regressions/${regressionType}${query.size > 0 ? `?${query.toString()}` : ""}`,
+  };
+}
+
+function buildDecisionOverview(row: RegressionRunSummaryRow | null): HitlIterationDecisionOverview | null {
+  if (!row) return null;
+
+  const verifyBetter = toRatio(row.verify_better_ratio);
+  const verifyWorsen = toRatio(row.verify_worsen_ratio);
+  const qcBetter = toRatio(row.qc_better_ratio);
+  const qcWorsen = toRatio(row.qc_worsen_ratio);
+  const runAt = normalizeNullableText(row.updatetime);
+  const datasetName = normalizeNullableText(row.dataset_name);
+  const runId = normalizeNullableText(row.timestamp_suffix);
+  const worsenThreshold = 0.001;
+  const positiveThreshold = 0.001;
+  const reasonItems: HitlDecisionReasonItem[] = [];
+
+  if ((verifyWorsen ?? 0) > worsenThreshold) {
+    reasonItems.push({
+      type: "verify_worsen",
+      title: "核实回归出现逆向",
+      description: `核实逆向率为 ${(verifyWorsen ?? 0).toFixed(4)}，存在发布回退风险。`,
+      severity: "high",
+      metricValue: verifyWorsen,
+    });
+  }
+  if ((qcWorsen ?? 0) > worsenThreshold) {
+    reasonItems.push({
+      type: "qc_worsen",
+      title: "质检回归出现逆向",
+      description: `质检逆向率为 ${(qcWorsen ?? 0).toFixed(4)}，说明上线后可能放大质检风险。`,
+      severity: "high",
+      metricValue: qcWorsen,
+    });
+  }
+
+  let decision: HitlIterationDecisionOverview["decision"] = "review";
+  let decisionLabel = "建议人工复核";
+  let reasonSummary = "当前回归信号不够稳定，建议结合明细样本进一步复核。";
+
+  if (reasonItems.some((item) => item.severity === "high")) {
+    decision = "rollback";
+    decisionLabel = "建议回滚";
+    reasonSummary = "回归结果出现明确逆向信号，当前不建议直接上线。";
+  } else if ((verifyBetter ?? 0) > positiveThreshold || (qcBetter ?? 0) > positiveThreshold) {
+    decision = "launch";
+    decisionLabel = "建议上线";
+    reasonSummary = "核实与质检未见逆向，且出现正向收益，可进入上线决策。";
+  }
+
+  if ((verifyBetter ?? 0) > positiveThreshold) {
+    reasonItems.push({
+      type: "verify_better",
+      title: "核实回归保持正向收益",
+      description: `核实提升率为 ${(verifyBetter ?? 0).toFixed(4)}，说明改动对核实结果有正向作用。`,
+      severity: decision === "launch" ? "medium" : "low",
+      metricValue: verifyBetter,
+    });
+  }
+  if ((qcBetter ?? 0) > positiveThreshold) {
+    reasonItems.push({
+      type: "qc_better",
+      title: "质检回归保持正向收益",
+      description: `质检提升率为 ${(qcBetter ?? 0).toFixed(4)}，说明改动对质检结果有正向作用。`,
+      severity: decision === "launch" ? "medium" : "low",
+      metricValue: qcBetter,
+    });
+  }
+  if (reasonItems.length === 0) {
+    reasonItems.push({
+      type: "neutral",
+      title: "当前没有显著正负向波动",
+      description: "回归摘要未出现明显提升或逆向，需要结合差异明细做人工判断。",
+      severity: "medium",
+      metricValue: null,
+    });
+  }
+
+  return {
+    decision,
+    decisionLabel,
+    reasonSummary,
+    runAt,
+    datasetName,
+    runId,
+    verifyBetterRatio: verifyBetter,
+    verifyWorsenRatio: verifyWorsen,
+    qcBetterRatio: qcBetter,
+    qcWorsenRatio: qcWorsen,
+    reasonItems: reasonItems.slice(0, 4),
+  };
+}
+
 function readSampleData(): SampleSeedRecord[] {
   const samplePath = path.resolve(process.cwd(), "example", "db_conf", "sample_data.json");
   const raw = fs.readFileSync(samplePath, "utf8");
   return JSON.parse(raw) as SampleSeedRecord[];
+}
+
+function normalizeHitlSeedSql(sqlText: string): string {
+  return sqlText
+    .replace(/INSERT INTO\s+public\./g, "INSERT INTO ")
+    .replace(/'batch_0415'/g, "'batch-0415'");
+}
+
+function seedHitlRegressionTables(db: Database.Database): void {
+  const regressionCount = Number(
+    (db.prepare("SELECT COUNT(*) as count FROM poi_verified_regression_test").get() as { count: number }).count,
+  );
+  const compareCount = Number(
+    (db.prepare("SELECT COUNT(*) as count FROM poi_verified_regression_test_compare").get() as { count: number }).count,
+  );
+  const resultCount = Number(
+    (db.prepare("SELECT COUNT(*) as count FROM poi_verified_regression_test_result").get() as { count: number }).count,
+  );
+  if (regressionCount > 0 && compareCount > 0 && resultCount > 0) return;
+
+  const exampleDir = path.resolve(process.cwd(), "example", "hitl", "example");
+  const fileCandidates = [
+    "public.poi_verified_regression.txt",
+    "public.poi_verified_regression_test_compare.txt",
+    "public.poi_verified_regression_compare.txt",
+    "public.poi_verified_regression_test_result.txt",
+  ];
+
+  const sqlList = fileCandidates
+    .map((fileName) => path.join(exampleDir, fileName))
+    .filter((filePath) => fs.existsSync(filePath))
+    .map((filePath) => normalizeHitlSeedSql(fs.readFileSync(filePath, "utf8")))
+    .filter((sqlText) => sqlText.trim().length > 0);
+
+  if (sqlList.length === 0) return;
+
+  const tx = db.transaction(() => {
+    db.exec("DELETE FROM poi_verified_regression_test;");
+    db.exec("DELETE FROM poi_verified_regression_test_compare;");
+    db.exec("DELETE FROM poi_verified_regression_test_result;");
+    for (const sqlText of sqlList) {
+      db.exec(sqlText);
+    }
+  });
+
+  tx();
 }
 
 function ensureSchema(db: Database.Database): void {
@@ -498,6 +833,88 @@ function ensureHitlSchema(db: Database.Database): void {
       changes TEXT,
       status TEXT,
       created_at TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS poi_verified_regression_test (
+      batch_id TEXT,
+      dataset_id TEXT,
+      dataset_name TEXT,
+      id TEXT,
+      name TEXT,
+      x_coord REAL,
+      y_coord REAL,
+      poi_type TEXT,
+      address TEXT,
+      city TEXT,
+      city_adcode TEXT,
+      status TEXT,
+      true_name TEXT,
+      true_x_coord REAL,
+      true_y_coord REAL,
+      true_poi_type TEXT,
+      true_address TEXT,
+      true_city TEXT,
+      true_city_adcode TEXT,
+      true_status TEXT,
+      updatetime TEXT,
+      dataset_type TEXT,
+      verify_info TEXT,
+      evidence_record TEXT,
+      verified_name TEXT,
+      verified_x_coord REAL,
+      verified_y_coord REAL,
+      verified_poi_type TEXT,
+      verified_address TEXT,
+      verified_city TEXT,
+      verified_city_adcode TEXT,
+      verified_status TEXT,
+      verified_verify_result TEXT,
+      sample_type TEXT,
+      cur_verify_result TEXT,
+      cur_qc_status TEXT,
+      task_id TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS poi_verified_regression_test_compare (
+      batch_id TEXT,
+      dataset_id TEXT,
+      dataset_name TEXT,
+      dataset_type TEXT,
+      updatetime TEXT,
+      task_id TEXT,
+      id TEXT,
+      compare_name TEXT,
+      compare_x_coord TEXT,
+      compare_y_coord TEXT,
+      compare_poi_type TEXT,
+      compare_address TEXT,
+      compare_city TEXT,
+      compare_city_adcode TEXT,
+      compare_status TEXT,
+      is_consistent TEXT,
+      sample_type TEXT,
+      compare_verify_result TEXT,
+      compare_qc_status TEXT,
+      new_verify_result TEXT,
+      new_qc_status TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS poi_verified_regression_test_result (
+      batch_id TEXT,
+      dataset_id TEXT,
+      dataset_name TEXT,
+      dataset_type TEXT,
+      updatetime TEXT,
+      timestamp_suffix TEXT,
+      total_count INTEGER,
+      positive_count INTEGER,
+      negative_count INTEGER,
+      verify_worsen_ratio REAL,
+      verify_better_ratio REAL,
+      qc_worsen_ratio REAL,
+      qc_better_ratio REAL,
+      total_worsen_ratio REAL,
+      total_better_ratio REAL
     );
   `);
 }
@@ -748,6 +1165,9 @@ export class DashboardRepository implements DashboardRepositoryPort {
     negative: string | null;
     overlay: string | null;
     modification: string | null;
+    regression: string | null;
+    regressionCompare: string | null;
+    regressionResult: string | null;
   } | null = null;
 
   constructor() {
@@ -755,6 +1175,7 @@ export class DashboardRepository implements DashboardRepositoryPort {
     ensureSchema(this.db);
     ensureHitlSchema(this.db);
     seedBusinessTables(this.db);
+    seedHitlRegressionTables(this.db);
   }
 
   private resolveHitlTableName(candidates: string[]): string | null {
@@ -767,12 +1188,22 @@ export class DashboardRepository implements DashboardRepositoryPort {
     return null;
   }
 
-  private getHitlTableNames(): { negative: string | null; overlay: string | null; modification: string | null } {
+  private getHitlTableNames(): {
+    negative: string | null;
+    overlay: string | null;
+    modification: string | null;
+    regression: string | null;
+    regressionCompare: string | null;
+    regressionResult: string | null;
+  } {
     if (this.hitlTableNames) return this.hitlTableNames;
     this.hitlTableNames = {
       negative: this.resolveHitlTableName(["iteration_negative_samples", "iteration_negative_samples_0415_bak"]),
       overlay: this.resolveHitlTableName(["iteration_overlay_drafts", "iteration_overlay_drafts_0415_bak"]),
       modification: this.resolveHitlTableName(["iteration_skill_modifications", "iteration_skill_modifications_0415_bak"]),
+      regression: this.resolveHitlTableName(["poi_verified_regression_test"]),
+      regressionCompare: this.resolveHitlTableName(["poi_verified_regression_test_compare"]),
+      regressionResult: this.resolveHitlTableName(["poi_verified_regression_test_result"]),
     };
     return this.hitlTableNames;
   }
@@ -786,11 +1217,19 @@ export class DashboardRepository implements DashboardRepositoryPort {
     return row ?? null;
   }
 
-  private getFlowSteps(sampleCount: number, hasOverlay: boolean, hasModification: boolean): HitlFlowStep[] {
+  private getFlowSteps(
+    sampleCount: number,
+    hasOverlay: boolean,
+    hasModification: boolean,
+    regressionOverview: HitlIterationRegressionOverview | null,
+    decisionOverview: HitlIterationDecisionOverview | null,
+  ): HitlFlowStep[] {
     const hasFeedback = sampleCount > 0;
     const hasAnalysis = hasOverlay;
     const hasIteration = hasModification;
     const hasCandidate = hasModification;
+    const hasRegression = Boolean(regressionOverview);
+    const hasDecision = Boolean(decisionOverview);
     return [
       {
         id: "feedback",
@@ -819,14 +1258,18 @@ export class DashboardRepository implements DashboardRepositoryPort {
       {
         id: "regression",
         label: "回归验证",
-        status: "unavailable",
-        summary: "待补充：回归验证数据当前未 ready。",
+        status: hasRegression ? "completed" : hasCandidate ? "active" : "pending",
+        summary: hasRegression
+          ? `已完成 ${regressionOverview?.datasetName ?? "当前数据集"} 的回归摘要聚合。`
+          : "回归结果生成中。",
       },
       {
         id: "decision",
         label: "最终结论",
-        status: "unavailable",
-        summary: "待补充：最终结论数据当前未 ready。",
+        status: hasDecision ? "completed" : hasRegression ? "active" : "pending",
+        summary: hasDecision
+          ? `${decisionOverview?.decisionLabel ?? "已生成发布结论"}。`
+          : "待根据回归指标生成最终结论。",
       },
     ];
   }
@@ -852,6 +1295,171 @@ export class DashboardRepository implements DashboardRepositoryPort {
       }
     }
     return list;
+  }
+
+  private getRegressionRunSummaries(batchId: string): RegressionRunSummaryRow[] {
+    const { regressionResult } = this.getHitlTableNames();
+    if (!regressionResult) return [];
+    return this.db
+      .prepare(`
+        SELECT
+          batch_id, dataset_name, updatetime, timestamp_suffix,
+          total_count, positive_count, negative_count,
+          verify_better_ratio, verify_worsen_ratio,
+          qc_better_ratio, qc_worsen_ratio
+        FROM ${regressionResult}
+        WHERE batch_id = ?
+      `)
+      .all(batchId) as RegressionRunSummaryRow[];
+  }
+
+  private selectRegressionRun(
+    batchId: string,
+    runId?: string,
+    datasetName?: string,
+    runAt?: string,
+  ): RegressionRunSummaryRow | null {
+    const rows = this.getRegressionRunSummaries(batchId).sort(compareByRunTimeDesc);
+    if (runId) {
+      const matchedByRunId = rows.filter((row) => matchesRunId(normalizeNullableText(row.timestamp_suffix), runId));
+      if (matchedByRunId.length > 0) {
+        const narrowedByCompatFields = matchedByRunId.filter((row) => {
+          const rowDatasetName = normalizeNullableText(row.dataset_name);
+          if (datasetName && rowDatasetName !== datasetName) return false;
+          return matchesRunAt(normalizeNullableText(row.updatetime), runAt);
+        });
+        return narrowedByCompatFields[0] ?? matchedByRunId[0];
+      }
+    }
+    const filtered = rows.filter((row) => {
+      const rowDatasetName = normalizeNullableText(row.dataset_name);
+      if (datasetName && rowDatasetName !== datasetName) return false;
+      return matchesRunAt(normalizeNullableText(row.updatetime), runAt);
+    });
+    return filtered[0] ?? rows[0] ?? null;
+  }
+
+  private buildRegressionOverview(batchId: string): HitlIterationRegressionOverview | null {
+    const selected = this.selectRegressionRun(batchId);
+    if (!selected) return null;
+    return {
+      batchId,
+      latestRunAt: normalizeNullableText(selected.updatetime),
+      datasetName: normalizeNullableText(selected.dataset_name),
+      runId: normalizeNullableText(selected.timestamp_suffix),
+      verify: buildRegressionSummaryCard(batchId, "verify", selected),
+      qc: buildRegressionSummaryCard(batchId, "qc", selected),
+    };
+  }
+
+  private getRegressionCompareRows(
+    batchId: string,
+    selectedRun: RegressionRunSummaryRow,
+  ): Array<Record<string, unknown>> {
+    const { regressionCompare } = this.getHitlTableNames();
+    if (!regressionCompare) return [];
+    const datasetName = normalizeNullableText(selectedRun.dataset_name);
+    const runId = normalizeNullableText(selectedRun.timestamp_suffix);
+    const rows = datasetName
+      ? (this.db
+          .prepare(`SELECT * FROM ${regressionCompare} WHERE batch_id = ? AND dataset_name = ?`)
+          .all(batchId, datasetName) as Array<Record<string, unknown>>)
+      : (this.db
+          .prepare(`SELECT * FROM ${regressionCompare} WHERE batch_id = ?`)
+          .all(batchId) as Array<Record<string, unknown>>);
+    return rows
+      .filter((row) => {
+        if (!runId) return true;
+        return (normalizeNullableText(row.task_id) ?? "").includes(runId);
+      })
+      .sort(compareByRunTimeDesc);
+  }
+
+  private getRegressionSampleRows(
+    batchId: string,
+    selectedRun: RegressionRunSummaryRow,
+  ): Array<Record<string, unknown>> {
+    const { regression } = this.getHitlTableNames();
+    if (!regression) return [];
+    const datasetName = normalizeNullableText(selectedRun.dataset_name);
+    const runId = normalizeNullableText(selectedRun.timestamp_suffix);
+    const rows = datasetName
+      ? (this.db
+          .prepare(`SELECT * FROM ${regression} WHERE batch_id = ? AND dataset_name = ?`)
+          .all(batchId, datasetName) as Array<Record<string, unknown>>)
+      : (this.db
+          .prepare(`SELECT * FROM ${regression} WHERE batch_id = ?`)
+          .all(batchId) as Array<Record<string, unknown>>);
+    return rows
+      .filter((row) => {
+        if (!runId) return true;
+        return (normalizeNullableText(row.task_id) ?? "").includes(runId);
+      })
+      .sort(compareByRunTimeDesc);
+  }
+
+  private normalizeRegressionDiffRow(
+    batchId: string,
+    regressionType: HitlRegressionType,
+    selectedRun: RegressionRunSummaryRow,
+    row: Record<string, unknown>,
+  ): HitlRegressionDiffRow {
+    const primaryDiff = regressionType === "verify"
+      ? parseDiffField(row.compare_verify_result, row.new_verify_result, "核实结果")
+      : parseDiffField(row.compare_qc_status, row.new_qc_status, "质检结果");
+    const secondaryDiff = regressionType === "verify"
+      ? parseDiffField(row.compare_qc_status, row.new_qc_status, "质检结果")
+      : parseDiffField(row.compare_verify_result, row.new_verify_result, "核实结果");
+    const sampleId = normalizeNullableText(row.id) ?? "";
+    const taskId = normalizeNullableText(row.task_id);
+    const datasetName = normalizeNullableText(selectedRun.dataset_name);
+    const runAt = normalizeNullableText(selectedRun.updatetime);
+    const runId = normalizeNullableText(selectedRun.timestamp_suffix);
+    const query = new URLSearchParams();
+    if (runId) query.set("runId", runId);
+    if (datasetName) query.set("datasetName", datasetName);
+    if (runAt) query.set("runAt", runAt);
+    if (taskId) query.set("taskId", taskId);
+    const isConsistent = parseConsistencyFlag(row.is_consistent);
+    return {
+      sampleId,
+      taskId,
+      poiName: normalizeNullableText(row.compare_name),
+      sampleType: normalizeNullableText(row.sample_type),
+      isConsistent,
+      diffDirection: inferRegressionDiffDirection(regressionType, primaryDiff, isConsistent),
+      primaryOldValue: primaryDiff.oldValue,
+      primaryNewValue: primaryDiff.newValue,
+      primaryDiffText: primaryDiff.diffText,
+      secondaryOldValue: secondaryDiff.oldValue,
+      secondaryNewValue: secondaryDiff.newValue,
+      secondaryDiffText: secondaryDiff.diffText,
+      detailPreview: pickDetailPreview(row),
+      sampleDetailUrl: `/hitl-iterations/${encodeURIComponent(batchId)}/regressions/${regressionType}/samples/${encodeURIComponent(sampleId)}${query.size > 0 ? `?${query.toString()}` : ""}`,
+    };
+  }
+
+  private buildRegressionSummary(
+    regressionType: HitlRegressionType,
+    selectedRun: RegressionRunSummaryRow,
+    rows: HitlRegressionDiffRow[],
+  ): HitlRegressionSummary {
+    const betterCount = rows.filter((row) => row.diffDirection === "better").length;
+    const worsenCount = rows.filter((row) => row.diffDirection === "worsen").length;
+    const sameCount = rows.filter((row) => row.diffDirection === "same").length;
+    const unknownCount = rows.filter((row) => row.diffDirection === "unknown").length;
+    return {
+      totalCount: Number(selectedRun.total_count ?? rows.length),
+      positiveCount: Number(selectedRun.positive_count ?? 0),
+      negativeCount: Number(selectedRun.negative_count ?? 0),
+      betterRatio: regressionType === "verify" ? toRatio(selectedRun.verify_better_ratio) : toRatio(selectedRun.qc_better_ratio),
+      worsenRatio: regressionType === "verify" ? toRatio(selectedRun.verify_worsen_ratio) : toRatio(selectedRun.qc_worsen_ratio),
+      changedCount: betterCount + worsenCount,
+      betterCount,
+      worsenCount,
+      sameCount,
+      unknownCount,
+    };
   }
 
   async getHitlIterations(): Promise<{ items: HitlIterationListItem[] }> {
@@ -1022,6 +1630,8 @@ export class DashboardRepository implements DashboardRepositoryPort {
 
     const hasOverlay = Boolean(overlayRow);
     const hasModification = modifications.length > 0;
+    const regressionOverview = this.buildRegressionOverview(batchId);
+    const decisionOverview = buildDecisionOverview(this.selectRegressionRun(batchId));
     return {
       overview: {
         batchId,
@@ -1031,11 +1641,170 @@ export class DashboardRepository implements DashboardRepositoryPort {
         summary: normalizeNullableText(overlayDraft?.summary),
         status: hasModification ? "regression" : hasOverlay ? "iteration" : "analysis",
       },
-      flow: this.getFlowSteps(sampleCount, hasOverlay, hasModification),
+      flow: this.getFlowSteps(sampleCount, hasOverlay, hasModification, regressionOverview, decisionOverview),
       rootCauses,
       prompts,
       modifications,
       overlayInsight,
+      regressionOverview,
+      decisionOverview,
+    };
+  }
+
+  async getHitlRegressionRuns(batchId: string): Promise<{ items: HitlRegressionRunItem[] }> {
+    const items = this.getRegressionRunSummaries(batchId)
+      .sort(compareByRunTimeDesc)
+      .map((row) => ({
+        batchId,
+        datasetName: normalizeNullableText(row.dataset_name),
+        runAt: normalizeNullableText(row.updatetime),
+        runId: normalizeNullableText(row.timestamp_suffix),
+        totalCount: Number(row.total_count ?? 0),
+        positiveCount: Number(row.positive_count ?? 0),
+        negativeCount: Number(row.negative_count ?? 0),
+        verifyBetterRatio: toRatio(row.verify_better_ratio),
+        verifyWorsenRatio: toRatio(row.verify_worsen_ratio),
+        qcBetterRatio: toRatio(row.qc_better_ratio),
+        qcWorsenRatio: toRatio(row.qc_worsen_ratio),
+      }));
+    return { items };
+  }
+
+  async getHitlRegressionDetail(
+    batchId: string,
+    regressionType: HitlRegressionType,
+    runId?: string,
+    datasetName?: string,
+    runAt?: string,
+  ): Promise<HitlRegressionDetailResponse | null> {
+    const selectedRun = this.selectRegressionRun(batchId, runId, datasetName, runAt);
+    if (!selectedRun) return null;
+
+    const rows = this.getRegressionCompareRows(batchId, selectedRun).map((row) =>
+      this.normalizeRegressionDiffRow(batchId, regressionType, selectedRun, row),
+    );
+    const sortedRows = [...rows].sort((left, right) => {
+      const weight = (direction: HitlRegressionDiffDirection): number => {
+        if (direction === "worsen") return 0;
+        if (direction === "better") return 1;
+        if (direction === "unknown") return 2;
+        return 3;
+      };
+      return weight(left.diffDirection) - weight(right.diffDirection);
+    });
+
+    return {
+      header: {
+        batchId,
+        regressionType,
+        regressionTypeLabel: getRegressionTypeLabel(regressionType),
+        datasetName: normalizeNullableText(selectedRun.dataset_name),
+        runAt: normalizeNullableText(selectedRun.updatetime),
+        runId: normalizeNullableText(selectedRun.timestamp_suffix),
+        totalCount: Number(selectedRun.total_count ?? sortedRows.length),
+      },
+      summary: this.buildRegressionSummary(regressionType, selectedRun, sortedRows),
+      rows: sortedRows,
+    };
+  }
+
+  async getHitlRegressionSampleDetail(
+    batchId: string,
+    regressionType: HitlRegressionType,
+    sampleId: string,
+    runId?: string,
+    datasetName?: string,
+    runAt?: string,
+    taskId?: string,
+  ): Promise<HitlRegressionSampleDetail | null> {
+    const selectedRun = this.selectRegressionRun(batchId, runId, datasetName, runAt);
+    if (!selectedRun) return null;
+
+    const compareRows = this.getRegressionCompareRows(batchId, selectedRun);
+    const compareRow = compareRows.find((row) => {
+      const rowSampleId = normalizeNullableText(row.id);
+      const rowTaskId = normalizeNullableText(row.task_id);
+      if (rowSampleId !== sampleId) return false;
+      if (taskId && rowTaskId !== taskId) return false;
+      return true;
+    });
+    if (!compareRow) return null;
+
+    const sampleRows = this.getRegressionSampleRows(batchId, selectedRun);
+    const sampleRow = sampleRows.find((row) => {
+      const rowSampleId = normalizeNullableText(row.id);
+      const rowTaskId = normalizeNullableText(row.task_id);
+      if (rowSampleId !== sampleId) return false;
+      if (taskId && rowTaskId !== taskId) return false;
+      if (rowTaskId && normalizeNullableText(compareRow.task_id) && rowTaskId !== normalizeNullableText(compareRow.task_id)) {
+        return false;
+      }
+      return true;
+    }) ?? null;
+
+    const primary = regressionType === "verify"
+      ? parseDiffField(compareRow.compare_verify_result, compareRow.new_verify_result, "核实结果")
+      : parseDiffField(compareRow.compare_qc_status, compareRow.new_qc_status, "质检结果");
+    const secondary = regressionType === "verify"
+      ? parseDiffField(compareRow.compare_qc_status, compareRow.new_qc_status, "质检结果")
+      : parseDiffField(compareRow.compare_verify_result, compareRow.new_verify_result, "核实结果");
+    const fieldDiffs: HitlRegressionFieldDiff[] = [
+      parseDiffField(compareRow.compare_name, sampleRow?.verified_name, "名称"),
+      parseDiffField(compareRow.compare_address, sampleRow?.verified_address, "地址"),
+      parseDiffField(compareRow.compare_poi_type, sampleRow?.verified_poi_type, "POI 类型"),
+      parseDiffField(compareRow.compare_city, sampleRow?.verified_city, "城市"),
+      parseDiffField(compareRow.compare_city_adcode, sampleRow?.verified_city_adcode, "城市编码"),
+      parseDiffField(compareRow.compare_status, sampleRow?.verified_status, "状态"),
+    ].filter((item) => item.oldValue || item.newValue || item.diffText);
+
+    return {
+      header: {
+        batchId,
+        regressionType,
+        regressionTypeLabel: getRegressionTypeLabel(regressionType),
+        datasetName: normalizeNullableText(selectedRun.dataset_name),
+        runAt: normalizeNullableText(selectedRun.updatetime),
+        runId: normalizeNullableText(selectedRun.timestamp_suffix),
+        sampleId,
+        taskId: normalizeNullableText(compareRow.task_id),
+        sampleType: normalizeNullableText(compareRow.sample_type) ?? normalizeNullableText(sampleRow?.sample_type),
+        isConsistent: parseConsistencyFlag(compareRow.is_consistent),
+      },
+      baseInfo: {
+        poiName: normalizeNullableText(compareRow.compare_name) ?? normalizeNullableText(sampleRow?.name),
+        address: normalizeNullableText(compareRow.compare_address) ?? normalizeNullableText(sampleRow?.address),
+        city: normalizeNullableText(compareRow.compare_city) ?? normalizeNullableText(sampleRow?.city),
+        poiType: normalizeNullableText(compareRow.compare_poi_type) ?? normalizeNullableText(sampleRow?.poi_type),
+        status: normalizeNullableText(compareRow.compare_status) ?? normalizeNullableText(sampleRow?.status),
+      },
+      resultDiffs: {
+        primary,
+        secondary,
+      },
+      fieldDiffs,
+      truthInfo: {
+        name: normalizeNullableText(sampleRow?.true_name),
+        address: normalizeNullableText(sampleRow?.true_address),
+        city: normalizeNullableText(sampleRow?.true_city),
+        poiType: normalizeNullableText(sampleRow?.true_poi_type),
+        cityAdcode: normalizeNullableText(sampleRow?.true_city_adcode),
+        status: normalizeNullableText(sampleRow?.true_status),
+      },
+      currentInfo: {
+        verifyResult: normalizeNullableText(sampleRow?.cur_verify_result),
+        qcStatus: normalizeNullableText(sampleRow?.cur_qc_status),
+      },
+      verifiedInfo: {
+        name: normalizeNullableText(sampleRow?.verified_name),
+        address: normalizeNullableText(sampleRow?.verified_address),
+        city: normalizeNullableText(sampleRow?.verified_city),
+        poiType: normalizeNullableText(sampleRow?.verified_poi_type),
+        cityAdcode: normalizeNullableText(sampleRow?.verified_city_adcode),
+        status: normalizeNullableText(sampleRow?.verified_status),
+        verifyResult: normalizeNullableText(sampleRow?.verified_verify_result),
+      },
+      verifyInfo: (parseLooseJson(sampleRow?.verify_info) as Record<string, unknown> | null) ?? null,
+      evidenceRecord: parseLooseJson(sampleRow?.evidence_record),
     };
   }
 
