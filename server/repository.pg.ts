@@ -1,4 +1,5 @@
 import { Pool, type PoolClient } from "pg";
+import { randomUUID } from "node:crypto";
 import type {
   AggregatedTaskRun,
   AnalysisPhase,
@@ -8,6 +9,8 @@ import type {
   HitlDecisionReasonItem,
   HitlFlowStep,
   HitlIterationDecisionOverview,
+  HitlBatchImportCommitResult,
+  HitlBatchImportPreviewResponse,
   HitlIssueTaskDetail,
   HitlIssueTaskListItem,
   HitlIterationDetail,
@@ -27,6 +30,14 @@ import type {
   HitlRootCauseItem,
   ImportSnapshot,
 } from "./types";
+import {
+  HITL_IMPORT_TARGET_TABLE,
+  buildHitlImportPreview,
+  getHitlImportColumnNames,
+  type HitlBatchImportPreviewCacheItem,
+  HitlImportHttpError,
+  validateBatchIdOrThrow,
+} from "./importers/hitlBatchCsv";
 import type {
   DashboardFilterOptions,
   DashboardOverview,
@@ -677,6 +688,8 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
     regressionCompare: string | null;
     regressionResult: string | null;
   }> | null = null;
+  private readonly hitlImportPreviewCache = new Map<string, HitlBatchImportPreviewCacheItem>();
+  private hitlImportTableNamePromise: Promise<string | null> | null = null;
 
   constructor(config: PgDbConfig) {
     this.pool = new Pool({
@@ -724,6 +737,10 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
     if (!this.hitlTableNamesPromise) {
       this.hitlTableNamesPromise = (async () => {
         const negative = await this.resolveHitlTableName([
+          "public.t_poi_key_property_check_result_ext_0416",
+          "t_poi_key_property_check_result_ext_0416",
+          "public.v_hitl_negative_samples",
+          "v_hitl_negative_samples",
           "public.iteration_negative_samples",
           "iteration_negative_samples",
           "public.iteration_negative_samples_0415_bak",
@@ -757,6 +774,85 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
       })();
     }
     return this.hitlTableNamesPromise;
+  }
+
+  private buildHitlNegativeFromClause(tableName: string, alias: string): string {
+    const quotedTableName = quotePgQualifiedName(tableName);
+    const normalizedTableName = tableName.replace(/^public\./, "");
+    const isDirectNewTable = normalizedTableName === "t_poi_key_property_check_result_ext_0416";
+    if (!isDirectNewTable) {
+      return `${quotedTableName} ${alias}`;
+    }
+    return `(
+      SELECT
+        task_id,
+        id,
+        batch_id,
+        name_chn AS name,
+        addr_chn AS address,
+        city,
+        poi_type,
+        verify_result,
+        verify_info::text AS verify_info,
+        evidence_record::text AS evidence_record,
+        qc_status AS quality_status,
+        qc_status,
+        qc_result::text AS qc_result,
+        qc_result ->> 'qc_score' AS qc_score,
+        qc_result ->> 'has_risk' AS has_risk,
+        qc_result -> 'statistics_flags' ->> 'is_qualified' AS is_qualified,
+        qc_result -> 'statistics_flags' ->> 'is_manual_required' AS is_manual_required,
+        create_time::text AS updatetime,
+        NULL::text AS qc_time,
+        verify_content_is_correct,
+        verify_action_is_correct,
+        qc_intercept_is_correct,
+        evidence_status,
+        issue_observation_tags,
+        judgment_dimension_tags,
+        manual_comment,
+        conflicting_evidence,
+        manual_added_evidence_url,
+        manual_added_evidence_type,
+        manual_added_evidence_abstract,
+        verified_name,
+        verified_address AS verified_addr,
+        verified_poi_type,
+        verified_city_adcode
+      FROM ${quotedTableName}
+    ) ${alias}`;
+  }
+
+  private async getHitlImportTableName(): Promise<string | null> {
+    if (!this.hitlImportTableNamePromise) {
+      this.hitlImportTableNamePromise = this.resolveHitlTableName([
+        HITL_IMPORT_TARGET_TABLE,
+        "t_poi_key_property_check_result_ext_0416",
+      ]);
+    }
+    return this.hitlImportTableNamePromise;
+  }
+
+  private clearExpiredHitlImportPreviewCache(): void {
+    const now = Date.now();
+    for (const [token, item] of this.hitlImportPreviewCache.entries()) {
+      if (item.expiresAt <= now) {
+        this.hitlImportPreviewCache.delete(token);
+      }
+    }
+  }
+
+  private async ensureUniqueHitlBatchId(batchId: string, client?: PoolClient): Promise<void> {
+    const tableName = await this.getHitlImportTableName();
+    if (!tableName) {
+      throw new HitlImportHttpError(500, `目标表不存在: ${HITL_IMPORT_TARGET_TABLE}`);
+    }
+    const queryClient = client ?? this.pool;
+    const quotedTableName = quotePgQualifiedName(tableName);
+    const result = await queryClient.query(`SELECT 1 FROM ${quotedTableName} WHERE batch_id = $1 LIMIT 1`, [batchId]);
+    if (result.rowCount && result.rowCount > 0) {
+      throw new HitlImportHttpError(400, "batch_id 已存在，请更换后重试");
+    }
   }
 
   private async getOverlayByBatch(batchId: string): Promise<Record<string, unknown> | null> {
@@ -1088,6 +1184,16 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
         CONSTRAINT poi_claude_log_pk PRIMARY KEY (task_id, session_id)
       );
     `);
+
+    const hitlImportTableName = await this.getHitlImportTableName();
+    if (hitlImportTableName) {
+      const quotedTableName = quotePgQualifiedName(hitlImportTableName);
+      await this.pool.query(`ALTER TABLE ${quotedTableName} ADD COLUMN IF NOT EXISTS batch_id varchar(255)`);
+      await this.pool.query(`ALTER TABLE ${quotedTableName} ADD COLUMN IF NOT EXISTS verify_info jsonb`);
+      await this.pool.query(
+        `CREATE INDEX IF NOT EXISTS idx_t_poi_key_property_check_result_ext_0416_batch_id ON ${quotedTableName} (batch_id)`,
+      );
+    }
   }
 
   /*
@@ -1176,6 +1282,84 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
 
   nextImportBatchId(): string {
     return `IMPORT_${Date.now()}_${Math.random().toString(16).slice(2, 10)}`;
+  }
+
+  async previewHitlIterationImport(params: {
+    batchId: string;
+    fileName: string;
+    fileBuffer: Buffer;
+  }): Promise<HitlBatchImportPreviewResponse> {
+    await this.ready();
+    this.clearExpiredHitlImportPreviewCache();
+
+    const batchId = validateBatchIdOrThrow(params.batchId);
+    await this.ensureUniqueHitlBatchId(batchId);
+
+    const previewItem = buildHitlImportPreview({
+      batchId,
+      fileName: params.fileName,
+      fileBuffer: params.fileBuffer,
+    });
+    const previewToken = randomUUID();
+    this.hitlImportPreviewCache.set(previewToken, previewItem);
+
+    return {
+      batchId: previewItem.batchId,
+      fileName: previewItem.fileName,
+      totalRows: previewItem.rows.length,
+      validRows: previewItem.rows.length,
+      previewToken,
+      columns: previewItem.columns,
+      previewRows: previewItem.previewRows,
+    };
+  }
+
+  async importHitlIterationBatch(previewToken: string): Promise<HitlBatchImportCommitResult> {
+    await this.ready();
+    this.clearExpiredHitlImportPreviewCache();
+
+    const token = previewToken.trim();
+    if (!token) {
+      throw new HitlImportHttpError(400, "previewToken 为必填项");
+    }
+    const previewItem = this.hitlImportPreviewCache.get(token);
+    if (!previewItem || previewItem.expiresAt <= Date.now()) {
+      this.hitlImportPreviewCache.delete(token);
+      throw new HitlImportHttpError(400, "previewToken 无效或已过期，请重新上传文件");
+    }
+
+    const tableName = await this.getHitlImportTableName();
+    if (!tableName) {
+      throw new HitlImportHttpError(500, `目标表不存在: ${HITL_IMPORT_TARGET_TABLE}`);
+    }
+    const quotedTableName = quotePgQualifiedName(tableName);
+    const columns = getHitlImportColumnNames();
+    const columnSql = columns
+      .map((column) => `"${column.replace(/"/g, "\"\"")}"`)
+      .join(", ");
+    const placeholderSql = columns.map((_, index) => `$${index + 1}`).join(", ");
+    const insertSql = `INSERT INTO ${quotedTableName} (${columnSql}) VALUES (${placeholderSql})`;
+    const createdAt = new Date().toISOString();
+
+    await this.withTx(async (client) => {
+      await this.ensureUniqueHitlBatchId(previewItem.batchId, client);
+      for (const row of previewItem.rows) {
+        const values = columns.map((column) => {
+          const value = row.values[column];
+          if (value == null) return null;
+          if (typeof value === "object") return JSON.stringify(value);
+          return value;
+        });
+        await client.query(insertSql, values);
+      }
+    });
+
+    this.hitlImportPreviewCache.delete(token);
+    return {
+      batchId: previewItem.batchId,
+      insertedCount: previewItem.rows.length,
+      createdAt,
+    };
   }
 
   private async latestImport(): Promise<ImportSnapshot | null> {
@@ -1738,8 +1922,7 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
     await this.ready();
     const { negative, overlay, modification } = await this.getHitlTableNames();
     if (!negative) return { items: [] };
-
-    const negativeTable = quotePgQualifiedName(negative);
+    const negativeFrom = this.buildHitlNegativeFromClause(negative, "n");
     const rowsRes = await this.pool.query(`
       SELECT
         n.batch_id AS batch_id,
@@ -1761,7 +1944,7 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
             )
           ) THEN 1 ELSE 0 END
         )::bigint AS issue_count
-      FROM ${negativeTable} n
+      FROM ${negativeFrom}
       WHERE TRIM(COALESCE(n.batch_id::text, '')) != ''
       GROUP BY n.batch_id
       ORDER BY started_at DESC, n.batch_id DESC
@@ -1813,9 +1996,9 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
     await this.ready();
     const { negative, modification } = await this.getHitlTableNames();
     if (!negative) return null;
-    const negativeTable = quotePgQualifiedName(negative);
+    const negativeFrom = this.buildHitlNegativeFromClause(negative, "n");
 
-    const sampleRowsRes = await this.pool.query(`SELECT * FROM ${negativeTable} WHERE batch_id = $1`, [batchId]);
+    const sampleRowsRes = await this.pool.query(`SELECT * FROM ${negativeFrom} WHERE batch_id = $1`, [batchId]);
     const sampleRows = sampleRowsRes.rows as Array<Record<string, unknown>>;
     if (sampleRows.length === 0) return null;
 
@@ -2092,14 +2275,14 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
     await this.ready();
     const { negative } = await this.getHitlTableNames();
     if (!negative) return { items: [] };
-    const negativeTable = quotePgQualifiedName(negative);
+    const negativeFrom = this.buildHitlNegativeFromClause(negative, "n");
 
     const rowsRes = await this.pool.query(
       `SELECT
          task_id, name, address, city, poi_type, verify_result,
-         quality_status, issue_observation_tags, judgment_dimension_tags,
+         quality_status, qc_status, issue_observation_tags, judgment_dimension_tags,
          manual_comment, updatetime
-       FROM ${negativeTable}
+       FROM ${negativeFrom}
        WHERE batch_id = $1`,
       [batchId],
     );
@@ -2113,6 +2296,7 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
         poiType: normalizeNullableText(row.poi_type),
         verifyResult: normalizeNullableText(row.verify_result),
         qualityStatus: normalizeNullableText(row.quality_status),
+        qcStatus: normalizeNullableText(row.qc_status),
         issueObservationTags: parseTagList(row.issue_observation_tags),
         judgmentDimensionTags: parseTagList(row.judgment_dimension_tags),
         manualComment: normalizeNullableText(row.manual_comment),
@@ -2128,10 +2312,10 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
     await this.ready();
     const { negative } = await this.getHitlTableNames();
     if (!negative) return null;
-    const negativeTable = quotePgQualifiedName(negative);
+    const negativeFrom = this.buildHitlNegativeFromClause(negative, "n");
 
     const rowRes = await this.pool.query(
-      `SELECT * FROM ${negativeTable} WHERE batch_id = $1 AND task_id = $2 LIMIT 1`,
+      `SELECT * FROM ${negativeFrom} WHERE batch_id = $1 AND task_id = $2 LIMIT 1`,
       [batchId, taskId],
     );
     const row = rowRes.rows[0] as Record<string, unknown> | undefined;

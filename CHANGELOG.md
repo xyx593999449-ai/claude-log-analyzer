@@ -1,6 +1,20 @@
 # Changelog
 
 ## [Unreleased]
+### Docs
+- 新增联合交接材料初稿：`../handover_bigpoi_claude_log_analyzer_2026-04-20.md`，统一沉淀 `big_poi` 执行引擎与本可视化平台的联合交接视角、维护分工与联调方式。
+- 新增 `doc/v4_hitl_backend_adaptation/07-hitl-negative-samples-table-switch-plan.md`，对比 `iteration_negative_samples` 与 `t_poi_key_property_check_result_ext_0416` 的字段规格和当前仓储依赖，收敛 HITL 负样本主表切换的兼容方案。
+- 更新 `doc/v4_hitl_backend_adaptation/07-hitl-negative-samples-table-switch-plan.md`，按新表已补齐 `batch_id` 的前提收敛方案，移除批次映射阻塞项并突出时间口径与字段兼容风险。
+- 继续更新 `doc/v4_hitl_backend_adaptation/07-hitl-negative-samples-table-switch-plan.md`，补充新表已补齐 `verify_info` 后的最终规格、旧字段到新表/`qc_result` 的最终映射，以及 SQLite mock 从旧表同步新表口径的建议策略。
+- 新增 `doc/v4_hitl_backend_adaptation/07-hitl-iteration-batch-import-requirements.md` 与 `08-hitl-iteration-batch-import-development-plan.md`，正式收敛 `HITL` 页顶部“新建迭代批次”入口、`batch_id` 非重复规则、人工标注 `CSV` 严格校验、成功后局部预览确认，以及写入 `public.t_poi_key_property_check_result_ext_0416` 的需求与开发顺序。
+
+### Changed
+- **HITL 负样本主表切换落地**：PostgreSQL 仓储现在优先读取 `v_hitl_negative_samples`，并在直连 `t_poi_key_property_check_result_ext_0416` 时于仓储层完成 `name/address/verified_addr` 改名、`quality_status <- qc_status`、`updatetime <- create_time`、`qc_score / has_risk / is_qualified / is_manual_required <- qc_result` 的兼容映射。
+- **SQLite mock 口径对齐**：本地仓储已补齐 `t_poi_key_property_check_result_ext_0416` mock 表、缺失列自愈、旧表到新表的同步逻辑，以及 `v_hitl_negative_samples` 兼容视图生成，保证 `/hitl-iterations` 的本地联调口径与正式库一致。
+- **HITL 前端契约兼容**：问题详情页与任务卡片已兼容 `verify_info` 任意 JSON、`qcTime` 可缺失、`qualityStatus` 实际回落到 `qcStatus` 的新 contract，不再因切表后的字段形态变化导致页面空值或展示异常。
+
+### Fixed
+- **正式环境启动去除 mock 样例硬依赖**：SQLite 仓储初始化时，若不存在 `example/db_conf/sample_data.json` 将跳过业务样例种子写入，不再因缺失本地 mock 文件导致后端启动失败。
 
 ## [v0.6.0] - 2026-04-17
 ### Docs

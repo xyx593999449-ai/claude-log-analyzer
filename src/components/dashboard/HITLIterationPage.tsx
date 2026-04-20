@@ -27,6 +27,7 @@ import type {
   HitlRootCauseItem,
 } from "../../lib/dashboardTypes";
 import { buildRegressionOverview, formatCount, formatRatio, getDecisionTone, type RegressionMetricCardModel } from "./hitlRegressionModel";
+import { HitlIterationImportPanel } from "./HitlIterationImportPanel";
 
 const FLOW_META: Array<{ id: HitlFlowStepId; label: string; icon: typeof Users }> = [
   { id: "feedback", label: "反馈池", icon: Users },
@@ -89,39 +90,47 @@ export function HITLIterationPage() {
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [listError, setListError] = useState<string | null>(null);
   const [detailError, setDetailError] = useState<string | null>(null);
+  const [detailReloadKey, setDetailReloadKey] = useState(0);
   const [expandedPrompt, setExpandedPrompt] = useState<Record<string, boolean>>({});
   const [expandedRootCause, setExpandedRootCause] = useState(false);
   const [activePanelHeight, setActivePanelHeight] = useState<number | null>(null);
   const [panelHeightReady, setPanelHeightReady] = useState(false);
+  const [importPanelOpen, setImportPanelOpen] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const activePanelContentRef = useRef<HTMLDivElement | null>(null);
+  const batchesRequestSeqRef = useRef(0);
+
+  const loadBatches = async (preferredBatchId?: string | null) => {
+    const requestSeq = ++batchesRequestSeqRef.current;
+    setLoadingBatches(true);
+    try {
+      const data = await fetchHitlIterations();
+      if (requestSeq !== batchesRequestSeqRef.current) return;
+      setBatches(data);
+      setListError(null);
+      setSelectedBatchId((prev) => {
+        if (preferredBatchId && data.some((item) => item.batchId === preferredBatchId)) {
+          return preferredBatchId;
+        }
+        if (prev && data.some((item) => item.batchId === prev)) {
+          return prev;
+        }
+        return data[0]?.batchId ?? null;
+      });
+    } catch (error: unknown) {
+      if (requestSeq !== batchesRequestSeqRef.current) return;
+      setListError(error instanceof Error ? error.message : "加载批次失败");
+      setBatches([]);
+      setSelectedBatchId(null);
+    } finally {
+      if (requestSeq === batchesRequestSeqRef.current) {
+        setLoadingBatches(false);
+      }
+    }
+  };
 
   useEffect(() => {
-    let cancelled = false;
-    setLoadingBatches(true);
-    fetchHitlIterations()
-      .then((data) => {
-        if (cancelled) return;
-        setBatches(data);
-        setListError(null);
-        setSelectedBatchId((prev) => {
-          if (prev && data.some((item) => item.batchId === prev)) {
-            return prev;
-          }
-          return data[0]?.batchId ?? null;
-        });
-      })
-      .catch((error: unknown) => {
-        if (cancelled) return;
-        setListError(error instanceof Error ? error.message : "加载批次失败");
-        setBatches([]);
-        setSelectedBatchId(null);
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingBatches(false);
-      });
-    return () => {
-      cancelled = true;
-    };
+    void loadBatches();
   }, []);
 
   useEffect(() => {
@@ -147,7 +156,7 @@ export function HITLIterationPage() {
     return () => {
       cancelled = true;
     };
-  }, [selectedBatchId]);
+  }, [selectedBatchId, detailReloadKey]);
 
   useEffect(() => {
     setExpandedRootCause(false);
@@ -254,13 +263,27 @@ export function HITLIterationPage() {
             <div className="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-400">HITL 迭代</div>
             <h1 className="mt-2 font-display text-[34px] font-semibold leading-tight text-slate-950 sm:text-[40px]">迭代批次</h1>
           </div>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <HeroMetric title="开始时间" value={formatDateTime(selectedBatch?.startedAt)} />
-            <HeroMetric title="样本数" value={`${selectedBatch?.sampleCount ?? "-"}`} />
-            <HeroMetric title="问题数" value={`${selectedBatch?.issueCount ?? "-"}`} />
+          <div className="flex flex-col gap-3 xl:items-end">
+            <button
+              type="button"
+              onClick={() => {
+                setSuccessMessage(null);
+                setImportPanelOpen(true);
+              }}
+              className="group inline-flex items-center gap-3 self-start rounded-full border border-slate-900 bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-[0_18px_40px_rgba(15,23,42,0.12)] transition hover:bg-slate-800 xl:self-auto"
+            >
+              <Sparkles className="h-4 w-4 transition group-hover:rotate-12" />
+              新建迭代批次
+            </button>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <HeroMetric title="开始时间" value={formatDateTime(selectedBatch?.startedAt)} />
+              <HeroMetric title="样本数" value={`${selectedBatch?.sampleCount ?? "-"}`} />
+              <HeroMetric title="问题数" value={`${selectedBatch?.issueCount ?? "-"}`} />
+            </div>
           </div>
         </div>
 
+        {successMessage ? <InlineSuccess text={successMessage} onClose={() => setSuccessMessage(null)} /> : null}
         {listError ? <InlineError text={listError} /> : null}
 
         <div className="mt-6 grid gap-4 xl:grid-cols-3">
@@ -696,6 +719,16 @@ export function HITLIterationPage() {
           </div>
         </div>
       </section>
+
+      <HitlIterationImportPanel
+        open={importPanelOpen}
+        onClose={() => setImportPanelOpen(false)}
+        onImported={async (result) => {
+          setSuccessMessage(`批次 ${result.batchId} 已导入，写入 ${formatCount(result.insertedCount)} 条记录。`);
+          await loadBatches(result.batchId);
+          setDetailReloadKey((prev) => prev + 1);
+        }}
+      />
     </div>
   );
 }
@@ -844,6 +877,17 @@ function InlineInfo({ text, className = "" }: { text: string; className?: string
 
 function InlineError({ text }: { text: string }) {
   return <div className="mt-6 rounded-[22px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{text}</div>;
+}
+
+function InlineSuccess({ text, onClose }: { text: string; onClose: () => void }) {
+  return (
+    <div className="mt-6 flex items-start justify-between gap-3 rounded-[22px] border border-emerald-200 bg-emerald-50/90 px-4 py-3 text-sm text-emerald-800">
+      <div>{text}</div>
+      <button type="button" onClick={onClose} className="shrink-0 text-xs font-semibold text-emerald-700 hover:text-emerald-900">
+        收起
+      </button>
+    </div>
+  );
 }
 
 function normalizeFlow(flow: HitlFlowStep[] | undefined): HitlFlowStep[] {

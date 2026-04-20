@@ -257,6 +257,38 @@ export interface HitlIterationDecisionOverview {
   reasonItems: HitlDecisionReasonItem[];
 }
 
+export interface HitlBatchImportErrorDetail {
+  rowNumber?: number;
+  field?: string;
+  message: string;
+}
+
+export interface HitlBatchImportPreviewRow {
+  rowNumber: number;
+  values: Record<string, string | null>;
+}
+
+export interface HitlBatchImportNormalizedRow {
+  rowNumber: number;
+  values: Record<string, unknown>;
+}
+
+export interface HitlBatchImportPreviewResponse {
+  batchId: string;
+  fileName: string;
+  totalRows: number;
+  validRows: number;
+  previewToken: string;
+  columns: string[];
+  previewRows: HitlBatchImportPreviewRow[];
+}
+
+export interface HitlBatchImportCommitResult {
+  batchId: string;
+  insertedCount: number;
+  createdAt: string;
+}
+
 export interface HitlRegressionFieldDiff {
   label: string;
   oldValue: string | null;

@@ -2,6 +2,9 @@ import type {
   DashboardOverview,
   DashboardTimeGranularity,
   FilterOptions,
+  HitlBatchImportCommitResult,
+  HitlBatchImportErrorDetail,
+  HitlBatchImportPreviewResponse,
   HitlIssueTaskDetail,
   HitlIssueTaskListItem,
   HitlRegressionDetailResponse,
@@ -15,6 +18,16 @@ import type {
   TaskLogDetail,
   BatchOverviewItem,
 } from "./dashboardTypes";
+
+export class DashboardApiError extends Error {
+  details?: HitlBatchImportErrorDetail[];
+
+  constructor(message: string, details?: HitlBatchImportErrorDetail[]) {
+    super(message);
+    this.name = "DashboardApiError";
+    this.details = details;
+  }
+}
 
 interface TaskQuery {
   page: number;
@@ -70,13 +83,15 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!res.ok) {
     let message = `请求失败: ${res.status}`;
+    let details: HitlBatchImportErrorDetail[] | undefined;
     try {
-      const body = (await res.json()) as { error?: string };
+      const body = (await res.json()) as { error?: string; details?: HitlBatchImportErrorDetail[] };
       if (body.error) message = body.error;
+      if (Array.isArray(body.details)) details = body.details;
     } catch {
       // ignore json parse error
     }
-    throw new Error(message);
+    throw new DashboardApiError(message, details);
   }
 
   return (await res.json()) as T;
@@ -226,4 +241,29 @@ export function fetchHitlIssueTaskDetail(
   return request<HitlIssueTaskDetail>(
     `/api/hitl/iterations/${encodeURIComponent(batchId)}/issues/${encodeURIComponent(issueType)}/tasks/${encodeURIComponent(taskId)}`,
   );
+}
+
+export function previewHitlBatchImport(payload: {
+  batchId: string;
+  summary?: string;
+  source?: string;
+  file: File;
+}): Promise<HitlBatchImportPreviewResponse> {
+  const formData = new FormData();
+  formData.append("batch_id", payload.batchId);
+  if (payload.summary?.trim()) formData.append("summary", payload.summary.trim());
+  if (payload.source?.trim()) formData.append("source", payload.source.trim());
+  formData.append("file", payload.file, payload.file.name);
+
+  return request<HitlBatchImportPreviewResponse>("/api/hitl/iterations/import-preview", {
+    method: "POST",
+    body: formData,
+  });
+}
+
+export function importHitlBatch(payload: { previewToken: string }): Promise<HitlBatchImportCommitResult> {
+  return request<HitlBatchImportCommitResult>("/api/hitl/iterations/import", {
+    method: "POST",
+    body: JSON.stringify({ previewToken: payload.previewToken }),
+  });
 }

@@ -35,8 +35,10 @@ const FIELD_LABELS: Record<string, string> = {
   manualAddedEvidenceAbstract: "人工补证据摘要",
   verifiedName: "人工修正名称",
   verifiedAddr: "人工修正地址",
+  verifiedAddress: "人工修正地址",
   verifiedPoiType: "人工修正类型",
   verifiedCityAdcode: "人工修正行政区划",
+  isManualRequired: "是否需要人工介入",
   issueTypeLabel: "问题类型",
   skillTypeLabel: "技能",
   summary: "分析摘要",
@@ -123,9 +125,9 @@ export function HITLIssueDetailPage() {
     navigate(`/hitl-iterations/${encodeURIComponent(batchId)}/issues/${encodeURIComponent(issueType)}/tasks/${encodeURIComponent(selectedTaskId)}`, { replace: true });
   }, [batchId, issueType, navigate, routeTaskId, selectedTaskId]);
 
-  const verifyRows = useMemo(() => toRows(detail?.verifyResult), [detail?.verifyResult]);
-  const qcRows = useMemo(() => toRows(detail?.qcResult), [detail?.qcResult]);
-  const manualRows = useMemo(() => toRows(detail?.manualResult), [detail?.manualResult]);
+  const verifyRows = useMemo(() => toRows(buildVerifyRows(detail)), [detail]);
+  const qcRows = useMemo(() => toRows(buildQcRows(detail)), [detail]);
+  const manualRows = useMemo(() => toRows(buildManualRows(detail)), [detail]);
   const modelRows = useMemo(() => toRows(detail?.modelAnalysis), [detail?.modelAnalysis]);
 
   return (
@@ -172,7 +174,7 @@ export function HITLIssueDetailPage() {
                   <div className="mt-1 text-xs text-slate-500">{task.address || "无地址信息"}</div>
                 </div>
                 <div className="text-xs text-slate-600">核实: {task.verifyResult || "-"}</div>
-                <div className="text-xs text-slate-600">质检: {task.qualityStatus || "-"}</div>
+                <div className="text-xs text-slate-600">质检: {task.qualityStatus || task.qcStatus || "-"}</div>
               </button>
             );
           })}
@@ -314,6 +316,39 @@ function toRows(value: unknown): Array<{ key: string; label: string; value: unkn
     label: FIELD_LABELS[key] || key,
     value: rowValue,
   }));
+}
+
+function buildVerifyRows(detail: HitlIssueTaskDetail | null): GenericRecord | null {
+  if (!detail) return null;
+  return {
+    verifyResult: detail.verifyResult.verifyResult,
+    verifyInfo: detail.verifyResult.verifyInfo,
+    evidenceRecord: detail.verifyResult.evidenceRecord,
+  };
+}
+
+function buildQcRows(detail: HitlIssueTaskDetail | null): GenericRecord | null {
+  if (!detail) return null;
+  const qc = detail.qcResult;
+  return {
+    qualityStatus: qc.qualityStatus ?? qc.qcStatus ?? null,
+    qcStatus: qc.qcStatus,
+    qcScore: qc.qcScore,
+    isQualified: qc.isQualified,
+    hasRisk: qc.hasRisk,
+    isManualRequired: qc.isManualRequired ?? null,
+    qcResult: qc.qcResult,
+  };
+}
+
+function buildManualRows(detail: HitlIssueTaskDetail | null): GenericRecord | null {
+  if (!detail) return null;
+  const manual = detail.manualResult;
+  const { verifiedAddress, ...rest } = manual;
+  return {
+    ...rest,
+    verifiedAddr: manual.verifiedAddr ?? verifiedAddress ?? null,
+  };
 }
 
 function ContextPill({ label, value }: { label: string; value: string }) {

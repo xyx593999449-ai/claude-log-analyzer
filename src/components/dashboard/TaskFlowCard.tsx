@@ -101,8 +101,9 @@ export function TaskFlowCard({
         : item.latestActionType === "init"
           ? "初始更新时间"
           : "暂无时间";
+  const qcDisplayTime = getQcDisplayTime(item);
   const latestActionValue = formatDateTime(
-    item.latestActionTime ?? item.qcSummary.qcTime ?? item.verifiedSummary.verifyTime ?? item.verifyRun?.endedAt ?? item.verifyRun?.startedAt,
+    item.latestActionTime ?? qcDisplayTime ?? item.verifiedSummary.verifyTime ?? item.verifyRun?.endedAt ?? item.verifyRun?.startedAt,
   );
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [modulesOpen, setModulesOpen] = useState(false);
@@ -134,7 +135,7 @@ export function TaskFlowCard({
               <InfoBadge icon={<Clock3 className="h-3.5 w-3.5" />} label={`最新动作 ${latestActionValue}`} />
               <StatusPill label={`排序依据 ${latestActionLabel}`} tone="info" />
               <InfoBadge icon={<ShieldCheck className="h-3.5 w-3.5" />} label={`核实时间 ${formatDateTime(item.verifiedSummary.verifyTime ?? item.verifyRun?.endedAt ?? item.verifyRun?.startedAt)}`} />
-              <InfoBadge icon={<ShieldAlert className="h-3.5 w-3.5" />} label={`质检时间 ${formatDateTime(item.qcSummary.qcTime ?? item.qcRun?.endedAt ?? item.qcRun?.startedAt)}`} />
+              <InfoBadge icon={<ShieldAlert className="h-3.5 w-3.5" />} label={`质检时间 ${formatDateTime(qcDisplayTime)}`} />
             </div>
           </div>
 
@@ -161,7 +162,7 @@ export function TaskFlowCard({
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
             <InfoBadge icon={<Bot className="h-3.5 w-3.5" />} label={`核实结论 ${item.verifyResult ?? "-"}`} />
-            <InfoBadge icon={<ShieldCheck className="h-3.5 w-3.5" />} label={`质检状态 ${item.qualityStatus ?? item.qcStatus ?? "-"}`} />
+            <InfoBadge icon={<ShieldCheck className="h-3.5 w-3.5" />} label={`质检状态 ${getQualityStatusLabel(item)}`} />
           </div>
         </div>
       </div>
@@ -519,10 +520,10 @@ function buildPhaseModuleMeta(item: DashboardTaskItem, phase: PhaseKey): PhaseMo
       readTextAtPath(item.raw.poiQc, ["qc_result", "explanation"]) ??
       "暂无质检摘要",
     timestampLabel: "质检时间",
-    timestampValue: formatDateTime(item.qcSummary.qcTime ?? item.qcRun?.endedAt ?? item.qcRun?.startedAt),
+    timestampValue: formatDateTime(getQcDisplayTime(item)),
     run: item.qcRun,
     databaseStatusLabel: "数据库质检状态",
-    databaseStatusValue: item.qcStatus ?? item.qualityStatus ?? "-",
+    databaseStatusValue: getQualityStatusLabel(item),
     scoreLabel: "质检评分",
     scoreValue: item.qcSummary.qcScore == null ? "-" : String(item.qcSummary.qcScore),
     errorSummary: item.qcRun?.errorSummary ?? null,
@@ -543,14 +544,22 @@ function getQcModuleBadge(item: DashboardTaskItem): { label: string; tone: Alert
   if (item.qcRun && item.qcRun.status !== "success") return { label: "执行异常", tone: "warning" };
   if (item.qcSummary.isQualified === false) return { label: "需关注", tone: "danger" };
   if (item.qcSummary.isQualified === true) return { label: "稳定", tone: "success" };
-  if (item.qcRun || item.qualityStatus || item.qcStatus) return { label: "进行中", tone: "info" };
+  if (item.qcRun || item.qcStatus || item.qualityStatus) return { label: "进行中", tone: "info" };
   return { label: "未开始", tone: "neutral" };
 }
 
 function getQcConclusion(item: DashboardTaskItem): string {
   if (item.qcSummary.isQualified === true) return "已质检";
   if (item.qcSummary.isQualified === false) return "质检不通过";
-  return item.qualityStatus ?? item.qcStatus ?? (item.qcRun ? "质检中" : "待质检");
+  return getQualityStatusLabel(item, item.qcRun ? "质检中" : "待质检");
+}
+
+function getQcDisplayTime(item: DashboardTaskItem): string | null {
+  return item.qcRun?.endedAt ?? item.qcRun?.startedAt ?? item.qcSummary.qcTime ?? null;
+}
+
+function getQualityStatusLabel(item: DashboardTaskItem, fallback = "-"): string {
+  return item.qcStatus ?? item.qualityStatus ?? fallback;
 }
 
 function extractEvidenceSummaryWithDetails(item: DashboardTaskItem): EvidenceSummary | null {

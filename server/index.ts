@@ -8,6 +8,7 @@ import { AnalysisService } from "./analysisService";
 import { DashboardRepository } from "./repository";
 import { PgDashboardRepository } from "./repository.pg";
 import { loadPgConfig } from "./pgConfig";
+import { HitlImportHttpError } from "./importers/hitlBatchCsv";
 import type { DashboardRepositoryPort } from "./repository";
 import type { AnalysisPhase } from "./types";
 import type { DashboardFilters } from "./types";
@@ -18,7 +19,7 @@ const app = express();
 app.use(express.json({ limit: "100mb" }));
 
 const sqliteRepo = new DashboardRepository();
-let pgRepo: DashboardRepositoryPort | null = null;
+let pgRepo: PgDashboardRepository | null = null;
 try {
   pgRepo = new PgDashboardRepository(loadPgConfig());
 } catch (error) {
@@ -35,6 +36,17 @@ function getRepo(req: express.Request): DashboardRepositoryPort {
   
   // 否则回退到 SQLite
   return sqliteRepo;
+}
+
+function getPgImportRepo(req: express.Request): PgImportRepository {
+  const client = String(req.headers["x-db-client"] || process.env.DB_CLIENT || "pg").toLowerCase();
+  if (client !== "pg" && client !== "postgres") {
+    throw new HitlImportHttpError(400, "当前导入链路仅支持 PostgreSQL");
+  }
+  if (!pgRepo || pgRepo.hasInitError()) {
+    throw new HitlImportHttpError(500, "PostgreSQL 仓储未就绪，无法执行导入");
+  }
+  return pgRepo;
 }
 
 const analysisService = new AnalysisService(sqliteRepo);
@@ -58,6 +70,24 @@ const upload = multer({
     fileSize: Math.max(1, Number(process.env.UPLOAD_MAX_FILE_MB ?? 1024)) * 1024 * 1024,
   },
 });
+
+const hitlImportUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    files: 1,
+    fileSize: Math.max(1, Number(process.env.HITL_IMPORT_MAX_FILE_MB ?? 20)) * 1024 * 1024,
+  },
+});
+
+interface PgImportRepository {
+  hasInitError(): boolean;
+  previewHitlIterationImport(params: {
+    batchId: string;
+    fileName: string;
+    fileBuffer: Buffer;
+  }): Promise<unknown>;
+  importHitlIterationBatch(previewToken: string): Promise<unknown>;
+}
 
 type UploadRole = "executor" | "claude" | "unknown";
 
@@ -271,6 +301,34 @@ app.get("/api/hitl/iterations/:batchId/issues/:issueType/tasks/:taskId", async (
   }
 });
 
+app.post("/api/hitl/iterations/import-preview", hitlImportUpload.single("file"), async (req, res, next) => {
+  try {
+    const file = req.file;
+    if (!file) {
+      throw new HitlImportHttpError(400, "请先上传 CSV 文件");
+    }
+    const batchId = typeof req.body.batch_id === "string" ? req.body.batch_id : "";
+    res.json(
+      await getPgImportRepo(req).previewHitlIterationImport({
+        batchId,
+        fileName: file.originalname,
+        fileBuffer: file.buffer,
+      }),
+    );
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/hitl/iterations/import", async (req, res, next) => {
+  try {
+    const previewToken = typeof req.body?.previewToken === "string" ? req.body.previewToken : "";
+    res.json(await getPgImportRepo(req).importHitlIterationBatch(previewToken));
+  } catch (error) {
+    next(error);
+  }
+});
+
 /* 注释涉及本地手动大文件导入和状态清空的路由
 app.post("/api/dashboard/import", async (req, res, next) => {
   try {
@@ -336,7 +394,9 @@ app.post("/api/dashboard/clear-cache", async (_req, res, next) => {
 
 app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   const message = error instanceof Error ? error.message : "Unknown error";
-  res.status(500).json({ error: message });
+  const status = typeof error === "object" && error && "status" in error && typeof error.status === "number" ? error.status : 500;
+  const details = typeof error === "object" && error && "details" in error && Array.isArray(error.details) ? error.details : undefined;
+  res.status(status).json({ error: message, details });
 });
 
 const port = Number(process.env.PORT ?? 3001);

@@ -160,6 +160,33 @@ export interface HitlIterationListItem {
   status: string | null;
 }
 
+export interface HitlBatchImportErrorDetail {
+  rowNumber?: number;
+  field?: string | null;
+  message: string;
+}
+
+export interface HitlBatchImportPreviewRow {
+  rowNumber: number;
+  values: Record<string, string | null>;
+}
+
+export interface HitlBatchImportPreviewResponse {
+  batchId: string;
+  fileName: string;
+  totalRows: number;
+  validRows: number;
+  columns: string[];
+  previewRows: HitlBatchImportPreviewRow[];
+  previewToken: string;
+}
+
+export interface HitlBatchImportCommitResult {
+  batchId: string;
+  insertedCount: number;
+  createdAt: string;
+}
+
 export interface HitlFlowStep {
   id: HitlFlowStepId;
   label: string;
@@ -377,7 +404,7 @@ export interface HitlRegressionSampleDetail {
     status: string | null;
     verifyResult: string | null;
   };
-  verifyInfo: Record<string, unknown> | null;
+  verifyInfo: unknown;
   evidenceRecord: unknown;
 }
 
@@ -399,7 +426,8 @@ export interface HitlIssueTaskListItem {
   city: string | null;
   poiType: string | null;
   verifyResult: string | null;
-  qualityStatus: string | null;
+  qualityStatus?: string | null;
+  qcStatus?: string | null;
   issueObservationTags: string[];
   judgmentDimensionTags: string[];
   manualComment: string | null;
@@ -415,20 +443,21 @@ export interface HitlIssueTaskDetail {
     city: string | null;
     poiType: string | null;
     updatetime: string | null;
-    qcTime: string | null;
+    qcTime?: string | null;
   };
   verifyResult: {
     verifyResult: string | null;
-    verifyInfo: Record<string, unknown> | null;
+    verifyInfo: unknown;
     evidenceRecord: unknown;
   };
   qcResult: {
-    qualityStatus: string | null;
+    qualityStatus?: string | null;
     qcStatus: string | null;
     qcScore: number | null;
-    qcResult: Record<string, unknown> | null;
+    qcResult: unknown;
     isQualified: boolean | null;
     hasRisk: boolean | null;
+    isManualRequired?: boolean | null;
   };
   manualResult: {
     verifyContentIsCorrect: boolean | null;
@@ -444,6 +473,7 @@ export interface HitlIssueTaskDetail {
     manualAddedEvidenceAbstract: string | null;
     verifiedName: string | null;
     verifiedAddr: string | null;
+    verifiedAddress?: string | null;
     verifiedPoiType: string | null;
     verifiedCityAdcode: string | null;
   };

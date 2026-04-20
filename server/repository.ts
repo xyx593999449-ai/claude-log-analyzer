@@ -215,6 +215,9 @@ export interface DashboardRepositoryPort {
 
 const DB_DIR = path.resolve(process.cwd(), "tmp");
 const DB_PATH = path.join(DB_DIR, "big-poi-dashboard.sqlite");
+const HITL_NEGATIVE_COMPAT_VIEW = "v_hitl_negative_samples";
+const HITL_NEGATIVE_NEW_TABLE = "t_poi_key_property_check_result_ext_0416";
+const HITL_NEGATIVE_OLD_TABLES = ["iteration_negative_samples", "iteration_negative_samples_0415_bak"] as const;
 
 const VERIFY_DONE = "已核实";
 const VERIFY_MANUAL = "需人工核实";
@@ -635,6 +638,9 @@ function buildDecisionOverview(row: RegressionRunSummaryRow | null): HitlIterati
 
 function readSampleData(): SampleSeedRecord[] {
   const samplePath = path.resolve(process.cwd(), "example", "db_conf", "sample_data.json");
+  if (!fs.existsSync(samplePath)) {
+    return [];
+  }
   const raw = fs.readFileSync(samplePath, "utf8");
   return JSON.parse(raw) as SampleSeedRecord[];
 }
@@ -643,6 +649,47 @@ function normalizeHitlSeedSql(sqlText: string): string {
   return sqlText
     .replace(/INSERT INTO\s+public\./g, "INSERT INTO ")
     .replace(/'batch_0415'/g, "'batch-0415'");
+}
+
+function sqliteObjectExists(db: Database.Database, type: "table" | "view", name: string): boolean {
+  const row = db.prepare("SELECT 1 FROM sqlite_master WHERE type = ? AND name = ? LIMIT 1").get(type, name);
+  return Boolean(row);
+}
+
+function sqliteTableHasColumn(db: Database.Database, tableName: string, columnName: string): boolean {
+  if (!sqliteObjectExists(db, "table", tableName)) return false;
+  const columns = db.prepare(`PRAGMA table_info(${tableName})`).all() as Array<{ name?: unknown }>;
+  return columns.some((column) => String(column.name ?? "") === columnName);
+}
+
+function ensureSqliteColumn(
+  db: Database.Database,
+  tableName: string,
+  columnName: string,
+  columnDefinition: string,
+): void {
+  if (!sqliteObjectExists(db, "table", tableName)) return;
+  if (sqliteTableHasColumn(db, tableName, columnName)) return;
+  db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnDefinition}`);
+}
+
+function getTableRowCount(db: Database.Database, tableName: string): number {
+  if (!sqliteObjectExists(db, "table", tableName)) return 0;
+  const row = db.prepare(`SELECT COUNT(*) as count FROM ${tableName}`).get() as { count?: number };
+  return Number(row.count ?? 0);
+}
+
+function normalizeJsonText(value: unknown): string | null {
+  if (value == null) return null;
+  if (typeof value === "string") {
+    const text = value.trim();
+    return text || null;
+  }
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return null;
+  }
 }
 
 function seedHitlRegressionTables(db: Database.Database): void {
@@ -683,6 +730,227 @@ function seedHitlRegressionTables(db: Database.Database): void {
   });
 
   tx();
+}
+
+function seedHitlNegativeTables(db: Database.Database): void {
+  const exampleDir = path.resolve(process.cwd(), "example", "hitl", "example");
+  const oldSeedPath = path.join(exampleDir, "public.iteration_negative_samples.txt");
+  const newSeedPath = path.join(exampleDir, "public.t_poi_key_property_check_result_ext_0416.txt");
+
+  const tx = db.transaction(() => {
+    const oldCount = HITL_NEGATIVE_OLD_TABLES.reduce((maxCount, tableName) => {
+      return Math.max(maxCount, getTableRowCount(db, tableName));
+    }, 0);
+    if (oldCount === 0 && fs.existsSync(oldSeedPath)) {
+      db.exec(normalizeHitlSeedSql(fs.readFileSync(oldSeedPath, "utf8")));
+    }
+
+    const newCount = getTableRowCount(db, HITL_NEGATIVE_NEW_TABLE);
+    if (newCount === 0 && fs.existsSync(newSeedPath)) {
+      db.exec(normalizeHitlSeedSql(fs.readFileSync(newSeedPath, "utf8")));
+    }
+  });
+
+  tx();
+}
+
+function migrateLegacyHitlRowsToNewTable(db: Database.Database): void {
+  if (!sqliteObjectExists(db, "table", HITL_NEGATIVE_NEW_TABLE)) return;
+
+  ensureSqliteColumn(db, HITL_NEGATIVE_NEW_TABLE, "verify_info", "TEXT");
+  ensureSqliteColumn(db, HITL_NEGATIVE_NEW_TABLE, "batch_id", "TEXT");
+
+  const sourceTable = HITL_NEGATIVE_OLD_TABLES.find((tableName) => getTableRowCount(db, tableName) > 0);
+  if (!sourceTable) return;
+
+  const legacyRows = db.prepare(`SELECT * FROM ${sourceTable}`).all() as Array<Record<string, unknown>>;
+  if (legacyRows.length === 0) return;
+
+  const backfillStmt = db.prepare(`
+    INSERT INTO ${HITL_NEGATIVE_NEW_TABLE} (
+      id, task_id, batch_id, name_chn, poi_type, addr_chn, city,
+      verify_result, verify_info, evidence_record, qc_status, qc_result,
+      verify_content_is_correct, verify_action_is_correct, qc_intercept_is_correct,
+      evidence_status, issue_observation_tags, judgment_dimension_tags, manual_comment,
+      conflicting_evidence, manual_added_evidence_url, manual_added_evidence_type,
+      manual_added_evidence_abstract, verified_name, verified_address, verified_poi_type,
+      verified_city_adcode, create_time
+    ) VALUES (
+      @id, @task_id, @batch_id, @name_chn, @poi_type, @addr_chn, @city,
+      @verify_result, @verify_info, @evidence_record, @qc_status, @qc_result,
+      @verify_content_is_correct, @verify_action_is_correct, @qc_intercept_is_correct,
+      @evidence_status, @issue_observation_tags, @judgment_dimension_tags, @manual_comment,
+      @conflicting_evidence, @manual_added_evidence_url, @manual_added_evidence_type,
+      @manual_added_evidence_abstract, @verified_name, @verified_address, @verified_poi_type,
+      @verified_city_adcode, @create_time
+    )
+    ON CONFLICT(id) DO UPDATE SET
+      task_id = COALESCE(excluded.task_id, ${HITL_NEGATIVE_NEW_TABLE}.task_id),
+      batch_id = COALESCE(excluded.batch_id, ${HITL_NEGATIVE_NEW_TABLE}.batch_id),
+      name_chn = COALESCE(excluded.name_chn, ${HITL_NEGATIVE_NEW_TABLE}.name_chn),
+      poi_type = COALESCE(excluded.poi_type, ${HITL_NEGATIVE_NEW_TABLE}.poi_type),
+      addr_chn = COALESCE(excluded.addr_chn, ${HITL_NEGATIVE_NEW_TABLE}.addr_chn),
+      city = COALESCE(excluded.city, ${HITL_NEGATIVE_NEW_TABLE}.city),
+      verify_result = COALESCE(excluded.verify_result, ${HITL_NEGATIVE_NEW_TABLE}.verify_result),
+      verify_info = COALESCE(excluded.verify_info, ${HITL_NEGATIVE_NEW_TABLE}.verify_info),
+      evidence_record = COALESCE(excluded.evidence_record, ${HITL_NEGATIVE_NEW_TABLE}.evidence_record),
+      qc_status = COALESCE(excluded.qc_status, ${HITL_NEGATIVE_NEW_TABLE}.qc_status),
+      qc_result = COALESCE(excluded.qc_result, ${HITL_NEGATIVE_NEW_TABLE}.qc_result),
+      verify_content_is_correct = COALESCE(excluded.verify_content_is_correct, ${HITL_NEGATIVE_NEW_TABLE}.verify_content_is_correct),
+      verify_action_is_correct = COALESCE(excluded.verify_action_is_correct, ${HITL_NEGATIVE_NEW_TABLE}.verify_action_is_correct),
+      qc_intercept_is_correct = COALESCE(excluded.qc_intercept_is_correct, ${HITL_NEGATIVE_NEW_TABLE}.qc_intercept_is_correct),
+      evidence_status = COALESCE(excluded.evidence_status, ${HITL_NEGATIVE_NEW_TABLE}.evidence_status),
+      issue_observation_tags = COALESCE(excluded.issue_observation_tags, ${HITL_NEGATIVE_NEW_TABLE}.issue_observation_tags),
+      judgment_dimension_tags = COALESCE(excluded.judgment_dimension_tags, ${HITL_NEGATIVE_NEW_TABLE}.judgment_dimension_tags),
+      manual_comment = COALESCE(excluded.manual_comment, ${HITL_NEGATIVE_NEW_TABLE}.manual_comment),
+      conflicting_evidence = COALESCE(excluded.conflicting_evidence, ${HITL_NEGATIVE_NEW_TABLE}.conflicting_evidence),
+      manual_added_evidence_url = COALESCE(excluded.manual_added_evidence_url, ${HITL_NEGATIVE_NEW_TABLE}.manual_added_evidence_url),
+      manual_added_evidence_type = COALESCE(excluded.manual_added_evidence_type, ${HITL_NEGATIVE_NEW_TABLE}.manual_added_evidence_type),
+      manual_added_evidence_abstract = COALESCE(excluded.manual_added_evidence_abstract, ${HITL_NEGATIVE_NEW_TABLE}.manual_added_evidence_abstract),
+      verified_name = COALESCE(excluded.verified_name, ${HITL_NEGATIVE_NEW_TABLE}.verified_name),
+      verified_address = COALESCE(excluded.verified_address, ${HITL_NEGATIVE_NEW_TABLE}.verified_address),
+      verified_poi_type = COALESCE(excluded.verified_poi_type, ${HITL_NEGATIVE_NEW_TABLE}.verified_poi_type),
+      verified_city_adcode = COALESCE(excluded.verified_city_adcode, ${HITL_NEGATIVE_NEW_TABLE}.verified_city_adcode),
+      create_time = COALESCE(excluded.create_time, ${HITL_NEGATIVE_NEW_TABLE}.create_time)
+  `);
+
+  const tx = db.transaction(() => {
+    for (const row of legacyRows) {
+      backfillStmt.run({
+        id: normalizeNullableText(row.id),
+        task_id: normalizeNullableText(row.task_id),
+        batch_id: normalizeNullableText(row.batch_id),
+        name_chn: normalizeNullableText(row.name),
+        poi_type: normalizeNullableText(row.poi_type),
+        addr_chn: normalizeNullableText(row.address),
+        city: normalizeNullableText(row.city),
+        verify_result: normalizeNullableText(row.verify_result),
+        verify_info: normalizeJsonText(row.verify_info),
+        evidence_record: normalizeJsonText(row.evidence_record),
+        qc_status: normalizeNullableText(row.qc_status),
+        qc_result: normalizeJsonText(row.qc_result),
+        verify_content_is_correct: normalizeNullableText(row.verify_content_is_correct),
+        verify_action_is_correct: normalizeNullableText(row.verify_action_is_correct),
+        qc_intercept_is_correct: normalizeNullableText(row.qc_intercept_is_correct),
+        evidence_status: normalizeNullableText(row.evidence_status),
+        issue_observation_tags: normalizeNullableText(row.issue_observation_tags),
+        judgment_dimension_tags: normalizeNullableText(row.judgment_dimension_tags),
+        manual_comment: normalizeNullableText(row.manual_comment),
+        conflicting_evidence: normalizeNullableText(row.conflicting_evidence),
+        manual_added_evidence_url: normalizeNullableText(row.manual_added_evidence_url),
+        manual_added_evidence_type: normalizeNullableText(row.manual_added_evidence_type),
+        manual_added_evidence_abstract: normalizeNullableText(row.manual_added_evidence_abstract),
+        verified_name: normalizeNullableText(row.verified_name),
+        verified_address: normalizeNullableText(row.verified_addr),
+        verified_poi_type: normalizeNullableText(row.verified_poi_type),
+        verified_city_adcode: normalizeNullableText(row.verified_city_adcode),
+        create_time: normalizeNullableText(row.updatetime),
+      });
+    }
+  });
+
+  tx();
+}
+
+function refreshHitlNegativeCompatView(db: Database.Database): void {
+  db.exec(`DROP VIEW IF EXISTS ${HITL_NEGATIVE_COMPAT_VIEW}`);
+
+  let sourceTable: string | null = null;
+  if (getTableRowCount(db, HITL_NEGATIVE_NEW_TABLE) > 0) {
+    sourceTable = HITL_NEGATIVE_NEW_TABLE;
+  } else {
+    sourceTable = HITL_NEGATIVE_OLD_TABLES.find((tableName) => getTableRowCount(db, tableName) > 0) ?? null;
+  }
+  if (!sourceTable) return;
+
+  if (sourceTable === HITL_NEGATIVE_NEW_TABLE) {
+    db.exec(`
+      CREATE VIEW ${HITL_NEGATIVE_COMPAT_VIEW} AS
+      SELECT
+        task_id,
+        id,
+        batch_id,
+        name_chn AS name,
+        poi_type,
+        addr_chn AS address,
+        city,
+        verify_result,
+        qc_status AS quality_status,
+        qc_status,
+        json_extract(qc_result, '$.qc_score') AS qc_score,
+        qc_result,
+        json_extract(qc_result, '$.statistics_flags.is_qualified') AS is_qualified,
+        json_extract(qc_result, '$.has_risk') AS has_risk,
+        json_extract(qc_result, '$.statistics_flags.is_manual_required') AS is_manual_required,
+        NULL AS qc_time,
+        create_time AS updatetime,
+        verify_info,
+        evidence_record,
+        verify_content_is_correct,
+        verify_action_is_correct,
+        qc_intercept_is_correct,
+        evidence_status,
+        issue_observation_tags,
+        judgment_dimension_tags,
+        manual_comment,
+        conflicting_evidence,
+        manual_added_evidence_url,
+        manual_added_evidence_type,
+        manual_added_evidence_abstract,
+        verified_name,
+        verified_address AS verified_addr,
+        verified_poi_type,
+        verified_city_adcode
+      FROM ${HITL_NEGATIVE_NEW_TABLE}
+    `);
+    return;
+  }
+
+  const qualityStatusExpr = sqliteTableHasColumn(db, sourceTable, "quality_status") ? "quality_status" : "NULL";
+  const qcScoreExpr = sqliteTableHasColumn(db, sourceTable, "qc_score") ? "qc_score" : "NULL";
+  const isQualifiedExpr = sqliteTableHasColumn(db, sourceTable, "is_qualified") ? "is_qualified" : "NULL";
+  const hasRiskExpr = sqliteTableHasColumn(db, sourceTable, "has_risk") ? "has_risk" : "NULL";
+  const isManualRequiredExpr = sqliteTableHasColumn(db, sourceTable, "is_manual_required") ? "is_manual_required" : "NULL";
+
+  db.exec(`
+    CREATE VIEW ${HITL_NEGATIVE_COMPAT_VIEW} AS
+    SELECT
+      task_id,
+      id,
+      batch_id,
+      name,
+      poi_type,
+      address,
+      city,
+      verify_result,
+      COALESCE(qc_status, ${qualityStatusExpr}) AS quality_status,
+      qc_status,
+      COALESCE(json_extract(qc_result, '$.qc_score'), ${qcScoreExpr}) AS qc_score,
+      qc_result,
+      COALESCE(json_extract(qc_result, '$.statistics_flags.is_qualified'), ${isQualifiedExpr}) AS is_qualified,
+      COALESCE(json_extract(qc_result, '$.has_risk'), ${hasRiskExpr}) AS has_risk,
+      COALESCE(json_extract(qc_result, '$.statistics_flags.is_manual_required'), ${isManualRequiredExpr}) AS is_manual_required,
+      NULL AS qc_time,
+      updatetime,
+      verify_info,
+      evidence_record,
+      verify_content_is_correct,
+      verify_action_is_correct,
+      qc_intercept_is_correct,
+      evidence_status,
+      issue_observation_tags,
+      judgment_dimension_tags,
+      manual_comment,
+      conflicting_evidence,
+      manual_added_evidence_url,
+      manual_added_evidence_type,
+      manual_added_evidence_abstract,
+      verified_name,
+      verified_addr,
+      verified_poi_type,
+      verified_city_adcode
+    FROM ${sourceTable}
+  `);
 }
 
 function ensureSchema(db: Database.Database): void {
@@ -814,6 +1082,38 @@ function ensureHitlSchema(db: Database.Database): void {
       verified_city_adcode TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS t_poi_key_property_check_result_ext_0416 (
+      id TEXT PRIMARY KEY,
+      task_id TEXT,
+      batch_id TEXT,
+      name_chn TEXT,
+      addr_chn TEXT,
+      city TEXT,
+      poi_type TEXT,
+      adcode TEXT,
+      create_time TEXT,
+      verify_result TEXT,
+      verify_info TEXT,
+      evidence_record TEXT,
+      qc_status TEXT,
+      qc_result TEXT,
+      verify_content_is_correct TEXT,
+      verify_action_is_correct TEXT,
+      qc_intercept_is_correct TEXT,
+      evidence_status TEXT,
+      issue_observation_tags TEXT,
+      judgment_dimension_tags TEXT,
+      manual_comment TEXT,
+      conflicting_evidence TEXT,
+      manual_added_evidence_url TEXT,
+      manual_added_evidence_type TEXT,
+      manual_added_evidence_abstract TEXT,
+      verified_name TEXT,
+      verified_address TEXT,
+      verified_poi_type TEXT,
+      verified_city_adcode TEXT
+    );
+
     CREATE TABLE IF NOT EXISTS iteration_overlay_drafts (
       batch_id TEXT PRIMARY KEY,
       overlay_draft TEXT,
@@ -917,6 +1217,151 @@ function ensureHitlSchema(db: Database.Database): void {
       total_better_ratio REAL
     );
   `);
+
+  ensureSqliteColumn(db, HITL_NEGATIVE_NEW_TABLE, "verify_info", "TEXT");
+  ensureSqliteColumn(db, HITL_NEGATIVE_NEW_TABLE, "batch_id", "TEXT");
+}
+
+function ensureHitlNegativeExtSync(db: Database.Database): void {
+  const oldTableExists = db
+    .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1")
+    .get("iteration_negative_samples");
+  if (!oldTableExists) return;
+
+  const newCount = Number(
+    (db.prepare("SELECT COUNT(*) as count FROM t_poi_key_property_check_result_ext_0416").get() as { count: number }).count,
+  );
+  if (newCount > 0) return;
+
+  const oldRows = db.prepare("SELECT * FROM iteration_negative_samples").all() as Array<Record<string, unknown>>;
+  if (oldRows.length === 0) return;
+
+  const insert = db.prepare(`
+    INSERT OR REPLACE INTO t_poi_key_property_check_result_ext_0416 (
+      id, task_id, batch_id, name_chn, addr_chn, city, poi_type, adcode, create_time,
+      verify_result, verify_info, evidence_record, qc_status, qc_result,
+      verify_content_is_correct, verify_action_is_correct, qc_intercept_is_correct,
+      evidence_status, issue_observation_tags, judgment_dimension_tags, manual_comment,
+      conflicting_evidence, manual_added_evidence_url, manual_added_evidence_type,
+      manual_added_evidence_abstract, verified_name, verified_address, verified_poi_type,
+      verified_city_adcode
+    ) VALUES (
+      @id, @task_id, @batch_id, @name_chn, @addr_chn, @city, @poi_type, @adcode, @create_time,
+      @verify_result, @verify_info, @evidence_record, @qc_status, @qc_result,
+      @verify_content_is_correct, @verify_action_is_correct, @qc_intercept_is_correct,
+      @evidence_status, @issue_observation_tags, @judgment_dimension_tags, @manual_comment,
+      @conflicting_evidence, @manual_added_evidence_url, @manual_added_evidence_type,
+      @manual_added_evidence_abstract, @verified_name, @verified_address, @verified_poi_type,
+      @verified_city_adcode
+    )
+  `);
+
+  const tx = db.transaction(() => {
+    for (const row of oldRows) {
+      const parsedQcResult = parseLooseJson(row.qc_result);
+      const qcResultRecord = parsedQcResult && typeof parsedQcResult === "object" && !Array.isArray(parsedQcResult)
+        ? { ...(parsedQcResult as Record<string, unknown>) }
+        : {};
+      const statisticsFlags = qcResultRecord.statistics_flags && typeof qcResultRecord.statistics_flags === "object" && !Array.isArray(qcResultRecord.statistics_flags)
+        ? { ...(qcResultRecord.statistics_flags as Record<string, unknown>) }
+        : {};
+      if (qcResultRecord.qc_score == null) qcResultRecord.qc_score = parseNumberOrNull(row.qc_score);
+      if (qcResultRecord.has_risk == null) qcResultRecord.has_risk = parseBooleanFlag(row.has_risk);
+      if (qcResultRecord.qc_status == null) qcResultRecord.qc_status = normalizeNullableText(row.qc_status);
+      if (statisticsFlags.is_qualified == null) statisticsFlags.is_qualified = parseBooleanFlag(row.is_qualified);
+      if (statisticsFlags.is_manual_required == null) statisticsFlags.is_manual_required = null;
+      qcResultRecord.statistics_flags = statisticsFlags;
+
+      insert.run({
+        id: normalizeNullableText(row.id),
+        task_id: normalizeNullableText(row.task_id),
+        batch_id: normalizeNullableText(row.batch_id),
+        name_chn: normalizeNullableText(row.name),
+        addr_chn: normalizeNullableText(row.address),
+        city: normalizeNullableText(row.city),
+        poi_type: normalizeNullableText(row.poi_type),
+        adcode: normalizeNullableText(row.verified_city_adcode),
+        create_time: normalizeNullableText(row.updatetime),
+        verify_result: normalizeNullableText(row.verify_result),
+        verify_info: normalizeNullableText(row.verify_info),
+        evidence_record: normalizeNullableText(row.evidence_record),
+        qc_status: normalizeNullableText(row.qc_status),
+        qc_result: JSON.stringify(qcResultRecord),
+        verify_content_is_correct: normalizeNullableText(row.verify_content_is_correct),
+        verify_action_is_correct: normalizeNullableText(row.verify_action_is_correct),
+        qc_intercept_is_correct: normalizeNullableText(row.qc_intercept_is_correct),
+        evidence_status: normalizeNullableText(row.evidence_status),
+        issue_observation_tags: normalizeNullableText(row.issue_observation_tags),
+        judgment_dimension_tags: normalizeNullableText(row.judgment_dimension_tags),
+        manual_comment: normalizeNullableText(row.manual_comment),
+        conflicting_evidence: normalizeNullableText(row.conflicting_evidence),
+        manual_added_evidence_url: normalizeNullableText(row.manual_added_evidence_url),
+        manual_added_evidence_type: normalizeNullableText(row.manual_added_evidence_type),
+        manual_added_evidence_abstract: normalizeNullableText(row.manual_added_evidence_abstract),
+        verified_name: normalizeNullableText(row.verified_name),
+        verified_address: normalizeNullableText(row.verified_addr),
+        verified_poi_type: normalizeNullableText(row.verified_poi_type),
+        verified_city_adcode: normalizeNullableText(row.verified_city_adcode),
+      });
+    }
+  });
+  tx();
+}
+
+function ensureHitlNegativeView(db: Database.Database): void {
+  db.exec("DROP VIEW IF EXISTS v_hitl_negative_samples");
+  db.exec(`
+    CREATE VIEW IF NOT EXISTS v_hitl_negative_samples AS
+    SELECT
+      task_id,
+      id,
+      batch_id,
+      name_chn AS name,
+      addr_chn AS address,
+      city,
+      poi_type,
+      verify_result,
+      verify_info,
+      evidence_record,
+      qc_status AS quality_status,
+      qc_status,
+      json_extract(qc_result, '$.qc_score') AS qc_score,
+      qc_result,
+      json_extract(qc_result, '$.statistics_flags.is_qualified') AS is_qualified,
+      json_extract(qc_result, '$.has_risk') AS has_risk,
+      create_time AS updatetime,
+      NULL AS qc_time,
+      verify_content_is_correct,
+      verify_action_is_correct,
+      qc_intercept_is_correct,
+      evidence_status,
+      issue_observation_tags,
+      judgment_dimension_tags,
+      manual_comment,
+      conflicting_evidence,
+      manual_added_evidence_url,
+      manual_added_evidence_type,
+      manual_added_evidence_abstract,
+      verified_name,
+      verified_address AS verified_addr,
+      verified_poi_type,
+      verified_city_adcode
+    FROM t_poi_key_property_check_result_ext_0416
+  `);
+}
+
+function ensureHitlNegativeExtColumns(db: Database.Database): void {
+  const columns = (
+    db.prepare("PRAGMA table_info(t_poi_key_property_check_result_ext_0416)").all() as Array<{ name: string }>
+  ).map((row) => row.name);
+  const hasColumn = (name: string): boolean => columns.includes(name);
+
+  if (!hasColumn("batch_id")) {
+    db.exec("ALTER TABLE t_poi_key_property_check_result_ext_0416 ADD COLUMN batch_id TEXT");
+  }
+  if (!hasColumn("verify_info")) {
+    db.exec("ALTER TABLE t_poi_key_property_check_result_ext_0416 ADD COLUMN verify_info TEXT");
+  }
 }
 
 function seedBusinessTables(db: Database.Database): void {
@@ -924,6 +1369,7 @@ function seedBusinessTables(db: Database.Database): void {
   if (count > 0) return;
 
   const sampleRows = readSampleData();
+  if (sampleRows.length === 0) return;
   const insertInit = db.prepare(`
     INSERT INTO poi_init (
       task_id,id,name,address,city,city_adcode,poi_type,verify_status,verify_priority,status,x_coord,y_coord,updatetime,raw_json
@@ -1174,14 +1620,17 @@ export class DashboardRepository implements DashboardRepositoryPort {
     this.db = createDb();
     ensureSchema(this.db);
     ensureHitlSchema(this.db);
+    ensureHitlNegativeExtColumns(this.db);
     seedBusinessTables(this.db);
     seedHitlRegressionTables(this.db);
+    ensureHitlNegativeExtSync(this.db);
+    ensureHitlNegativeView(this.db);
   }
 
   private resolveHitlTableName(candidates: string[]): string | null {
     for (const tableName of candidates) {
       const exists = this.db
-        .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1")
+        .prepare("SELECT 1 FROM sqlite_master WHERE type IN ('table', 'view') AND name = ? LIMIT 1")
         .get(tableName);
       if (exists) return tableName;
     }
@@ -1198,7 +1647,12 @@ export class DashboardRepository implements DashboardRepositoryPort {
   } {
     if (this.hitlTableNames) return this.hitlTableNames;
     this.hitlTableNames = {
-      negative: this.resolveHitlTableName(["iteration_negative_samples", "iteration_negative_samples_0415_bak"]),
+      negative: this.resolveHitlTableName([
+        "t_poi_key_property_check_result_ext_0416",
+        "v_hitl_negative_samples",
+        "iteration_negative_samples",
+        "iteration_negative_samples_0415_bak",
+      ]),
       overlay: this.resolveHitlTableName(["iteration_overlay_drafts", "iteration_overlay_drafts_0415_bak"]),
       modification: this.resolveHitlTableName(["iteration_skill_modifications", "iteration_skill_modifications_0415_bak"]),
       regression: this.resolveHitlTableName(["poi_verified_regression_test"]),
