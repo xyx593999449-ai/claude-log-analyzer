@@ -26,10 +26,16 @@ import type {
   HitlRegressionSummaryCard,
   HitlRegressionRunItem,
   HitlRegressionType,
-  HitlRootCauseItem,
   ImportSnapshot,
   SampleSeedRecord,
 } from "./types";
+import {
+  buildIterationSummaryFromOverlayDraft,
+  parseModificationRows,
+  parseOverlayDetail,
+  parseTaskAnalysisSummary,
+  resolveIssueModelAnalysis,
+} from "./hitlParsers";
 
 export interface DashboardOverview {
   totalTasks: number;
@@ -1135,6 +1141,26 @@ function ensureHitlSchema(db: Database.Database): void {
       created_at TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS task_analysis_results (
+      batch_id TEXT,
+      task_id TEXT PRIMARY KEY,
+      name TEXT,
+      poi_type TEXT,
+      qc_status TEXT,
+      qc_score TEXT,
+      verify_content_is_correct TEXT,
+      verify_action_is_correct TEXT,
+      qc_intercept_is_correct TEXT,
+      judgment_dimension_tags TEXT,
+      issue_observation_tags TEXT,
+      manual_comment TEXT,
+      steps TEXT,
+      overall_verdict TEXT,
+      created_at TEXT,
+      address TEXT,
+      analysis_comment TEXT
+    );
+
     CREATE TABLE IF NOT EXISTS poi_verified_regression_test (
       batch_id TEXT,
       dataset_id TEXT,
@@ -1611,6 +1637,7 @@ export class DashboardRepository implements DashboardRepositoryPort {
     negative: string | null;
     overlay: string | null;
     modification: string | null;
+    taskAnalysis: string | null;
     regression: string | null;
     regressionCompare: string | null;
     regressionResult: string | null;
@@ -1641,6 +1668,7 @@ export class DashboardRepository implements DashboardRepositoryPort {
     negative: string | null;
     overlay: string | null;
     modification: string | null;
+    taskAnalysis: string | null;
     regression: string | null;
     regressionCompare: string | null;
     regressionResult: string | null;
@@ -1650,6 +1678,7 @@ export class DashboardRepository implements DashboardRepositoryPort {
       negative: this.resolveHitlTableName(["t_poi_key_property_check_result_ext"]),
       overlay: this.resolveHitlTableName(["iteration_overlay_drafts"]),
       modification: this.resolveHitlTableName(["iteration_skill_modifications"]),
+      taskAnalysis: this.resolveHitlTableName(["task_analysis_results"]),
       regression: this.resolveHitlTableName(["poi_verified_regression_test"]),
       regressionCompare: this.resolveHitlTableName(["poi_verified_regression_test_compare"]),
       regressionResult: this.resolveHitlTableName(["poi_verified_regression_test_result"]),
@@ -1663,6 +1692,22 @@ export class DashboardRepository implements DashboardRepositoryPort {
     const row = this.db
       .prepare(`SELECT batch_id, overlay_draft, prompt_paths, prompts FROM ${overlay} WHERE batch_id = ? LIMIT 1`)
       .get(batchId) as Record<string, unknown> | undefined;
+    return row ?? null;
+  }
+
+  private getTaskAnalysisByTask(batchId: string, taskId: string): Record<string, unknown> | null {
+    const { taskAnalysis } = this.getHitlTableNames();
+    if (!taskAnalysis) return null;
+    const row = this.db
+      .prepare(`
+        SELECT batch_id, task_id, overall_verdict, analysis_comment, created_at
+        FROM ${taskAnalysis}
+        WHERE task_id = ?
+          AND (? = '' OR batch_id = ?)
+        ORDER BY created_at DESC
+        LIMIT 1
+      `)
+      .get(taskId, batchId, batchId) as Record<string, unknown> | undefined;
     return row ?? null;
   }
 
@@ -1952,8 +1997,7 @@ export class DashboardRepository implements DashboardRepositoryPort {
       for (const row of summaryRows) {
         const batchId = normalizeNullableText(row.batch_id);
         if (!batchId) continue;
-        const draft = parseLooseJson(row.overlay_draft) as Record<string, unknown> | null;
-        summaryMap.set(batchId, normalizeNullableText(draft?.summary) ?? null);
+        summaryMap.set(batchId, buildIterationSummaryFromOverlayDraft(row.overlay_draft));
       }
     }
 
@@ -2003,54 +2047,14 @@ export class DashboardRepository implements DashboardRepositoryPort {
       .sort()[0] ?? null;
 
     const overlayRow = this.getOverlayByBatch(batchId);
-    const overlayDraft = parseLooseJson(overlayRow?.overlay_draft) as Record<string, unknown> | null;
+    const overlayDraft = overlayRow?.overlay_draft;
     const prompts = this.buildPromptItems(overlayRow?.prompts, overlayRow?.prompt_paths);
-
-    const rootCauses: HitlRootCauseItem[] = [];
-    const issueDistribution = Array.isArray(overlayDraft?.issue_distribution)
-      ? overlayDraft.issue_distribution as Array<Record<string, unknown>>
-      : [];
-    for (const item of issueDistribution) {
-      const issueType = normalizeNullableText(item.issue_type) ?? "unknown";
-      const skillType = normalizeNullableText(item.step) ?? "unknown";
-      rootCauses.push({
-        issueType,
-        issueTypeLabel: getIssueTypeLabel(issueType),
-        count: Number(item.count ?? 0),
-        skillType,
-        skillTypeLabel: getSkillTypeLabel(skillType) ?? skillType,
-        summary: normalizeNullableText(overlayDraft?.root_cause_analysis) ?? normalizeNullableText(overlayDraft?.learnable_patterns),
-        detailUrl: `/hitl-iterations/${encodeURIComponent(batchId)}/issues/${encodeURIComponent(issueType)}/tasks`,
-      });
-    }
-
-    const learnablePatterns = Array.isArray(overlayDraft?.learnable_patterns)
-      ? overlayDraft.learnable_patterns as Array<Record<string, unknown>>
-      : [];
-    const skillImpactDraft = overlayDraft?.skill_impact && typeof overlayDraft.skill_impact === "object"
-      ? overlayDraft.skill_impact as Record<string, unknown>
-      : {};
-    const overlayInsight = {
-      rootCauseAnalysis: normalizeNullableText(overlayDraft?.root_cause_analysis),
-      learnablePatterns: learnablePatterns
-        .map((item) => {
-          const issueType = normalizeNullableText(item.issue_type) ?? "unknown";
-          return {
-            issueType,
-            issueTypeLabel: getIssueTypeLabel(issueType),
-            pattern: normalizeNullableText(item.pattern) ?? "",
-            count: Number(item.count ?? 0),
-          };
-        })
-        .filter((item) => item.pattern),
-      skillImpact: Object.entries(skillImpactDraft)
-        .map(([skillType, summary]) => ({
-          skillType,
-          skillTypeLabel: getSkillTypeLabel(skillType) ?? skillType,
-          impactSummary: normalizeNullableText(summary) ?? "",
-        }))
-        .filter((item) => item.impactSummary),
-    };
+    const overlayDetail = parseOverlayDetail(
+      batchId,
+      overlayDraft,
+      (issueType) => (issueType ? getIssueTypeLabel(issueType) : issueType),
+      (skillType) => getSkillTypeLabel(skillType),
+    );
 
     const modificationRows = modification
       ? (this.db
@@ -2058,24 +2062,10 @@ export class DashboardRepository implements DashboardRepositoryPort {
           .all(batchId) as Array<Record<string, unknown>>)
       : [];
 
-    const modifications: HitlModificationItem[] = modificationRows.map((row) => {
-      const changesObj = parseLooseJson(row.changes) as Record<string, unknown> | null;
-      const modifiedFilesRaw = Array.isArray(changesObj?.modified_files) ? changesObj?.modified_files : [];
-      const modifiedFiles = (modifiedFilesRaw as unknown[])
-        .map((item) => normalizeNullableText(item))
-        .filter(Boolean) as string[];
-      const fallbackFile = normalizeNullableText(row.modified_file);
-      if (modifiedFiles.length === 0 && fallbackFile) modifiedFiles.push(fallbackFile);
-      const targetSkill = normalizeNullableText(row.target_skill) ?? "unknown";
-      return {
-        targetSkill,
-        targetSkillLabel: getSkillTypeLabel(targetSkill) ?? targetSkill,
-        changeSummary: normalizeNullableText(changesObj?.summary),
-        modifiedFiles,
-        status: normalizeNullableText(row.status),
-        createdAt: normalizeNullableText(row.created_at),
-      };
-    });
+    const modifications: HitlModificationItem[] = parseModificationRows(
+      modificationRows,
+      (skillType) => getSkillTypeLabel(skillType),
+    );
 
     const hasOverlay = Boolean(overlayRow);
     const hasModification = modifications.length > 0;
@@ -2087,14 +2077,14 @@ export class DashboardRepository implements DashboardRepositoryPort {
         startedAt,
         sampleCount,
         issueCount,
-        summary: normalizeNullableText(overlayDraft?.summary),
+        summary: overlayDetail.summary,
         status: hasModification ? "regression" : hasOverlay ? "iteration" : "analysis",
       },
       flow: this.getFlowSteps(sampleCount, hasOverlay, hasModification, regressionOverview, decisionOverview),
-      rootCauses,
+      rootCauses: overlayDetail.rootCauses,
       prompts,
       modifications,
-      overlayInsight,
+      overlayInsight: overlayDetail.overlayInsight,
       regressionOverview,
       decisionOverview,
     };
@@ -2308,21 +2298,10 @@ export class DashboardRepository implements DashboardRepositoryPort {
     }
 
     const overlayRow = this.getOverlayByBatch(batchId);
-    const overlayDraft = parseLooseJson(overlayRow?.overlay_draft) as Record<string, unknown> | null;
+    const overlayDraft = overlayRow?.overlay_draft;
     const promptItems = this.buildPromptItems(overlayRow?.prompts, overlayRow?.prompt_paths);
-    const issueDistribution = Array.isArray(overlayDraft?.issue_distribution)
-      ? overlayDraft.issue_distribution as Array<Record<string, unknown>>
-      : [];
-    const issueDistributionItem = issueDistribution.find(
-      (item) => normalizeNullableText(item.issue_type)?.toLowerCase() === issueType.toLowerCase(),
-    ) ?? null;
-    const skillType = normalizeNullableText(issueDistributionItem?.step);
-
-    const filteredPrompts = promptItems.filter((item) => {
-      const normalizedSkill = skillType?.toLowerCase();
-      if (normalizedSkill && item.skillKey.toLowerCase().includes(normalizedSkill)) return true;
-      return item.content.toLowerCase().includes(issueType.toLowerCase());
-    });
+    const modelAnalysis = resolveIssueModelAnalysis(issueType, overlayDraft, promptItems);
+    const taskAnalysisSummary = parseTaskAnalysisSummary(this.getTaskAnalysisByTask(batchId, taskId));
 
     return {
       task: {
@@ -2369,12 +2348,13 @@ export class DashboardRepository implements DashboardRepositoryPort {
       modelAnalysis: {
         issueType,
         issueTypeLabel: getIssueTypeLabel(issueType),
-        skillType,
-        skillTypeLabel: getSkillTypeLabel(skillType),
-        summary: normalizeNullableText(overlayDraft?.root_cause_analysis) ?? normalizeNullableText(overlayDraft?.summary),
-        rootCause: issueDistributionItem,
-        prompts: filteredPrompts.length > 0 ? filteredPrompts : promptItems,
+        skillType: modelAnalysis.skillType,
+        skillTypeLabel: getSkillTypeLabel(modelAnalysis.skillType),
+        summary: modelAnalysis.summary,
+        rootCause: modelAnalysis.rootCause,
+        prompts: modelAnalysis.prompts,
       },
+      taskAnalysis: taskAnalysisSummary,
     };
   }
 

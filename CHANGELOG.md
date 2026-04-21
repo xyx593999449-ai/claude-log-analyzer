@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 ### Docs
+- 新增 `doc/v4_hitl_backend_adaptation/10-hitl-cluster-task-analysis-requirements.md` 与 `11-hitl-cluster-task-analysis-development-plan.md`，收敛 `iteration_overlay_drafts` 新 `clusters` 结构、`iteration_skill_modifications` 新 `changes` 结构，以及 `task_analysis_results.analysis_comment` 接入问题详情页的需求与详细开发方案。
 - 新增联合交接材料初稿：`../handover_bigpoi_claude_log_analyzer_2026-04-20.md`，统一沉淀 `big_poi` 执行引擎与本可视化平台的联合交接视角、维护分工与联调方式。
 - 新增 `doc/v4_hitl_backend_adaptation/07-hitl-negative-samples-table-switch-plan.md`，对比 `iteration_negative_samples` 与 `t_poi_key_property_check_result_ext_0416` 的字段规格和当前仓储依赖，收敛 HITL 负样本主表切换的兼容方案。
 - 更新 `doc/v4_hitl_backend_adaptation/07-hitl-negative-samples-table-switch-plan.md`，按新表已补齐 `batch_id` 的前提收敛方案，移除批次映射阻塞项并突出时间口径与字段兼容风险。
@@ -12,6 +13,7 @@
 - 扩展 `doc/v4_hitl_backend_adaptation/09-pg-production-table-dependencies.md`，补齐正式环境每张依赖表的字段级规格附录，覆盖字段名、类型、注释与备注。
 
 ### Changed
+- **HITL 后端新旧结构双通道解析落地**：`GET /api/hitl/iterations` 的批次摘要改为可由 `overlay_draft.clusters` 聚合生成；`GET /api/hitl/iterations/:batchId` 改为新 `clusters` 与新 `changes` 结构优先解析并兼容旧字段；`GET /api/hitl/iterations/:batchId/issues/:issueType/tasks/:taskId` 新增接入 `task_analysis_results`，返回 `taskAnalysis.analysisComment` 与分段结果，PG / SQLite 口径保持一致。
 - **HITL 负样本主表切换落地**：PostgreSQL 仓储现在优先读取 `t_poi_key_property_check_result_ext_0416`，并在直连该表时于仓储层完成 `name/address/verified_addr` 改名、`quality_status <- qc_status`、`updatetime <- create_time`、`qc_score / has_risk / is_qualified / is_manual_required <- qc_result` 的兼容映射；`v_hitl_negative_samples` 与旧表继续保留为回退链路。
 - **SQLite mock 口径对齐**：本地仓储已补齐 `t_poi_key_property_check_result_ext_0416` mock 表、缺失列自愈、旧表到新表的同步逻辑，以及 `v_hitl_negative_samples` 兼容视图生成，保证 `/hitl-iterations` 的本地联调口径与正式库一致。
 - **HITL 前端契约兼容**：问题详情页与任务卡片已兼容 `verify_info` 任意 JSON、`qcTime` 可缺失、`qualityStatus` 实际回落到 `qcStatus` 的新 contract，不再因切表后的字段形态变化导致页面空值或展示异常。

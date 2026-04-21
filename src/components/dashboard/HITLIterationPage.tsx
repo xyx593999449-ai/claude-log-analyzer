@@ -21,8 +21,10 @@ import type {
   HitlFlowStep,
   HitlFlowStepId,
   HitlFlowStepStatus,
+  HitlIterationSuggestionItem,
   HitlIterationDetail,
   HitlIterationListItem,
+  HitlModificationItem,
   HitlPromptItem,
   HitlRootCauseItem,
 } from "../../lib/dashboardTypes";
@@ -177,6 +179,10 @@ export function HITLIterationPage() {
   );
 
   const groupedPrompts = useMemo(() => groupPromptsBySkill(detail?.prompts ?? []), [detail?.prompts]);
+  const suggestionMapBySkill = useMemo(
+    () => buildSuggestionMapBySkill(detail?.rootCauses ?? [], detail?.modifications ?? []),
+    [detail?.rootCauses, detail?.modifications],
+  );
   const rootCauseSummary = detail?.overlayInsight?.rootCauseAnalysis ?? null;
   const learnablePatterns = detail?.overlayInsight?.learnablePatterns ?? [];
   const skillImpacts = detail?.overlayInsight?.skillImpact ?? [];
@@ -568,6 +574,7 @@ export function HITLIterationPage() {
                             <div className="mt-1 text-sm leading-6 text-slate-700">{renderSkillImpactSummary(getSkillImpactForPromptGroup(skillImpactMap, group.skillKey) ?? "")}</div>
                           </div>
                         ) : null}
+                        {renderIterationSuggestions(suggestionMapBySkill, group.skillKey)}
                         <div className="space-y-3">
                           {group.items.map((prompt, idx) => {
                             const key = `${group.skillKey}:${idx}`;
@@ -619,6 +626,20 @@ export function HITLIterationPage() {
                         <div className="text-sm leading-6 text-slate-700">
                           <ReadableSummary text={record.changeSummary ?? "暂无修改摘要"} />
                         </div>
+                        {record.errorMessage ? (
+                          <div className="mt-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs leading-5 text-rose-700">
+                            执行异常：{record.errorMessage}
+                          </div>
+                        ) : null}
+                        {record.clusterIds && record.clusterIds.length > 0 ? (
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {record.clusterIds.map((clusterId) => (
+                              <span key={clusterId} className="rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-xs text-indigo-700">
+                                {clusterId}
+                              </span>
+                            ))}
+                          </div>
+                        ) : null}
                         <div className="mt-2 flex flex-wrap gap-2">
                           {record.modifiedFiles.length > 0 ? (
                             record.modifiedFiles.map((file) => (
@@ -630,9 +651,34 @@ export function HITLIterationPage() {
                             <span className="text-xs text-slate-500">暂无文件信息</span>
                           )}
                         </div>
+                        {record.modifications && record.modifications.length > 0 ? (
+                          <div className="mt-3 space-y-2 rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                            <div className="text-xs font-semibold text-slate-600">执行项明细</div>
+                            {record.modifications.map((item, itemIndex) => (
+                              <div key={`${record.targetSkill}-${item.clusterId ?? item.targetFile ?? itemIndex}`} className="rounded-lg border border-slate-200 bg-white p-2.5">
+                                <div className="flex flex-wrap items-center gap-2 text-xs">
+                                  {item.action ? (
+                                    <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 font-medium text-slate-700">{item.action}</span>
+                                  ) : null}
+                                  {item.clusterId ? (
+                                    <span className="rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 font-medium text-indigo-700">{item.clusterId}</span>
+                                  ) : null}
+                                  {item.targetSkill ? (
+                                    <span className="rounded-full border border-cyan-200 bg-cyan-50 px-2 py-0.5 font-medium text-cyan-700">{item.targetSkill}</span>
+                                  ) : null}
+                                </div>
+                                {item.description ? <div className="mt-1 text-sm leading-6 text-slate-700">{item.description}</div> : null}
+                                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-600">
+                                  {item.targetFile ? <span>文件：{item.targetFile}</span> : null}
+                                  {item.expectedEffect ? <span>预期：{item.expectedEffect}</span> : null}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
                       </div>
                       <div className="flex items-start justify-start lg:justify-end">
-                        <StatusPill label={record.status ?? "未生成"} className="border-slate-200 bg-slate-50 text-slate-700" />
+                        <StatusPill label={record.status ?? "未生成"} className={getModificationStatusClass(record.status)} />
                       </div>
                     </div>
                   ))}
@@ -751,6 +797,14 @@ function RootCauseRow({
         <div>
           <div className="text-sm font-semibold text-slate-900">{item.issueTypeLabel || item.issueType}</div>
           <div className="mt-1 font-mono text-[11px] text-slate-500">{item.issueType}</div>
+          <div className="mt-1 flex flex-wrap gap-2">
+            {item.clusterId ? (
+              <span className="rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-[11px] font-medium text-indigo-700">{item.clusterId}</span>
+            ) : null}
+            {item.severity ? (
+              <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">{item.severity}</span>
+            ) : null}
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <StatusPill
@@ -996,6 +1050,122 @@ function getSkillImpactForPromptGroup(skillImpactMap: Map<string, string>, skill
   return null;
 }
 
+function buildSuggestionMapBySkill(
+  rootCauses: HitlRootCauseItem[],
+  modifications: HitlModificationItem[],
+): Map<string, HitlIterationSuggestionItem[]> {
+  const map = new Map<string, HitlIterationSuggestionItem[]>();
+
+  const append = (skillKey: string, item: HitlIterationSuggestionItem) => {
+    const normalizedKey = normalizeSkillKey(skillKey || item.targetSkill || "unknown");
+    if (!map.has(normalizedKey)) {
+      map.set(normalizedKey, []);
+    }
+    map.get(normalizedKey)!.push(item);
+  };
+
+  for (const cause of rootCauses) {
+    const causeSkill = cause.skillType || "unknown";
+    for (const item of cause.modifications ?? []) {
+      append(causeSkill, {
+        ...item,
+        clusterId: item.clusterId ?? cause.clusterId ?? null,
+        targetSkill: item.targetSkill ?? causeSkill,
+      });
+    }
+  }
+
+  if (map.size > 0) return map;
+
+  // Backward compatibility: if overlay suggestions are missing, fall back to executed modifications.
+  for (const row of modifications) {
+    for (const item of row.modifications ?? []) {
+      append(row.targetSkill, {
+        action: item.action ?? null,
+        description: item.description ?? null,
+        before: null,
+        after: null,
+        targetFile: item.targetFile ?? null,
+        targetSkill: item.targetSkill ?? row.targetSkill,
+        expectedEffect: item.expectedEffect ?? null,
+        clusterId: item.clusterId ?? null,
+      });
+    }
+  }
+
+  return map;
+}
+
+function renderIterationSuggestions(
+  suggestionMapBySkill: Map<string, HitlIterationSuggestionItem[]>,
+  skillKey: string,
+): ReactNode {
+  const items = getSuggestionsForSkill(suggestionMapBySkill, skillKey);
+  if (items.length === 0) return null;
+
+  return (
+    <div className="mb-3 rounded-xl border border-slate-200 bg-white p-3">
+      <div className="mb-2 text-xs font-semibold text-slate-600">结构化建议项</div>
+      <div className="space-y-2">
+        {items.map((item, index) => (
+          <div key={`${item.clusterId ?? item.targetFile ?? "mod"}-${index}`} className="rounded-lg border border-slate-200 bg-slate-50/70 p-2.5">
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              {item.action ? (
+                <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 font-medium text-slate-700">{item.action}</span>
+              ) : null}
+              {item.clusterId ? (
+                <span className="rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 font-medium text-indigo-700">{item.clusterId}</span>
+              ) : null}
+              {item.targetFile ? (
+                <span className="rounded-full border border-cyan-200 bg-cyan-50 px-2 py-0.5 font-medium text-cyan-700">{item.targetFile}</span>
+              ) : null}
+            </div>
+            {item.description ? <div className="mt-1 text-sm leading-6 text-slate-700">{item.description}</div> : null}
+            {item.before || item.after ? (
+              <div className="mt-2 grid gap-2 md:grid-cols-2">
+                <div className="rounded-md border border-slate-200 bg-white p-2 text-xs text-slate-600">
+                  <div className="mb-1 font-semibold text-slate-700">修改前</div>
+                  <ReadableSummary text={item.before ?? "—"} />
+                </div>
+                <div className="rounded-md border border-slate-200 bg-white p-2 text-xs text-slate-600">
+                  <div className="mb-1 font-semibold text-slate-700">修改后</div>
+                  <ReadableSummary text={item.after ?? "—"} />
+                </div>
+              </div>
+            ) : null}
+            {item.expectedEffect ? (
+              <div className="mt-2 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs text-emerald-700">
+                预期效果：{item.expectedEffect}
+              </div>
+            ) : null}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function getSuggestionsForSkill(
+  suggestionMapBySkill: Map<string, HitlIterationSuggestionItem[]>,
+  skillKey: string,
+): HitlIterationSuggestionItem[] {
+  const normalizedSkillKey = normalizeSkillKey(skillKey);
+  if (suggestionMapBySkill.has(normalizedSkillKey)) {
+    return suggestionMapBySkill.get(normalizedSkillKey) ?? [];
+  }
+  for (const [candidateKey, items] of suggestionMapBySkill.entries()) {
+    const normalizedCandidate = normalizeSkillKey(candidateKey);
+    if (
+      normalizedSkillKey === normalizedCandidate ||
+      normalizedSkillKey.includes(normalizedCandidate) ||
+      normalizedCandidate.includes(normalizedSkillKey)
+    ) {
+      return items;
+    }
+  }
+  return [];
+}
+
 function normalizeSkillKey(skillKey: string): string {
   const normalized = skillKey.toLowerCase();
   if (normalized.includes("qc")) return "qc-stable";
@@ -1013,6 +1183,13 @@ function getSkillColorTheme(skillKey: string): { textColor: string; borderColor:
     borderColor: `hsl(${hue} 68% 82%)`,
     bgColor: `hsl(${hue} 92% 96%)`,
   };
+}
+
+function getModificationStatusClass(status: string | null): string {
+  const normalized = (status ?? "").toLowerCase();
+  if (normalized === "failed") return "border-rose-200 bg-rose-50 text-rose-700";
+  if (normalized === "applied") return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  return "border-slate-200 bg-slate-50 text-slate-700";
 }
 
 function hashText(input: string): number {

@@ -1,7 +1,7 @@
 import type { Dispatch, ReactNode, SetStateAction } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, BrainCircuit, ChevronDown, ChevronRight, ClipboardCheck, FileCheck2, UserRoundSearch } from "lucide-react";
+import { ArrowLeft, BrainCircuit, ChevronDown, ChevronRight, ClipboardCheck, FileCheck2, FileText, UserRoundSearch } from "lucide-react";
 import { fetchHitlIssueTaskDetail, fetchHitlIssueTasks } from "../../lib/dashboardApi";
 import type { HitlIssueTaskDetail, HitlIssueTaskListItem } from "../../lib/dashboardTypes";
 
@@ -57,6 +57,7 @@ export function HITLIssueDetailPage() {
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
+  const [expandedTaskAnalysis, setExpandedTaskAnalysis] = useState(false);
 
   useEffect(() => {
     if (!batchId || !issueType) {
@@ -125,10 +126,17 @@ export function HITLIssueDetailPage() {
     navigate(`/hitl-iterations/${encodeURIComponent(batchId)}/issues/${encodeURIComponent(issueType)}/tasks/${encodeURIComponent(selectedTaskId)}`, { replace: true });
   }, [batchId, issueType, navigate, routeTaskId, selectedTaskId]);
 
+  useEffect(() => {
+    setExpandedTaskAnalysis(false);
+  }, [selectedTaskId]);
+
   const verifyRows = useMemo(() => toRows(buildVerifyRows(detail)), [detail]);
   const qcRows = useMemo(() => toRows(buildQcRows(detail)), [detail]);
   const manualRows = useMemo(() => toRows(buildManualRows(detail)), [detail]);
   const modelRows = useMemo(() => toRows(detail?.modelAnalysis), [detail?.modelAnalysis]);
+  const taskAnalysis = useMemo(() => normalizeTaskAnalysis(detail?.taskAnalysis), [detail?.taskAnalysis]);
+  const hasLongTaskAnalysis = taskAnalysis.blocks.length > 3 || taskAnalysis.comment.length > 520;
+  const visibleTaskAnalysisBlocks = expandedTaskAnalysis || !hasLongTaskAnalysis ? taskAnalysis.blocks : taskAnalysis.blocks.slice(0, 3);
 
   return (
     <div className="dashboard-shell dashboard-grid min-h-[calc(100vh-96px)] rounded-[36px] p-4 text-slate-900 sm:p-6 lg:p-8">
@@ -147,7 +155,7 @@ export function HITLIssueDetailPage() {
         <div className="mt-5">
           <div className="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-400">HITL 问题详情</div>
           <h1 className="mt-2 font-display text-[30px] font-semibold leading-tight text-slate-950 sm:text-[34px]">任务级核查与分析</h1>
-          <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-600">采用行级信息展示，长内容默认折叠，重点内容优先可读。模型分析结论已预留，后续可接新表。</p>
+          <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-600">采用行级信息展示，长内容默认折叠，重点内容优先可读。页面已支持问题簇分析与任务级分析结论并行查看。</p>
         </div>
       </section>
 
@@ -202,18 +210,55 @@ export function HITLIssueDetailPage() {
             <div className="flex items-center justify-between gap-3">
               <div>
                 <div className="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-400">问题归因与 Prompt 建议</div>
-                <h2 className="mt-2 text-2xl font-semibold text-slate-950">模型分析结果</h2>
+                <h2 className="mt-2 text-2xl font-semibold text-slate-950">问题簇分析与 Prompt 建议</h2>
               </div>
               <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-700">
                 <BrainCircuit className="h-5 w-5" />
               </div>
             </div>
-            <div className="mt-4 rounded-[20px] border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-              模型分析结论（预留）：后续接入单独结果表后，在此展示每条任务的独立分析结论。
-            </div>
             <div className="mt-4">
               <RowTable rows={modelRows} sectionKey="model" expandedRows={expandedRows} onToggle={setExpandedRows} />
             </div>
+          </article>
+          <article className="reveal-card delay-2 rounded-[32px] border border-white/70 bg-white/82 p-6 shadow-[0_20px_70px_rgba(15,23,42,0.07)] backdrop-blur">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-400">Task Analysis</div>
+                <h2 className="mt-2 text-2xl font-semibold text-slate-950">任务级分析结论</h2>
+              </div>
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-700">
+                <FileText className="h-5 w-5" />
+              </div>
+            </div>
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${getVerdictTone(taskAnalysis.verdict).className}`}>
+                {getVerdictTone(taskAnalysis.verdict).label}
+              </span>
+              <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
+                {taskAnalysis.createdAt ? `分析时间：${taskAnalysis.createdAt}` : "分析时间：暂无"}
+              </span>
+            </div>
+            {taskAnalysis.blocks.length === 0 ? (
+              <div className="mt-4 rounded-[20px] border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">暂无任务级分析结论</div>
+            ) : (
+              <div className="mt-4 space-y-2">
+                {visibleTaskAnalysisBlocks.map((block, index) => (
+                  <div key={`${block.slice(0, 30)}-${index}`} className="rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3 text-sm leading-7 text-slate-700">
+                    {block}
+                  </div>
+                ))}
+                {hasLongTaskAnalysis ? (
+                  <button
+                    type="button"
+                    onClick={() => setExpandedTaskAnalysis((prev) => !prev)}
+                    className="inline-flex items-center gap-1 rounded-full border border-slate-200 px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-50"
+                  >
+                    {expandedTaskAnalysis ? "收起正文" : "展开正文"}
+                    {expandedTaskAnalysis ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                  </button>
+                ) : null}
+              </div>
+            )}
           </article>
         </section>
       ) : null}
@@ -358,4 +403,52 @@ function ContextPill({ label, value }: { label: string; value: string }) {
       <span className="font-mono text-slate-900">{value}</span>
     </span>
   );
+}
+
+function normalizeTaskAnalysis(taskAnalysis: HitlIssueTaskDetail["taskAnalysis"] | undefined): {
+  comment: string;
+  blocks: string[];
+  verdict: string | null;
+  createdAt: string | null;
+} {
+  const comment =
+    (taskAnalysis?.analysisComment ?? taskAnalysis?.analysis_comment ?? "")
+      .replace(/\r\n/g, "\n")
+      .replace(/\s+$/g, "")
+      .trim();
+  const explicitBlocks =
+    taskAnalysis?.analysisCommentBlocks ??
+    taskAnalysis?.analysis_comment_blocks ??
+    [];
+  const blocks = explicitBlocks.length > 0 ? explicitBlocks.filter(Boolean) : splitAnalysisComment(comment);
+  return {
+    comment,
+    blocks,
+    verdict: taskAnalysis?.overallVerdict ?? taskAnalysis?.overall_verdict ?? null,
+    createdAt: taskAnalysis?.createdAt ?? taskAnalysis?.created_at ?? null,
+  };
+}
+
+function splitAnalysisComment(comment: string): string[] {
+  if (!comment) return [];
+  const paragraphParts = comment
+    .split(/\n{2,}/g)
+    .map((item) => item.trim())
+    .filter(Boolean);
+  if (paragraphParts.length > 1) return paragraphParts;
+
+  return comment
+    .split(/[。；;]\s*/g)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .map((item) => `${item}。`);
+}
+
+function getVerdictTone(verdict: string | null): { label: string; className: string } {
+  const normalized = (verdict ?? "").toLowerCase();
+  if (normalized === "critical_issue") return { label: "结论：严重问题", className: "border-rose-200 bg-rose-50 text-rose-700" };
+  if (normalized === "major_issue") return { label: "结论：主要问题", className: "border-orange-200 bg-orange-50 text-orange-700" };
+  if (normalized === "minor_issue") return { label: "结论：轻微问题", className: "border-amber-200 bg-amber-50 text-amber-700" };
+  if (normalized === "no_issue") return { label: "结论：无明显问题", className: "border-emerald-200 bg-emerald-50 text-emerald-700" };
+  return { label: verdict ? `结论：${verdict}` : "结论：暂无", className: "border-slate-200 bg-slate-50 text-slate-700" };
 }

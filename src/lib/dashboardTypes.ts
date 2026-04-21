@@ -202,6 +202,11 @@ export interface HitlRootCauseItem {
   skillTypeLabel: string;
   summary: string | null;
   detailUrl: string;
+  clusterId?: string | null;
+  severity?: string | null;
+  judgmentDimensions?: string[];
+  representativeCases?: string[];
+  modifications?: HitlIterationSuggestionItem[];
 }
 
 export interface HitlPromptItem {
@@ -219,6 +224,29 @@ export interface HitlModificationItem {
   modifiedFiles: string[];
   status: string | null;
   createdAt: string | null;
+  clusterIds?: string[];
+  errorMessage?: string | null;
+  modifications?: HitlAppliedModificationItem[];
+}
+
+export interface HitlIterationSuggestionItem {
+  action: string | null;
+  description: string | null;
+  before: string | null;
+  after: string | null;
+  targetFile: string | null;
+  targetSkill: string | null;
+  expectedEffect: string | null;
+  clusterId?: string | null;
+}
+
+export interface HitlAppliedModificationItem {
+  action: string | null;
+  clusterId: string | null;
+  description: string | null;
+  targetFile: string | null;
+  targetSkill: string | null;
+  expectedEffect: string | null;
 }
 
 export interface HitlOverlayPatternItem {
@@ -491,5 +519,15 @@ export interface HitlIssueTaskDetail {
       promptPath: string | null;
       content: string;
     }>;
+  };
+  taskAnalysis?: {
+    analysisComment?: string | null;
+    analysisCommentBlocks?: string[];
+    overallVerdict?: string | null;
+    createdAt?: string | null;
+    analysis_comment?: string | null;
+    analysis_comment_blocks?: string[];
+    overall_verdict?: string | null;
+    created_at?: string | null;
   };
 }

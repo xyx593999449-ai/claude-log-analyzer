@@ -45,8 +45,10 @@
 - 已新增 `doc/v4_hitl_backend_adaptation/02-requirements.md`、`03-functional-design.md`、`04-development-plan.md`，用于沉淀 `HITL` 页面后端接入、问题下钻和专属问题详情页的需求、功能设计与开发方案。
 - 已新增 `doc/v4_hitl_backend_adaptation/07-hitl-negative-samples-table-switch-plan.md`，用于收敛 `iteration_negative_samples` 切换到 `t_poi_key_property_check_result_ext` 时的最终字段规格、`verify_info` 补齐前提、`qc_result` 派生口径与 mock 同步策略。
 - 已新增 `doc/v4_hitl_backend_adaptation/09-pg-production-table-dependencies.md`，用于汇总当前正式环境 PostgreSQL 依赖的业务主表、运行分析表、HITL 主表 / 回退链路与回归三表，以及代码真实读取字段和主表候选顺序。
+- 已新增 `doc/v4_hitl_backend_adaptation/10-hitl-cluster-task-analysis-requirements.md` 与 `11-hitl-cluster-task-analysis-development-plan.md`，用于收敛 `iteration_overlay_drafts` / `iteration_skill_modifications` 新 `jsonb` 结构、`task_analysis_results.analysis_comment` 接入问题详情页，以及 `HITL` 主页面问题分析/迭代建议/候选版本的切换方案。
 - HITL 人工反馈结果池读取链路已按该方案落地：正式环境 PG 仓储当前只读取 `t_poi_key_property_check_result_ext`；若命中新表会在仓储层完成 `quality_status <- qc_status`、`updatetime <- create_time`、`qc_score / has_risk / is_qualified / is_manual_required <- qc_result` 的兼容映射。`public.v_hitl_negative_samples`、`public.iteration_negative_samples`、`public.iteration_negative_samples_0415_bak` 都视为旧开发遗留对象，不再参与正式环境读取链路；正式环境只保留不带后缀的 `iteration_overlay_drafts`、`iteration_skill_modifications` 两张迭代表。`t_poi_key_property_check_result_ext` 只允许 `insert / select`，严禁 `update / delete`。
 - 后端已提供 `HITL` 专用 API：`GET /api/hitl/iterations`、`GET /api/hitl/iterations/:batchId`、`GET /api/hitl/iterations/:batchId/issues/:issueType/tasks`、`GET /api/hitl/iterations/:batchId/issues/:issueType/tasks/:taskId`，并兼容 SQLite / PostgreSQL 仓储。
+- HITL 后端解析已按新约束落地：`iteration_overlay_drafts.overlay_draft` 现优先解析 `clusters`（旧 `issue_distribution/learnable_patterns/skill_impact` 兜底），`iteration_skill_modifications.changes` 现优先解析 `description/modifications/error`（旧 `summary/modified_files` 兜底）；同时问题详情接口已接入 `task_analysis_results` 并新增 `taskAnalysis`（重点输出 `analysis_comment` 与分段结果）。
 - SQLite mock 初始化已补齐 `example/hitl/example/` 下回归三表样例导入，默认会把回归摘要、差异明细与样本详情灌入本地演示库，便于直接在 `/hitl-iterations` 查看真实回归展示效果。
 - HITL 回归区与回归详情页的展示文案已收敛为业务视角，移除“等待后端返回 / 待补充 / 原因说明”等研发占位措辞，避免把需求与实现过程暴露到前端界面。
 - HITL 回归指标展示已明确以 `poi_verified_regression_test_result` 为权威口径；页面不再把 `positive_count / negative_count` 误展示为“变好样本 / 变差样本”，改为按字段真实语义展示“正样本 / 负样本”。
@@ -106,6 +108,8 @@ npm run build
     *   [v4_hitl_backend_adaptation/07-hitl-iteration-batch-import-requirements.md (HITL 新建迭代批次与人工标注导入需求)](doc/v4_hitl_backend_adaptation/07-hitl-iteration-batch-import-requirements.md)
     *   [v4_hitl_backend_adaptation/08-hitl-iteration-batch-import-development-plan.md (HITL 新建迭代批次与人工标注导入开发方案)](doc/v4_hitl_backend_adaptation/08-hitl-iteration-batch-import-development-plan.md)
     *   [v4_hitl_backend_adaptation/09-pg-production-table-dependencies.md (正式环境 PostgreSQL 依赖表与字段规格清单)](doc/v4_hitl_backend_adaptation/09-pg-production-table-dependencies.md)
+    *   [v4_hitl_backend_adaptation/10-hitl-cluster-task-analysis-requirements.md (HITL 问题簇分析、候选执行结果与任务级详情分析需求)](doc/v4_hitl_backend_adaptation/10-hitl-cluster-task-analysis-requirements.md)
+    *   [v4_hitl_backend_adaptation/11-hitl-cluster-task-analysis-development-plan.md (HITL 问题簇分析、候选执行结果与任务级详情分析开发方案)](doc/v4_hitl_backend_adaptation/11-hitl-cluster-task-analysis-development-plan.md)
 
 ---
 *本系统由数字员工团队维护，持续通过工程化手段优化核实与质检效能。*

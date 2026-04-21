@@ -27,7 +27,6 @@ import type {
   HitlRegressionSummaryCard,
   HitlRegressionRunItem,
   HitlRegressionType,
-  HitlRootCauseItem,
   ImportSnapshot,
 } from "./types";
 import {
@@ -48,6 +47,13 @@ import type {
   TaskLogDetail,
 } from "./repository";
 import type { PgDbConfig } from "./pgConfig";
+import {
+  buildIterationSummaryFromOverlayDraft,
+  parseModificationRows,
+  parseOverlayDetail,
+  parseTaskAnalysisSummary,
+  resolveIssueModelAnalysis,
+} from "./hitlParsers";
 
 interface Metrics {
   taskCount: number;
@@ -684,6 +690,7 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
     negative: string | null;
     overlay: string | null;
     modification: string | null;
+    taskAnalysis: string | null;
     regression: string | null;
     regressionCompare: string | null;
     regressionResult: string | null;
@@ -730,6 +737,7 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
     negative: string | null;
     overlay: string | null;
     modification: string | null;
+    taskAnalysis: string | null;
     regression: string | null;
     regressionCompare: string | null;
     regressionResult: string | null;
@@ -748,6 +756,10 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
           "public.iteration_skill_modifications",
           "iteration_skill_modifications",
         ]);
+        const taskAnalysis = await this.resolveHitlTableName([
+          "public.task_analysis_results",
+          "task_analysis_results",
+        ]);
         const regression = await this.resolveHitlTableName([
           "public.poi_verified_regression_test",
           "poi_verified_regression_test",
@@ -760,7 +772,7 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
           "public.poi_verified_regression_test_result",
           "poi_verified_regression_test_result",
         ]);
-        return { negative, overlay, modification, regression, regressionCompare, regressionResult };
+        return { negative, overlay, modification, taskAnalysis, regression, regressionCompare, regressionResult };
       })();
     }
     return this.hitlTableNamesPromise;
@@ -852,6 +864,22 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
     const result = await this.pool.query(
       `SELECT batch_id, overlay_draft, prompt_paths, prompts FROM ${overlayTable} WHERE batch_id = $1 LIMIT 1`,
       [batchId],
+    );
+    return (result.rows[0] as Record<string, unknown> | undefined) ?? null;
+  }
+
+  private async getTaskAnalysisByTask(batchId: string, taskId: string): Promise<Record<string, unknown> | null> {
+    const { taskAnalysis } = await this.getHitlTableNames();
+    if (!taskAnalysis) return null;
+    const taskAnalysisTable = quotePgQualifiedName(taskAnalysis);
+    const result = await this.pool.query(
+      `SELECT batch_id, task_id, overall_verdict, analysis_comment, created_at::text AS created_at
+       FROM ${taskAnalysisTable}
+       WHERE task_id = $1
+         AND ($2 = '' OR batch_id = $2)
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [taskId, batchId],
     );
     return (result.rows[0] as Record<string, unknown> | undefined) ?? null;
   }
@@ -1948,8 +1976,7 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
       for (const row of summaryRows.rows as Array<Record<string, unknown>>) {
         const batchId = normalizeNullableText(row.batch_id);
         if (!batchId) continue;
-        const draft = parseLooseJson(row.overlay_draft) as Record<string, unknown> | null;
-        summaryMap.set(batchId, normalizeNullableText(draft?.summary) ?? null);
+        summaryMap.set(batchId, buildIterationSummaryFromOverlayDraft(row.overlay_draft));
       }
     }
 
@@ -2001,53 +2028,14 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
       .sort()[0] ?? null;
 
     const overlayRow = await this.getOverlayByBatch(batchId);
-    const overlayDraft = parseLooseJson(overlayRow?.overlay_draft) as Record<string, unknown> | null;
+    const overlayDraft = overlayRow?.overlay_draft;
     const prompts = this.buildPromptItems(overlayRow?.prompts, overlayRow?.prompt_paths);
-
-    const rootCauses: HitlRootCauseItem[] = [];
-    const issueDistribution = Array.isArray(overlayDraft?.issue_distribution)
-      ? overlayDraft.issue_distribution as Array<Record<string, unknown>>
-      : [];
-    for (const item of issueDistribution) {
-      const issueType = normalizeNullableText(item.issue_type) ?? "unknown";
-      const skillType = normalizeNullableText(item.step) ?? "unknown";
-      rootCauses.push({
-        issueType,
-        issueTypeLabel: getIssueTypeLabel(issueType),
-        count: Number(item.count ?? 0),
-        skillType,
-        skillTypeLabel: getSkillTypeLabel(skillType) ?? skillType,
-        summary: normalizeNullableText(overlayDraft?.root_cause_analysis) ?? normalizeNullableText(overlayDraft?.learnable_patterns),
-        detailUrl: `/hitl-iterations/${encodeURIComponent(batchId)}/issues/${encodeURIComponent(issueType)}/tasks`,
-      });
-    }
-    const learnablePatterns = Array.isArray(overlayDraft?.learnable_patterns)
-      ? overlayDraft.learnable_patterns as Array<Record<string, unknown>>
-      : [];
-    const skillImpactDraft = overlayDraft?.skill_impact && typeof overlayDraft.skill_impact === "object"
-      ? overlayDraft.skill_impact as Record<string, unknown>
-      : {};
-    const overlayInsight = {
-      rootCauseAnalysis: normalizeNullableText(overlayDraft?.root_cause_analysis),
-      learnablePatterns: learnablePatterns
-        .map((item) => {
-          const issueType = normalizeNullableText(item.issue_type) ?? "unknown";
-          return {
-            issueType,
-            issueTypeLabel: getIssueTypeLabel(issueType),
-            pattern: normalizeNullableText(item.pattern) ?? "",
-            count: Number(item.count ?? 0),
-          };
-        })
-        .filter((item) => item.pattern),
-      skillImpact: Object.entries(skillImpactDraft)
-        .map(([skillType, summary]) => ({
-          skillType,
-          skillTypeLabel: getSkillTypeLabel(skillType) ?? skillType,
-          impactSummary: normalizeNullableText(summary) ?? "",
-        }))
-        .filter((item) => item.impactSummary),
-    };
+    const overlayDetail = parseOverlayDetail(
+      batchId,
+      overlayDraft,
+      (issueType) => (issueType ? getIssueTypeLabel(issueType) : issueType),
+      (skillType) => getSkillTypeLabel(skillType),
+    );
 
     const modifications: HitlModificationItem[] = [];
     if (modification) {
@@ -2059,24 +2047,12 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
          ORDER BY created_at DESC`,
         [batchId],
       );
-      for (const row of modRowsRes.rows as Array<Record<string, unknown>>) {
-        const changesObj = parseLooseJson(row.changes) as Record<string, unknown> | null;
-        const modifiedFilesRaw = Array.isArray(changesObj?.modified_files) ? changesObj.modified_files : [];
-        const modifiedFiles = (modifiedFilesRaw as unknown[])
-          .map((item) => normalizeNullableText(item))
-          .filter(Boolean) as string[];
-        const fallbackFile = normalizeNullableText(row.modified_file);
-        if (modifiedFiles.length === 0 && fallbackFile) modifiedFiles.push(fallbackFile);
-        const targetSkill = normalizeNullableText(row.target_skill) ?? "unknown";
-        modifications.push({
-          targetSkill,
-          targetSkillLabel: getSkillTypeLabel(targetSkill) ?? targetSkill,
-          changeSummary: normalizeNullableText(changesObj?.summary),
-          modifiedFiles,
-          status: normalizeNullableText(row.status),
-          createdAt: normalizeNullableText(row.created_at),
-        });
-      }
+      modifications.push(
+        ...parseModificationRows(
+          modRowsRes.rows as Array<Record<string, unknown>>,
+          (skillType) => getSkillTypeLabel(skillType),
+        ),
+      );
     }
 
     const hasOverlay = Boolean(overlayRow);
@@ -2089,14 +2065,14 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
         startedAt,
         sampleCount,
         issueCount,
-        summary: normalizeNullableText(overlayDraft?.summary),
+        summary: overlayDetail.summary,
         status: hasModification ? "regression" : hasOverlay ? "iteration" : "analysis",
       },
       flow: this.getFlowSteps(sampleCount, hasOverlay, hasModification, regressionOverview, decisionOverview),
-      rootCauses,
+      rootCauses: overlayDetail.rootCauses,
       prompts,
       modifications,
-      overlayInsight,
+      overlayInsight: overlayDetail.overlayInsight,
       regressionOverview,
       decisionOverview,
     };
@@ -2319,21 +2295,10 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
     }
 
     const overlayRow = await this.getOverlayByBatch(batchId);
-    const overlayDraft = parseLooseJson(overlayRow?.overlay_draft) as Record<string, unknown> | null;
+    const overlayDraft = overlayRow?.overlay_draft;
     const promptItems = this.buildPromptItems(overlayRow?.prompts, overlayRow?.prompt_paths);
-    const issueDistribution = Array.isArray(overlayDraft?.issue_distribution)
-      ? overlayDraft.issue_distribution as Array<Record<string, unknown>>
-      : [];
-    const issueDistributionItem = issueDistribution.find(
-      (item) => normalizeNullableText(item.issue_type)?.toLowerCase() === issueType.toLowerCase(),
-    ) ?? null;
-    const skillType = normalizeNullableText(issueDistributionItem?.step);
-
-    const filteredPrompts = promptItems.filter((item) => {
-      const normalizedSkill = skillType?.toLowerCase();
-      if (normalizedSkill && item.skillKey.toLowerCase().includes(normalizedSkill)) return true;
-      return item.content.toLowerCase().includes(issueType.toLowerCase());
-    });
+    const modelAnalysis = resolveIssueModelAnalysis(issueType, overlayDraft, promptItems);
+    const taskAnalysisSummary = parseTaskAnalysisSummary(await this.getTaskAnalysisByTask(batchId, taskId));
 
     return {
       task: {
@@ -2380,12 +2345,13 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
       modelAnalysis: {
         issueType,
         issueTypeLabel: getIssueTypeLabel(issueType),
-        skillType,
-        skillTypeLabel: getSkillTypeLabel(skillType),
-        summary: normalizeNullableText(overlayDraft?.root_cause_analysis) ?? normalizeNullableText(overlayDraft?.summary),
-        rootCause: issueDistributionItem,
-        prompts: filteredPrompts.length > 0 ? filteredPrompts : promptItems,
+        skillType: modelAnalysis.skillType,
+        skillTypeLabel: getSkillTypeLabel(modelAnalysis.skillType),
+        summary: modelAnalysis.summary,
+        rootCause: modelAnalysis.rootCause,
+        prompts: modelAnalysis.prompts,
       },
+      taskAnalysis: taskAnalysisSummary,
     };
   }
 
