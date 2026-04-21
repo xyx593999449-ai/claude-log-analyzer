@@ -4,13 +4,13 @@
 
 当前 `HITL` 页面已经具备迭代批次浏览与问题分析展示能力，但批次数据仍主要依赖既有样例或离线准备结果，缺少一个面向业务同学的正式建批入口。
 
-本轮目标是在 `HITL` 页面顶部新增“新建迭代批次”能力，让用户能够上传人工标注结果的 `CSV` 文件，由系统完成严格校验，并把数据写入 PostgreSQL 的 `public.t_poi_key_property_check_result_ext_0416` 表，为后续把 `iteration_negative_samples` 切换到该表做准备。
+本轮目标是在 `HITL` 页面顶部新增“新建迭代批次”能力，让用户能够上传人工标注结果的 `CSV` 文件，由系统完成严格校验，并把数据写入 PostgreSQL 的 `public.t_poi_key_property_check_result_ext` 表，为后续把 `iteration_negative_samples` 切换到该表做准备。
 
 本轮只做：
 
 1. 前端新建批次入口与上传交互
 2. 后端 `CSV` 解析与严格校验
-3. 数据写入 `public.t_poi_key_property_check_result_ext_0416`
+3. 数据写入 `public.t_poi_key_property_check_result_ext`
 4. 成功导入后的局部数据预览与成功反馈
 
 本轮不做：
@@ -26,7 +26,7 @@
 
 ### 2.1 目标表
 
-- 正式写入 PostgreSQL 表：`public.t_poi_key_property_check_result_ext_0416`
+- 正式写入 PostgreSQL 表：`public.t_poi_key_property_check_result_ext`
 - 当前表结构需在现有 DDL 基础上新增 `batch_id`
 
 ### 2.2 批次口径
@@ -54,7 +54,7 @@
 
 ### 2.6 本轮边界
 
-- 本轮只完成导入到 `t_poi_key_property_check_result_ext_0416`
+- 本轮只完成导入到 `t_poi_key_property_check_result_ext`
 - `HITL` 页面仍沿用当前查询链路，不在本轮切表
 
 ---
@@ -123,7 +123,7 @@
 6. 若失败：直接返回错误并停留在弹窗
 7. 若成功：返回部分数据预览
 8. 用户点击 `确认导入`
-9. 后端将整批数据写入 `public.t_poi_key_property_check_result_ext_0416`
+9. 后端将整批数据写入 `public.t_poi_key_property_check_result_ext`
 10. 前端提示导入成功，并可刷新当前 `HITL` 页面
 
 ---
@@ -143,7 +143,7 @@
 
 ## 6.2 批次重复校验
 
-- 在正式预览或导入前查询 `public.t_poi_key_property_check_result_ext_0416`
+- 在正式预览或导入前查询 `public.t_poi_key_property_check_result_ext`
 - 若已存在相同 `batch_id` 的任意记录，则直接报错
 - 本轮不支持覆盖导入、追加导入或合并导入
 
@@ -261,7 +261,7 @@ DDL 注释中存在：
 
 ## 8.1 入库目标
 
-- `public.t_poi_key_property_check_result_ext_0416`
+- `public.t_poi_key_property_check_result_ext`
 
 ## 8.2 入库策略
 
@@ -278,7 +278,7 @@ DDL 注释中存在：
 
 建议新增索引：
 
-- `idx_t_poi_key_property_check_result_ext_0416_batch_id`
+- `idx_t_poi_key_property_check_result_ext_batch_id`
 
 ---
 
@@ -318,7 +318,7 @@ DDL 注释中存在：
 行为：
 
 - 使用预览阶段已通过校验的数据
-- 事务写入 `public.t_poi_key_property_check_result_ext_0416`
+- 事务写入 `public.t_poi_key_property_check_result_ext`
 - 返回导入结果
 
 ---
@@ -350,7 +350,12 @@ DDL 注释中存在：
 
 ## 11. 后续衔接
 
-本轮导入完成后，为后续 `HITL` 页面从 `iteration_negative_samples` 切换到 `t_poi_key_property_check_result_ext_0416` 提前准备数据基础。
+本轮导入完成后，为后续 `HITL` 页面从 `iteration_negative_samples` 切换到 `t_poi_key_property_check_result_ext` 提前准备数据基础。
+
+追加写入约束：
+
+- `public.t_poi_key_property_check_result_ext` 只允许 `insert / select`
+- 严禁对原表执行 `update / delete`
 
 后续切表时，建议按以下映射关系读取：
 
@@ -371,4 +376,3 @@ DDL 注释中存在：
 - `issueObservationTags <- issue_observation_tags`
 - `judgmentDimensionTags <- judgment_dimension_tags`
 - `manualComment <- manual_comment`
-

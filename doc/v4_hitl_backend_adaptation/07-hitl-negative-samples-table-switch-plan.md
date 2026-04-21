@@ -1,5 +1,7 @@
 # HITL 负样本主表切换方案
 
+> 补充口径（2026-04-21）：正式环境已进一步收敛为只读取 `public.t_poi_key_property_check_result_ext`。`public.v_hitl_negative_samples`、`public.iteration_negative_samples`、`public.iteration_negative_samples_0415_bak` 均视为开发过程遗留对象，不再作为正式环境依赖或读取回退链路。
+
 ## 1. 背景
 
 当前 `HITL` 页面相关后端实现，默认将人工反馈结果池主表解析为 `iteration_negative_samples`（PostgreSQL 侧也兼容 `iteration_negative_samples_0415_bak`）。

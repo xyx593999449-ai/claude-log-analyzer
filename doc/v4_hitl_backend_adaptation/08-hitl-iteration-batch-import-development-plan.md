@@ -8,7 +8,7 @@
 2. 支持 `batch_id` 手填、拖拽上传和点击选择 `CSV`
 3. 对上传文件执行严格校验，重复 `batch_id` 或数据异常直接报错
 4. 在校验全部通过后展示局部预览
-5. 用户确认后将数据写入 PostgreSQL 的 `public.t_poi_key_property_check_result_ext_0416`
+5. 用户确认后将数据写入 PostgreSQL 的 `public.t_poi_key_property_check_result_ext`
 
 ---
 
@@ -23,12 +23,12 @@
 - `batch_id` 重复校验
 - 表头、值域、标签与重复行校验
 - 预览接口与正式导入接口
-- 写入 `public.t_poi_key_property_check_result_ext_0416`
+- 写入 `public.t_poi_key_property_check_result_ext`
 - PG 表补充 `batch_id` 字段与索引
 
 ## 2.2 本轮不纳入范围
 
-- `HITL` 页面主查询切换到 `t_poi_key_property_check_result_ext_0416`
+- `HITL` 页面主查询切换到 `t_poi_key_property_check_result_ext`
 - SQLite 导入实现
 - 导入后自动生成分析结果或回归结果
 - 覆盖导入、增量合并、删除批次
@@ -88,11 +88,11 @@
 
 ### 目标
 
-让 `public.t_poi_key_property_check_result_ext_0416` 具备迭代批次导入能力。
+让 `public.t_poi_key_property_check_result_ext` 具备迭代批次导入能力。
 
 ### 具体改动
 
-- 为 `public.t_poi_key_property_check_result_ext_0416` 增加 `batch_id varchar(255)`
+- 为 `public.t_poi_key_property_check_result_ext` 增加 `batch_id varchar(255)`
 - 为 `batch_id` 增加普通索引
 
 ### 完成标准
@@ -213,7 +213,7 @@
 
 - 校验 `previewToken` 有效性
 - 使用预览阶段缓存或序列化保存的标准化数据
-- 开启事务写入 `public.t_poi_key_property_check_result_ext_0416`
+- 开启事务写入 `public.t_poi_key_property_check_result_ext`
 - 每一行补写统一的 `batch_id`
 
 ### 完成标准
@@ -321,7 +321,12 @@
 
 ### 8.1 表结构未及时变更
 
-若 PG 生产环境尚未给 `t_poi_key_property_check_result_ext_0416` 增加 `batch_id`，则导入链路无法正式启用。
+若 PG 生产环境尚未给 `t_poi_key_property_check_result_ext` 增加 `batch_id`，则导入链路无法正式启用。
+
+写入边界补充：
+
+- 导入 SQL 必须保持为纯 `insert`
+- 不允许对 `public.t_poi_key_property_check_result_ext` 设计 `update / delete` 路径
 
 ### 8.2 CSV 实际复杂度高于预期
 

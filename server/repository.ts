@@ -216,8 +216,8 @@ export interface DashboardRepositoryPort {
 const DB_DIR = path.resolve(process.cwd(), "tmp");
 const DB_PATH = path.join(DB_DIR, "big-poi-dashboard.sqlite");
 const HITL_NEGATIVE_COMPAT_VIEW = "v_hitl_negative_samples";
-const HITL_NEGATIVE_NEW_TABLE = "t_poi_key_property_check_result_ext_0416";
-const HITL_NEGATIVE_OLD_TABLES = ["iteration_negative_samples", "iteration_negative_samples_0415_bak"] as const;
+const HITL_NEGATIVE_NEW_TABLE = "t_poi_key_property_check_result_ext";
+const HITL_NEGATIVE_OLD_TABLES = ["iteration_negative_samples"] as const;
 
 const VERIFY_DONE = "已核实";
 const VERIFY_MANUAL = "需人工核实";
@@ -1082,7 +1082,7 @@ function ensureHitlSchema(db: Database.Database): void {
       verified_city_adcode TEXT
     );
 
-    CREATE TABLE IF NOT EXISTS t_poi_key_property_check_result_ext_0416 (
+    CREATE TABLE IF NOT EXISTS t_poi_key_property_check_result_ext (
       id TEXT PRIMARY KEY,
       task_id TEXT,
       batch_id TEXT,
@@ -1229,7 +1229,7 @@ function ensureHitlNegativeExtSync(db: Database.Database): void {
   if (!oldTableExists) return;
 
   const newCount = Number(
-    (db.prepare("SELECT COUNT(*) as count FROM t_poi_key_property_check_result_ext_0416").get() as { count: number }).count,
+    (db.prepare("SELECT COUNT(*) as count FROM t_poi_key_property_check_result_ext").get() as { count: number }).count,
   );
   if (newCount > 0) return;
 
@@ -1237,7 +1237,7 @@ function ensureHitlNegativeExtSync(db: Database.Database): void {
   if (oldRows.length === 0) return;
 
   const insert = db.prepare(`
-    INSERT OR REPLACE INTO t_poi_key_property_check_result_ext_0416 (
+    INSERT OR REPLACE INTO t_poi_key_property_check_result_ext (
       id, task_id, batch_id, name_chn, addr_chn, city, poi_type, adcode, create_time,
       verify_result, verify_info, evidence_record, qc_status, qc_result,
       verify_content_is_correct, verify_action_is_correct, qc_intercept_is_correct,
@@ -1346,21 +1346,21 @@ function ensureHitlNegativeView(db: Database.Database): void {
       verified_address AS verified_addr,
       verified_poi_type,
       verified_city_adcode
-    FROM t_poi_key_property_check_result_ext_0416
+    FROM t_poi_key_property_check_result_ext
   `);
 }
 
 function ensureHitlNegativeExtColumns(db: Database.Database): void {
   const columns = (
-    db.prepare("PRAGMA table_info(t_poi_key_property_check_result_ext_0416)").all() as Array<{ name: string }>
+    db.prepare("PRAGMA table_info(t_poi_key_property_check_result_ext)").all() as Array<{ name: string }>
   ).map((row) => row.name);
   const hasColumn = (name: string): boolean => columns.includes(name);
 
   if (!hasColumn("batch_id")) {
-    db.exec("ALTER TABLE t_poi_key_property_check_result_ext_0416 ADD COLUMN batch_id TEXT");
+    db.exec("ALTER TABLE t_poi_key_property_check_result_ext ADD COLUMN batch_id TEXT");
   }
   if (!hasColumn("verify_info")) {
-    db.exec("ALTER TABLE t_poi_key_property_check_result_ext_0416 ADD COLUMN verify_info TEXT");
+    db.exec("ALTER TABLE t_poi_key_property_check_result_ext ADD COLUMN verify_info TEXT");
   }
 }
 
@@ -1647,14 +1647,9 @@ export class DashboardRepository implements DashboardRepositoryPort {
   } {
     if (this.hitlTableNames) return this.hitlTableNames;
     this.hitlTableNames = {
-      negative: this.resolveHitlTableName([
-        "t_poi_key_property_check_result_ext_0416",
-        "v_hitl_negative_samples",
-        "iteration_negative_samples",
-        "iteration_negative_samples_0415_bak",
-      ]),
-      overlay: this.resolveHitlTableName(["iteration_overlay_drafts", "iteration_overlay_drafts_0415_bak"]),
-      modification: this.resolveHitlTableName(["iteration_skill_modifications", "iteration_skill_modifications_0415_bak"]),
+      negative: this.resolveHitlTableName(["t_poi_key_property_check_result_ext"]),
+      overlay: this.resolveHitlTableName(["iteration_overlay_drafts"]),
+      modification: this.resolveHitlTableName(["iteration_skill_modifications"]),
       regression: this.resolveHitlTableName(["poi_verified_regression_test"]),
       regressionCompare: this.resolveHitlTableName(["poi_verified_regression_test_compare"]),
       regressionResult: this.resolveHitlTableName(["poi_verified_regression_test_result"]),

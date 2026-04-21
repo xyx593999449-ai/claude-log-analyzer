@@ -7,7 +7,7 @@ import type {
   HitlBatchImportPreviewRow,
 } from "../types";
 
-export const HITL_IMPORT_TARGET_TABLE = "public.t_poi_key_property_check_result_ext_0416";
+export const HITL_IMPORT_TARGET_TABLE = "public.t_poi_key_property_check_result_ext";
 export const HITL_IMPORT_PREVIEW_LIMIT = 20;
 export const HITL_IMPORT_PREVIEW_TTL_MS = 30 * 60 * 1000;
 export const HITL_IMPORT_BATCH_ID_PATTERN = /^[A-Za-z0-9_-]{3,64}$/;

@@ -737,26 +737,16 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
     if (!this.hitlTableNamesPromise) {
       this.hitlTableNamesPromise = (async () => {
         const negative = await this.resolveHitlTableName([
-          "public.t_poi_key_property_check_result_ext_0416",
-          "t_poi_key_property_check_result_ext_0416",
-          "public.v_hitl_negative_samples",
-          "v_hitl_negative_samples",
-          "public.iteration_negative_samples",
-          "iteration_negative_samples",
-          "public.iteration_negative_samples_0415_bak",
-          "iteration_negative_samples_0415_bak",
+          "public.t_poi_key_property_check_result_ext",
+          "t_poi_key_property_check_result_ext",
         ]);
         const overlay = await this.resolveHitlTableName([
           "public.iteration_overlay_drafts",
           "iteration_overlay_drafts",
-          "public.iteration_overlay_drafts_0415_bak",
-          "iteration_overlay_drafts_0415_bak",
         ]);
         const modification = await this.resolveHitlTableName([
           "public.iteration_skill_modifications",
           "iteration_skill_modifications",
-          "public.iteration_skill_modifications_0415_bak",
-          "iteration_skill_modifications_0415_bak",
         ]);
         const regression = await this.resolveHitlTableName([
           "public.poi_verified_regression_test",
@@ -779,7 +769,7 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
   private buildHitlNegativeFromClause(tableName: string, alias: string): string {
     const quotedTableName = quotePgQualifiedName(tableName);
     const normalizedTableName = tableName.replace(/^public\./, "");
-    const isDirectNewTable = normalizedTableName === "t_poi_key_property_check_result_ext_0416";
+    const isDirectNewTable = normalizedTableName === "t_poi_key_property_check_result_ext";
     if (!isDirectNewTable) {
       return `${quotedTableName} ${alias}`;
     }
@@ -827,7 +817,7 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
     if (!this.hitlImportTableNamePromise) {
       this.hitlImportTableNamePromise = this.resolveHitlTableName([
         HITL_IMPORT_TARGET_TABLE,
-        "t_poi_key_property_check_result_ext_0416",
+        "t_poi_key_property_check_result_ext",
       ]);
     }
     return this.hitlImportTableNamePromise;
@@ -1191,7 +1181,7 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
       await this.pool.query(`ALTER TABLE ${quotedTableName} ADD COLUMN IF NOT EXISTS batch_id varchar(255)`);
       await this.pool.query(`ALTER TABLE ${quotedTableName} ADD COLUMN IF NOT EXISTS verify_info jsonb`);
       await this.pool.query(
-        `CREATE INDEX IF NOT EXISTS idx_t_poi_key_property_check_result_ext_0416_batch_id ON ${quotedTableName} (batch_id)`,
+        `CREATE INDEX IF NOT EXISTS idx_t_poi_key_property_check_result_ext_batch_id ON ${quotedTableName} (batch_id)`,
       );
     }
   }
@@ -1338,6 +1328,7 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
       .map((column) => `"${column.replace(/"/g, "\"\"")}"`)
       .join(", ");
     const placeholderSql = columns.map((_, index) => `$${index + 1}`).join(", ");
+    // The formal PG target table is append-only: imports may only insert new rows.
     const insertSql = `INSERT INTO ${quotedTableName} (${columnSql}) VALUES (${placeholderSql})`;
     const createdAt = new Date().toISOString();
 

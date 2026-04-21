@@ -7,11 +7,15 @@
 - 更新 `doc/v4_hitl_backend_adaptation/07-hitl-negative-samples-table-switch-plan.md`，按新表已补齐 `batch_id` 的前提收敛方案，移除批次映射阻塞项并突出时间口径与字段兼容风险。
 - 继续更新 `doc/v4_hitl_backend_adaptation/07-hitl-negative-samples-table-switch-plan.md`，补充新表已补齐 `verify_info` 后的最终规格、旧字段到新表/`qc_result` 的最终映射，以及 SQLite mock 从旧表同步新表口径的建议策略。
 - 新增 `doc/v4_hitl_backend_adaptation/07-hitl-iteration-batch-import-requirements.md` 与 `08-hitl-iteration-batch-import-development-plan.md`，正式收敛 `HITL` 页顶部“新建迭代批次”入口、`batch_id` 非重复规则、人工标注 `CSV` 严格校验、成功后局部预览确认，以及写入 `public.t_poi_key_property_check_result_ext_0416` 的需求与开发顺序。
+- 新增 `doc/v4_hitl_backend_adaptation/09-pg-production-table-dependencies.md`，系统梳理当前正式环境 PostgreSQL 依赖的业务主表、运行分析表、HITL 主表 / 回退链路、回归三表，以及代码真实读取字段与候选顺序。
+- 更新正式环境表名与约束口径：主表统一为 `public.t_poi_key_property_check_result_ext`，正式环境只保留不带后缀的 `public.iteration_overlay_drafts`、`public.iteration_skill_modifications`，并补充主表只允许 `insert / select` 的边界说明。
+- 扩展 `doc/v4_hitl_backend_adaptation/09-pg-production-table-dependencies.md`，补齐正式环境每张依赖表的字段级规格附录，覆盖字段名、类型、注释与备注。
 
 ### Changed
-- **HITL 负样本主表切换落地**：PostgreSQL 仓储现在优先读取 `v_hitl_negative_samples`，并在直连 `t_poi_key_property_check_result_ext_0416` 时于仓储层完成 `name/address/verified_addr` 改名、`quality_status <- qc_status`、`updatetime <- create_time`、`qc_score / has_risk / is_qualified / is_manual_required <- qc_result` 的兼容映射。
+- **HITL 负样本主表切换落地**：PostgreSQL 仓储现在优先读取 `t_poi_key_property_check_result_ext_0416`，并在直连该表时于仓储层完成 `name/address/verified_addr` 改名、`quality_status <- qc_status`、`updatetime <- create_time`、`qc_score / has_risk / is_qualified / is_manual_required <- qc_result` 的兼容映射；`v_hitl_negative_samples` 与旧表继续保留为回退链路。
 - **SQLite mock 口径对齐**：本地仓储已补齐 `t_poi_key_property_check_result_ext_0416` mock 表、缺失列自愈、旧表到新表的同步逻辑，以及 `v_hitl_negative_samples` 兼容视图生成，保证 `/hitl-iterations` 的本地联调口径与正式库一致。
 - **HITL 前端契约兼容**：问题详情页与任务卡片已兼容 `verify_info` 任意 JSON、`qcTime` 可缺失、`qualityStatus` 实际回落到 `qcStatus` 的新 contract，不再因切表后的字段形态变化导致页面空值或展示异常。
+- **正式环境主表约束收紧**：`public.t_poi_key_property_check_result_ext` 作为正式环境主表时，只允许 `insert / select`，严禁任何 `update / delete` 操作。
 
 ### Fixed
 - **正式环境启动去除 mock 样例硬依赖**：SQLite 仓储初始化时，若不存在 `example/db_conf/sample_data.json` 将跳过业务样例种子写入，不再因缺失本地 mock 文件导致后端启动失败。
