@@ -205,6 +205,12 @@ export interface HitlModificationItem {
 export interface HitlTaskAnalysisSummary {
   analysisComment: string | null;
   analysisCommentBlocks: string[];
+  analysisSections: Array<{
+    key: string;
+    title: string;
+    tone: "summary" | "problem" | "evidence" | "root_cause" | "suggestion" | "other";
+    content: string;
+  }>;
   overallVerdict: string | null;
   createdAt: string | null;
 }

@@ -18,10 +18,13 @@
 - **SQLite mock 口径对齐**：本地仓储已补齐 `t_poi_key_property_check_result_ext_0416` mock 表、缺失列自愈、旧表到新表的同步逻辑，以及 `v_hitl_negative_samples` 兼容视图生成，保证 `/hitl-iterations` 的本地联调口径与正式库一致。
 - **HITL 前端契约兼容**：问题详情页与任务卡片已兼容 `verify_info` 任意 JSON、`qcTime` 可缺失、`qualityStatus` 实际回落到 `qcStatus` 的新 contract，不再因切表后的字段形态变化导致页面空值或展示异常。
 - **正式环境主表约束收紧**：`public.t_poi_key_property_check_result_ext` 作为正式环境主表时，只允许 `insert / select`，严禁任何 `update / delete` 操作。
+- **HITL 问题详情页信息层级重排**：问题详情页改为“左侧任务导航 + 右侧当前任务详情”的双栏结构，首屏优先展示当前任务摘要与任务级分析结论，核实 / 质检 / 人工 / 问题簇分析改为切换式详情面板，减少长列表和多模块堆叠带来的滚动负担。
 
 ### Fixed
 - **正式环境启动去除 mock 样例硬依赖**：SQLite 仓储初始化时，若不存在 `example/db_conf/sample_data.json` 将跳过业务样例种子写入，不再因缺失本地 mock 文件导致后端启动失败。
 - **HITL SQLite mock 测试数据刷新**：更新项目内 `tmp/big-poi-dashboard.sqlite` 演示库，为 `t_poi_key_property_check_result_ext` 补齐可直接被当前 `/hitl-iterations` 消费的批次样例，避免切换到 mock 数据后主页面查空。
+- **HITL 问题详情页任务列表查空修复**：问题详情页的任务筛选与详情查询改为以 `task_analysis_results` 的 `issue_observation_tags + judgment_dimension_tags` 作为主匹配口径，并通过 `batch_id + task_id` 关联 `t_poi_key_property_check_result_ext` 补齐核实/质检/人工标注字段，修复首页“问题分析”能展示但“查看详情”为空的问题；同时补齐 JSON 数组标签解析兼容，确保 `["evidence_found_but_not_used"]` 这类新格式可正确命中。
+- **HITL 任务级分析长文可读性提升**：后端为 `analysis_comment` 新增结构化 `analysisSections` 输出，按“结论摘要 / 关键问题 / 证据与表现 / 根因判断 / 优化建议”等语义块组织内容，前端不再直接整段打印长文本，显著提升分析结论的首屏可读性。
 
 ## [v0.6.0] - 2026-04-17
 ### Docs

@@ -178,6 +178,10 @@ function parseArrayLikeText(value: unknown): string[] {
 function parseTagList(value: unknown): string[] {
   const normalized = normalizeNullableText(value);
   if (!normalized) return [];
+  const arrayLike = parseArrayLikeText(normalized);
+  if (arrayLike.length > 0) {
+    return arrayLike.map((item) => item.trim()).filter(Boolean);
+  }
   return normalized
     .split(/[,\n\r;，]+/)
     .map((item) => item.trim())
@@ -2240,34 +2244,53 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
 
   async getHitlIssueTasks(batchId: string, issueType: string): Promise<{ items: HitlIssueTaskListItem[] }> {
     await this.ready();
-    const { negative } = await this.getHitlTableNames();
-    if (!negative) return { items: [] };
-    const negativeFrom = this.buildHitlNegativeFromClause(negative, "n");
+    const { negative, taskAnalysis } = await this.getHitlTableNames();
+    if (!taskAnalysis) return { items: [] };
+    const taskAnalysisTable = quotePgQualifiedName(taskAnalysis);
+    const negativeJoin = negative
+      ? `LEFT JOIN ${this.buildHitlNegativeFromClause(negative, "n")} ON n.batch_id = ta.batch_id AND n.task_id = ta.task_id`
+      : "";
 
     const rowsRes = await this.pool.query(
       `SELECT
-         task_id, name, address, city, poi_type, verify_result,
-         quality_status, qc_status, issue_observation_tags, judgment_dimension_tags,
-         manual_comment, updatetime
-       FROM ${negativeFrom}
-       WHERE batch_id = $1`,
+         ta.task_id AS ta_task_id,
+         ta.name AS ta_name,
+         ta.address AS ta_address,
+         ta.poi_type AS ta_poi_type,
+         ta.issue_observation_tags::text AS ta_issue_observation_tags,
+         ta.judgment_dimension_tags::text AS ta_judgment_dimension_tags,
+         ta.manual_comment AS ta_manual_comment,
+         ta.created_at::text AS ta_created_at,
+         n.task_id AS ns_task_id,
+         n.name AS ns_name,
+         n.address AS ns_address,
+         n.city AS ns_city,
+         n.poi_type AS ns_poi_type,
+         n.verify_result AS ns_verify_result,
+         n.quality_status AS ns_quality_status,
+         n.qc_status AS ns_qc_status,
+         n.manual_comment AS ns_manual_comment,
+         n.updatetime AS ns_updatetime
+       FROM ${taskAnalysisTable} ta
+       ${negativeJoin}
+       WHERE ta.batch_id = $1`,
       [batchId],
     );
 
     const items: HitlIssueTaskListItem[] = (rowsRes.rows as Array<Record<string, unknown>>)
       .map((row) => ({
-        taskId: String(row.task_id ?? ""),
-        name: normalizeNullableText(row.name),
-        address: normalizeNullableText(row.address),
-        city: normalizeNullableText(row.city),
-        poiType: normalizeNullableText(row.poi_type),
-        verifyResult: normalizeNullableText(row.verify_result),
-        qualityStatus: normalizeNullableText(row.quality_status),
-        qcStatus: normalizeNullableText(row.qc_status),
-        issueObservationTags: parseTagList(row.issue_observation_tags),
-        judgmentDimensionTags: parseTagList(row.judgment_dimension_tags),
-        manualComment: normalizeNullableText(row.manual_comment),
-        updatetime: normalizeNullableText(row.updatetime),
+        taskId: String(row.ta_task_id ?? row.ns_task_id ?? ""),
+        name: normalizeNullableText(row.ns_name) ?? normalizeNullableText(row.ta_name),
+        address: normalizeNullableText(row.ns_address) ?? normalizeNullableText(row.ta_address),
+        city: normalizeNullableText(row.ns_city),
+        poiType: normalizeNullableText(row.ns_poi_type) ?? normalizeNullableText(row.ta_poi_type),
+        verifyResult: normalizeNullableText(row.ns_verify_result),
+        qualityStatus: normalizeNullableText(row.ns_quality_status),
+        qcStatus: normalizeNullableText(row.ns_qc_status),
+        issueObservationTags: parseTagList(row.ta_issue_observation_tags),
+        judgmentDimensionTags: parseTagList(row.ta_judgment_dimension_tags),
+        manualComment: normalizeNullableText(row.ns_manual_comment) ?? normalizeNullableText(row.ta_manual_comment),
+        updatetime: normalizeNullableText(row.ns_updatetime) ?? normalizeNullableText(row.ta_created_at),
       }))
       .filter((item) => matchIssueType(issueType, item.issueObservationTags, item.judgmentDimensionTags))
       .sort((a, b) => (b.updatetime ?? "").localeCompare(a.updatetime ?? ""));
@@ -2277,19 +2300,36 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
 
   async getHitlIssueTaskDetail(batchId: string, issueType: string, taskId: string): Promise<HitlIssueTaskDetail | null> {
     await this.ready();
-    const { negative } = await this.getHitlTableNames();
-    if (!negative) return null;
-    const negativeFrom = this.buildHitlNegativeFromClause(negative, "n");
+    const { negative, taskAnalysis } = await this.getHitlTableNames();
+    if (!taskAnalysis) return null;
+    const taskAnalysisTable = quotePgQualifiedName(taskAnalysis);
+    const negativeJoin = negative
+      ? `LEFT JOIN ${this.buildHitlNegativeFromClause(negative, "n")} ON n.batch_id = ta.batch_id AND n.task_id = ta.task_id`
+      : "";
 
     const rowRes = await this.pool.query(
-      `SELECT * FROM ${negativeFrom} WHERE batch_id = $1 AND task_id = $2 LIMIT 1`,
+      `SELECT
+         ta.task_id AS ta_task_id,
+         ta.name AS ta_name,
+         ta.address AS ta_address,
+         ta.poi_type AS ta_poi_type,
+         ta.issue_observation_tags::text AS ta_issue_observation_tags,
+         ta.judgment_dimension_tags::text AS ta_judgment_dimension_tags,
+         ta.manual_comment AS ta_manual_comment,
+         ta.created_at::text AS ta_created_at,
+         n.*
+       FROM ${taskAnalysisTable} ta
+       ${negativeJoin}
+       WHERE ta.batch_id = $1
+         AND ta.task_id = $2
+       LIMIT 1`,
       [batchId, taskId],
     );
     const row = rowRes.rows[0] as Record<string, unknown> | undefined;
     if (!row) return null;
 
-    const issueObservationTags = parseTagList(row.issue_observation_tags);
-    const judgmentDimensionTags = parseTagList(row.judgment_dimension_tags);
+    const issueObservationTags = parseTagList(row.ta_issue_observation_tags);
+    const judgmentDimensionTags = parseTagList(row.ta_judgment_dimension_tags);
     if (!matchIssueType(issueType, issueObservationTags, judgmentDimensionTags)) {
       return null;
     }
@@ -2305,11 +2345,11 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
         taskId,
         batchId,
         id: normalizeNullableText(row.id),
-        name: normalizeNullableText(row.name),
-        address: normalizeNullableText(row.address),
+        name: normalizeNullableText(row.name) ?? normalizeNullableText(row.ta_name),
+        address: normalizeNullableText(row.address) ?? normalizeNullableText(row.ta_address),
         city: normalizeNullableText(row.city),
-        poiType: normalizeNullableText(row.poi_type),
-        updatetime: normalizeNullableText(row.updatetime),
+        poiType: normalizeNullableText(row.poi_type) ?? normalizeNullableText(row.ta_poi_type),
+        updatetime: normalizeNullableText(row.updatetime) ?? normalizeNullableText(row.ta_created_at),
         qcTime: normalizeNullableText(row.qc_time),
       },
       verifyResult: {
@@ -2332,7 +2372,7 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
         evidenceStatus: normalizeNullableText(row.evidence_status),
         issueObservationTags,
         judgmentDimensionTags,
-        manualComment: normalizeNullableText(row.manual_comment),
+        manualComment: normalizeNullableText(row.manual_comment) ?? normalizeNullableText(row.ta_manual_comment),
         conflictingEvidence: normalizeNullableText(row.conflicting_evidence),
         manualAddedEvidenceUrl: normalizeNullableText(row.manual_added_evidence_url),
         manualAddedEvidenceType: normalizeNullableText(row.manual_added_evidence_type),

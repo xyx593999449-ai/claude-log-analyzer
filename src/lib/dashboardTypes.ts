@@ -523,10 +523,22 @@ export interface HitlIssueTaskDetail {
   taskAnalysis?: {
     analysisComment?: string | null;
     analysisCommentBlocks?: string[];
+    analysisSections?: Array<{
+      key: string;
+      title: string;
+      tone: "summary" | "problem" | "evidence" | "root_cause" | "suggestion" | "other";
+      content: string;
+    }>;
     overallVerdict?: string | null;
     createdAt?: string | null;
     analysis_comment?: string | null;
     analysis_comment_blocks?: string[];
+    analysis_sections?: Array<{
+      key: string;
+      title: string;
+      tone: "summary" | "problem" | "evidence" | "root_cause" | "suggestion" | "other";
+      content: string;
+    }>;
     overall_verdict?: string | null;
     created_at?: string | null;
   };

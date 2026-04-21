@@ -60,6 +60,87 @@ function splitCommentToBlocks(comment: string): string[] {
     .filter(Boolean);
 }
 
+function splitCommentToSentences(comment: string): string[] {
+  return comment
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .replace(/\n+/g, " ")
+    .split(/(?<=[。！？；;])\s*/g)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function inferTaskAnalysisSection(sentence: string): {
+  key: string;
+  title: string;
+  tone: "summary" | "problem" | "evidence" | "root_cause" | "suggestion" | "other";
+} {
+  const text = sentence.trim();
+  if (!text) {
+    return { key: "other", title: "补充说明", tone: "other" };
+  }
+  if (/^(核心问题|结论|总体来看|整体来看|整体结论|核实结论|质检结论|本 case|该 case)/.test(text)) {
+    return { key: "summary", title: "结论摘要", tone: "summary" };
+  }
+  if (/(问题出在|错误在于|存在多处问题|存在两个严重问题|存在三个|严重问题|主要问题|轻微问题|误判|误拦截|拦截失效)/.test(text)) {
+    return { key: "problem", title: "关键问题", tone: "problem" };
+  }
+  if (/(人工标注|人工确认|图商|官网|官方网站|证据|质检|QC|日志\[|日志 \[|高德|百度|腾讯)/i.test(text)) {
+    return { key: "evidence", title: "证据与表现", tone: "evidence" };
+  }
+  if (/(根本原因|本质|原因是|导致|未能|没有|遗漏|缺失|未处理|未识别|未区分)/.test(text)) {
+    return { key: "root_cause", title: "根因判断", tone: "root_cause" };
+  }
+  if (/(建议|应当|应该|需要|可考虑|后续|优化|放宽|增加|补齐)/.test(text)) {
+    return { key: "suggestion", title: "优化建议", tone: "suggestion" };
+  }
+  return { key: "other", title: "补充说明", tone: "other" };
+}
+
+function buildTaskAnalysisSections(comment: string): Array<{
+  key: string;
+  title: string;
+  tone: "summary" | "problem" | "evidence" | "root_cause" | "suggestion" | "other";
+  content: string;
+}> {
+  const normalized = normalizeNullableText(comment);
+  if (!normalized) return [];
+
+  const sentences = splitCommentToSentences(normalized);
+  if (sentences.length === 0) return [];
+
+  const sections: Array<{
+    key: string;
+    title: string;
+    tone: "summary" | "problem" | "evidence" | "root_cause" | "suggestion" | "other";
+    content: string;
+  }> = [];
+
+  for (const sentence of sentences) {
+    const meta = inferTaskAnalysisSection(sentence);
+    const prev = sections[sections.length - 1];
+    if (prev && prev.key === meta.key) {
+      prev.content = `${prev.content} ${sentence}`.trim();
+      continue;
+    }
+    sections.push({
+      ...meta,
+      content: sentence,
+    });
+  }
+
+  if (sections.length === 1 && sections[0].key !== "summary") {
+    sections.unshift({
+      key: "summary",
+      title: "结论摘要",
+      tone: "summary",
+      content: sentences.slice(0, Math.min(2, sentences.length)).join(" ").trim(),
+    });
+  }
+
+  return sections;
+}
+
 function getClusterIssueType(cluster: Record<string, unknown>): string {
   const tags = asRecord(cluster.tags);
   return asStringArray(tags?.issue_observations)[0] ?? "unknown";
@@ -373,6 +454,7 @@ export function parseTaskAnalysisSummary(taskAnalysisRow: Record<string, unknown
   return {
     analysisComment,
     analysisCommentBlocks: analysisComment ? splitCommentToBlocks(analysisComment) : [],
+    analysisSections: analysisComment ? buildTaskAnalysisSections(analysisComment) : [],
     overallVerdict,
     createdAt,
   };
