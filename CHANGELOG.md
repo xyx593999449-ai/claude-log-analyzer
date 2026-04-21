@@ -19,6 +19,7 @@
 
 ### Fixed
 - **正式环境启动去除 mock 样例硬依赖**：SQLite 仓储初始化时，若不存在 `example/db_conf/sample_data.json` 将跳过业务样例种子写入，不再因缺失本地 mock 文件导致后端启动失败。
+- **HITL SQLite mock 测试数据刷新**：更新项目内 `tmp/big-poi-dashboard.sqlite` 演示库，为 `t_poi_key_property_check_result_ext` 补齐可直接被当前 `/hitl-iterations` 消费的批次样例，避免切换到 mock 数据后主页面查空。
 
 ## [v0.6.0] - 2026-04-17
 ### Docs
