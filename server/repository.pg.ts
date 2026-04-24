@@ -647,8 +647,8 @@ function buildTaskFilterSqlPg(filters: DashboardFilters): { whereSql: string; pa
     if (tag === "核实执行异常") alertClauses.push("(verify_task_id IS NOT NULL AND COALESCE(verify_status::text, '') <> 'success' AND COALESCE(verify_retry_count, 0) <= 5)");
     if (tag === "质检阻塞异常") alertClauses.push("COALESCE(qc_retry_count, 0) > 5");
     if (tag === "质检执行异常") alertClauses.push("(qc_task_id IS NOT NULL AND COALESCE(qc_status_run::text, '') <> 'success' AND COALESCE(qc_retry_count, 0) <= 5)");
-    if (tag === "需人工介入") alertClauses.push(`(COALESCE(verify_result::text, '') = '${VERIFY_MANUAL}' OR COALESCE(is_qualified, 0) = 0)`);
-    if (tag === "质检不通过") alertClauses.push("COALESCE(is_qualified, 0) = 0");
+    if (tag === "需人工介入") alertClauses.push(`(COALESCE(verify_result::text, '') = '${VERIFY_MANUAL}' OR is_qualified = 0)`);
+    if (tag === "质检不通过") alertClauses.push("is_qualified = 0");
     if (tag === "高风险任务") alertClauses.push("(COALESCE(has_risk, 0) = 1 OR COALESCE(qc_status::text, '') = 'risky')");
     if (tag === "核实状态不一致") alertClauses.push("COALESCE(verify_mismatch_reason::text, '') <> ''");
     if (tag === "质检状态不一致") alertClauses.push("COALESCE(qc_mismatch_reason::text, '') <> ''");
@@ -1665,7 +1665,7 @@ export class PgDashboardRepository implements DashboardRepositoryPort {
       LEFT JOIN poi_verified v ON v.task_id = i.task_id
       LEFT JOIN poi_qc q ON q.task_id = i.task_id
       WHERE (COALESCE(v.verify_result::text, '') = '${VERIFY_MANUAL}'
-         OR COALESCE(q.is_qualified, 0) = 0)
+         OR q.is_qualified = 0)
          ${aManual.sql}
     `, aManual.params);
     const manualTaskCount = Number(manualTaskCountRes.rows[0]?.count ?? 0);

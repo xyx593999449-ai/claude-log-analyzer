@@ -2751,7 +2751,7 @@ export class DashboardRepository implements DashboardRepositoryPort {
             LEFT JOIN poi_verified v ON v.task_id = i.task_id
             LEFT JOIN poi_qc q ON q.task_id = i.task_id
             WHERE (COALESCE(v.verify_result, '') = '${VERIFY_MANUAL}'
-               OR COALESCE(q.is_qualified, 0) = 0)
+               OR q.is_qualified = 0)
                ${aManual.sql}
           `)
           .get(aManual.params) as { count: number }

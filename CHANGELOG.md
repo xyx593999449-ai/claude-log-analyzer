@@ -1,6 +1,9 @@
 # Changelog
 
 ## [Unreleased]
+### Fixed
+- **人工介入口径空质检误算修复**：主看板顶部指标、任务列表 `manualOnly` 与“需人工介入 / 质检不通过”筛选统一改为只认明确的 `is_qualified = 0`，不再把尚未进入质检、`is_qualified IS NULL` 的任务误算为人工介入或质检不通过。
+
 ### Docs
 - 新增 `doc/v4_hitl_backend_adaptation/10-hitl-cluster-task-analysis-requirements.md` 与 `11-hitl-cluster-task-analysis-development-plan.md`，收敛 `iteration_overlay_drafts` 新 `clusters` 结构、`iteration_skill_modifications` 新 `changes` 结构，以及 `task_analysis_results.analysis_comment` 接入问题详情页的需求与详细开发方案。
 - 新增联合交接材料初稿：`../handover_bigpoi_claude_log_analyzer_2026-04-20.md`，统一沉淀 `big_poi` 执行引擎与本可视化平台的联合交接视角、维护分工与联调方式。
